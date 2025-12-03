@@ -82,7 +82,7 @@ Examples:
         words_count = len(result.get("words", []))
         duration = result["transcript"]["audio_duration"]
 
-        print(f"\n--- SUMMARY ---")
+        print("\n--- SUMMARY ---")
         print(f"Duration: {duration:.1f}s ({duration / 60:.1f}min)")
         print(f"Speakers detected: {speakers_count}")
         print(f"Words transcribed: {words_count}")

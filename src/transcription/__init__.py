@@ -4,10 +4,6 @@
 from src.transcription.transcript import (
     transcribe_audio,
     transcribe_with_diarization,
-    download_from_url,
-    is_url,
-    setup_logging,
-    cleanup_temp_files,
 )
 
 # Main public API - these are the functions other modules should use

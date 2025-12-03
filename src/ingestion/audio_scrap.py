@@ -17,15 +17,14 @@ import os
 import re
 import sys
 import time
-from pathlib import Path
-from typing import Dict, List, Optional
 import requests
+from pathlib import Path
+from src.db import get_db_session, Episode
+
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
-
-from src.db import get_db_session, Episode
 
 
 def setup_logging(verbose: bool = False) -> logging.Logger:
@@ -352,7 +351,7 @@ Examples:
         print(f"  Failed: {stats['failed']}")
 
         if stats["failed"] > 0:
-            print(f"\n⚠️  Check logs/audio_download.log for detailed error information")
+            print("\n⚠️  Check logs/audio_download.log for detailed error information")
 
         logger.info(f"Download process completed: {stats}")
 

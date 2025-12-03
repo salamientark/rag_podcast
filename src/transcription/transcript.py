@@ -304,9 +304,6 @@ def transcribe_audio(
         ValueError: If API key is missing
         Exception: If transcription or download fails
     """
-    # Setup logging
-    logger = setup_logging(verbose=verbose)
-
     # Initialize variables
     input_path = None
     created_temp_dir = None

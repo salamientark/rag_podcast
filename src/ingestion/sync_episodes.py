@@ -15,17 +15,17 @@ import argparse
 import hashlib
 import logging
 import sys
+import requests
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional
-import requests
 from bs4 import BeautifulSoup
+from src.db import get_db_session, Episode
+
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.db import get_db_session, Episode
 
 FEED_URL = "https://feedpress.me/rdvtech"
 
