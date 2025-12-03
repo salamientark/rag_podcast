@@ -93,7 +93,7 @@ def get_episodes_from_db(limit=None):
         with get_db_session() as session:
             query = session.query(Episode).order_by(Episode.published_date.desc())
             if limit:
-                query = query.limit(limit * 2)  # Get more to account for existing files
+                query = query.limit(limit)
 
             episodes = query.all()
 
