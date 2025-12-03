@@ -8,3 +8,6 @@ __pycache__
 TODO.md
 logs/
 **/*.db*
+.card
+AGENTS.md
+data/*

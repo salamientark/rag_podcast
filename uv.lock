@@ -253,6 +253,7 @@ dependencies = [
     { name = "requests" },
     { name = "ruff" },
     { name = "sqlalchemy" },
+    { name = "urllib3" },
 ]
 
 [package.metadata]
@@ -263,6 +264,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.32.5" },
     { name = "ruff", specifier = ">=0.14.7" },
     { name = "sqlalchemy", specifier = ">=2.0.44" },
+    { name = "urllib3", specifier = ">=2.5.0" },
 ]
 
 [[package]]
