@@ -6,3 +6,5 @@ __pycache__
 !.env.example
 *.pem
 TODO.md
+logs/
+**/*.db*
