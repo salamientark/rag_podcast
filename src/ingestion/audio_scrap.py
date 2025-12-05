@@ -17,46 +17,17 @@ import os
 import re
 import sys
 import time
-import requests
 from pathlib import Path
+
+import requests
+
 from src.db import get_db_session, Episode
+from src.logger import setup_logging, log_function
 
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
-
-
-def setup_logging(verbose: bool = False) -> logging.Logger:
-    """Set up logging for the audio scraper."""
-    logger = logging.getLogger("audio_scraper")
-
-    # Avoid adding multiple handlers
-    if logger.handlers:
-        return logger
-
-    logger.setLevel(logging.DEBUG if verbose else logging.INFO)
-
-    # Create logs directory if needed
-    logs_dir = Path("logs")
-    logs_dir.mkdir(exist_ok=True)
-
-    # File handler for detailed logging
-    file_handler = logging.FileHandler(logs_dir / "audio_download.log")
-    file_handler.setLevel(logging.INFO)
-    file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-    file_handler.setFormatter(file_formatter)
-    logger.addHandler(file_handler)
-
-    # Console handler for verbose mode
-    if verbose:
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.DEBUG)
-        console_formatter = logging.Formatter("DEBUG: %(message)s")
-        console_handler.setFormatter(console_formatter)
-        logger.addHandler(console_handler)
-
-    return logger
 
 
 def sanitize_filename(title, max_length=200):
@@ -84,6 +55,7 @@ def generate_filename(episode_number, title):
     return f"episode_{episode_number:03d}_{safe_title}.mp3"
 
 
+@log_function(logger_name="audio_scraper", log_execution_time=True)
 def get_episodes_from_db(limit=None):
     """Get episodes from database, ordered by most recent first, using database ID as episode number"""
     logger = logging.getLogger("audio_scraper")
@@ -131,6 +103,7 @@ def get_existing_files(audio_dir):
     }
 
 
+@log_function(logger_name="audio_scraper", log_execution_time=True)
 def download_episode(episode_number, title, url, audio_dir, max_retries=3):
     """Download single episode with browser headers for feedpress.me URLs"""
     logger = logging.getLogger("audio_scraper")
@@ -209,6 +182,7 @@ def download_episode(episode_number, title, url, audio_dir, max_retries=3):
     return False
 
 
+@log_function(logger_name="audio_scraper", log_execution_time=True)
 def download_missing_episodes(audio_dir="data/audio", limit=None, dry_run=False):
     """Main download function"""
     logger = logging.getLogger("audio_scraper")
@@ -332,8 +306,12 @@ Examples:
 
     args = parser.parse_args()
 
-    # Setup logging
-    logger = setup_logging(verbose=args.verbose)
+    # Setup logging using centralized utility
+    logger = setup_logging(
+        logger_name="audio_scraper",
+        log_file="logs/audio_download.log",
+        verbose=args.verbose,
+    )
 
     try:
         # Run download process

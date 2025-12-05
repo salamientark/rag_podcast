@@ -146,6 +146,7 @@ def save_speaker_mapping(
     return output_path
 
 
+# ========= TESTING BEGIN ==========
 ABSOLUTE_TRANSCRIPT_PATH = Path(
     "/home/madlab/Code/rag_podcast/data/transcript/episode_672_universal.json"
 )
@@ -157,3 +158,5 @@ if __name__ == "__main__":
     result = map_speakers_with_llm(txt)
     save_speaker_mapping(result, episode_id=672)
     print("Done")
+
+# ========== TESTING END ===========
