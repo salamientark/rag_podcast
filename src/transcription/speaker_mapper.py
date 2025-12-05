@@ -1,7 +1,12 @@
 import json
+import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict
+from dotenv import load_dotenv
+from src.llm import _speaker_identification_prompt, init_llm_openai
 
+
+OPENAI_MODEL="gpt-5-nano-2025-08-07"
 
 # def estimate_token_count(text: str) -> int:
 #     ...
@@ -9,6 +14,7 @@ from typing import Optional
 #     ...
 # def build_speaker_prompt(formatted_text: str, speaker_labels: List[str]) -> str:
 #     ...
+
 
 def format_transcript_with_generic_speakers(
     json_path: Path,
@@ -61,21 +67,33 @@ def format_transcript_with_generic_speakers(
 
 def map_speakers_with_llm(
     formatted_text: str,
-    model: str = "llama3.2:3b",
-    ollama_url: str = "http://localhost:11434"
 ) -> Dict[str, str]:
     """
-    Use LLM to map generic speaker labels to real names.
+    Use openai llm to map generic speaker labels to real names.
     
     Args:
         formatted_text: Text with generic labels "Speaker A: ..."
-        model: Ollama model name
-        ollama_url: Ollama API endpoint
         
     Returns:
         Mapping like {"A": "Patrick", "B": "Cédric"}
     """
-    pass
+    try:
+        # Init llm client
+        llm = init_llm_openai()
+
+        # Ask for speaker mapping
+        reponse = llm.responses.create(
+            model=OPENAI_MODEL,
+            instructions=_speaker_identification_prompt(),
+            input=formatted_text,
+        )
+
+
+        result = json.loads(reponse.output_text)
+        return result
+    except Exception as e:
+        print(f"Error during speaker mapping: {e}")
+        return {}
 
 
 def save_speaker_mapping(
@@ -94,11 +112,21 @@ def save_speaker_mapping(
     Returns:
         Path to saved JSON file
     """
-    pass
+    # Create output directory if not exists
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    # Save mapping to JSON
+    with open(output_dir / f"episode_{episode_id}_speakers_mapping.json", 'w', encoding='utf-8') as f:
+        json.dump(mapping, f, indent=4)
 
 
 ABSOLUTE_TRANSCRIPT_PATH="/home/madlab/Code/rag_podcast/data/transcript/episode_672_universal.json"
 
 if __name__ == "__main__":
-    txt = format_transcript_with_generic_speakers(ABSOLUTE_TRANSCRIPT_PATH, 1000)
-    print(txt)
+    txt = format_transcript_with_generic_speakers(ABSOLUTE_TRANSCRIPT_PATH, 10000)
+    # print(txt)
+    print(f"Calling map_speakers_with_llm...")
+    result = map_speakers_with_llm(txt)
+    save_speaker_mapping(result, episode_id=672)
+    print("Done")
