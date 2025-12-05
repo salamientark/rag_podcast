@@ -1,5 +1,4 @@
 import json
-import os
 from pathlib import Path
 from typing import Optional, Dict
 from src.llm import _speaker_identification_prompt, init_llm_openai
@@ -38,15 +37,12 @@ def format_transcript_with_generic_speakers(
             print("No diarization data found. Returning original transcript.")
             return ""
 
-        # 3. Iterate throught text
+        # 3. Iterate through text
         words = data["words"]
         speaker = words[0]["speaker"]
         speaker_text = ""
         final_text = ""
-
-        # token limit
-        if max_tokens:
-            word_count = 0
+        word_count = 0
 
         for word in words:
             # Speaker change detected
@@ -115,21 +111,21 @@ def save_speaker_mapping(
         Path to saved JSON file
     """
     # Create output directory if not exists
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # Save mapping to JSON
-    name = f"episode_{episode_id}_speakers_mapping.json"
+    output_path = output_dir / f"episode_{episode_id}_speakers_mapping.json"
     with open(
-        output_dir / name,
+        output_path,
         "w",
         encoding="utf-8",
     ) as f:
         json.dump(mapping, f, indent=4)
-    return output_dir / name
+
+    return output_path
 
 
-ABSOLUTE_TRANSCRIPT_PATH = (
+ABSOLUTE_TRANSCRIPT_PATH = Path(
     "/home/madlab/Code/rag_podcast/data/transcript/episode_672_universal.json"
 )
 
