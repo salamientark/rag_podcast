@@ -9,7 +9,6 @@ This module provides SQLite-specific database connectivity with:
 """
 
 import os
-import logging
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Generator
@@ -21,52 +20,24 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import NullPool
 
 from .models import Base
+from src.logger import setup_logging, log_function
 
 
-# Configure logging for database operations
-def setup_database_logging() -> logging.Logger:
-    """Set up file-based logging for database operations."""
-    logger = logging.getLogger("podcast_rag.database")
-
-    # Avoid adding multiple handlers if logger already exists
-    if logger.handlers:
-        return logger
-
-    logger.setLevel(logging.INFO)
-
-    # Create logs directory if it doesn't exist (but don't create data directory)
-    logs_dir = Path("logs")
-    logs_dir.mkdir(exist_ok=True)
-
-    # File handler with rotation
-    file_handler = logging.FileHandler(logs_dir / "database.log")
-    file_handler.setLevel(logging.INFO)
-
-    # Console handler for errors
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.ERROR)
-
-    # Formatter
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    file_handler.setFormatter(formatter)
-    console_handler.setFormatter(formatter)
-
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-
-    return logger
-
-
-# Initialize logger
-db_logger = setup_database_logging()
+# Initialize logger using centralized logging setup
+db_logger = setup_logging(
+    logger_name="database",
+    log_file="logs/database.log",
+    verbose=False,  # Only file logging, no console output
+)
 
 
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///data/podcast.db")
 
 
+@log_function(
+    logger_name="database", log_args=True, log_result=True, log_execution_time=True
+)
 def validate_database_url(url: str) -> tuple[bool, str]:
     """Validate the database URL format and path."""
     try:
@@ -202,6 +173,7 @@ def get_db_session() -> Generator[Session, None, None]:
         db_logger.debug("Database session closed")
 
 
+@log_function(logger_name="database", log_execution_time=True)
 def check_database_connection() -> bool:
     """
     Check if database connection is working.
@@ -221,6 +193,7 @@ def check_database_connection() -> bool:
         return False
 
 
+@log_function(logger_name="database", log_execution_time=True)
 def init_database() -> bool:
     """
     Initialize database by creating all tables defined in models.
@@ -241,6 +214,7 @@ def init_database() -> bool:
         return False
 
 
+@log_function(logger_name="database", log_execution_time=True)
 def get_database_info() -> dict:
     """
     Get information about the database.
