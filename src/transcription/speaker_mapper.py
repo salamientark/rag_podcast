@@ -1,7 +1,10 @@
 import json
+import logging
 from pathlib import Path
 from typing import Optional, Dict
+
 from src.llm import _speaker_identification_prompt, init_llm_openai
+from src.logger import setup_logging, log_function
 
 
 OPENAI_MODEL = "gpt-5-nano-2025-08-07"
@@ -10,6 +13,7 @@ OPENAI_MODEL = "gpt-5-nano-2025-08-07"
 #     ...
 
 
+@log_function(logger_name="speaker_mapper", log_args=True, log_execution_time=True)
 def format_transcript_with_generic_speakers(
     json_path: Path, max_tokens: Optional[int] = None
 ) -> str:
@@ -23,27 +27,29 @@ def format_transcript_with_generic_speakers(
     Returns:
         Formatted string like "Speaker A: ...\n\nSpeaker B: ..."
     """
+    logger = logging.getLogger("speaker_mapper")
+
     try:
         # 1. Load JSON transcript
         with open(json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
     except FileNotFoundError:
-        print(f"Transcript file not found: {json_path}")
+        logger.error(f"Transcript file not found: {json_path}")
         raise
     except json.JSONDecodeError as e:
-        print(f"Invalid JSON in transcript file: {e}")
+        logger.error(f"Invalid JSON in transcript file: {e}")
         raise
 
     try:
         # 2. Check for diarization
         if not data["speakers"]:
-            print("No diarization data found. Returning original transcript.")
+            logger.warning("No diarization data found. Returning original transcript.")
             return ""
 
         # 3. Iterate through text
         words = data["words"]
         if not words:
-            print("No word data found in transcript.")
+            logger.warning("No word data found in transcript.")
             return ""
 
         speaker = words[0]["speaker"]
@@ -67,10 +73,11 @@ def format_transcript_with_generic_speakers(
         final_text += f"Speaker {speaker}: {speaker_text}"
         return final_text
     except (KeyError, IndexError) as e:
-        print(f"Missing expected fields in transcript data: {e}")
+        logger.error(f"Missing expected fields in transcript data: {e}")
         raise
 
 
+@log_function(logger_name="speaker_mapper", log_execution_time=True)
 def map_speakers_with_llm(
     formatted_text: str,
 ) -> Dict[str, str]:
@@ -83,6 +90,8 @@ def map_speakers_with_llm(
     Returns:
         Mapping like {"A": "Patrick", "B": "Cédric"}
     """
+    logger = logging.getLogger("speaker_mapper")
+
     try:
         # Init llm client
         llm = init_llm_openai()
@@ -90,6 +99,7 @@ def map_speakers_with_llm(
             raise ValueError("LLM client initialization failed.")
 
         # Ask for speaker mapping
+        logger.info("Calling LLM for speaker identification")
         response = llm.responses.create(
             model=OPENAI_MODEL,
             instructions=_speaker_identification_prompt(),
@@ -97,18 +107,20 @@ def map_speakers_with_llm(
         )
 
         result = json.loads(response.output_text)
+        logger.info(f"LLM returned speaker mapping: {result}")
         return result
     except json.JSONDecodeError as e:
-        print(f"Failed to parse LLM response as JSON: {e}")
+        logger.error(f"Failed to parse LLM response as JSON: {e}")
         return {}
     except AttributeError as e:
-        print(f"Invalid LLM API call: {e}")
+        logger.error(f"Invalid LLM API call: {e}")
         return {}
     except (ValueError, KeyError) as e:
-        print(f"Error in LLM processing: {e}")
+        logger.error(f"Error in LLM processing: {e}")
         return {}
 
 
+@log_function(logger_name="speaker_mapper", log_args=True, log_execution_time=True)
 def save_speaker_mapping(
     mapping: Dict[str, str], episode_id: int, output_dir: Path = Path("data/speakers")
 ) -> Path:
@@ -123,11 +135,13 @@ def save_speaker_mapping(
     Returns:
         Path to saved JSON file
     """
+    logger = logging.getLogger("speaker_mapper")
+
     try:
         # Create output directory if not exists
         output_dir.mkdir(parents=True, exist_ok=True)
     except OSError as e:
-        print(f"Failed to create output directory {output_dir}: {e}")
+        logger.error(f"Failed to create output directory {output_dir}: {e}")
         raise
 
     # Save mapping to JSON
@@ -139,8 +153,9 @@ def save_speaker_mapping(
             encoding="utf-8",
         ) as f:
             json.dump(mapping, f, indent=4)
+        logger.info(f"Saved speaker mapping to {output_path}")
     except OSError as e:
-        print(f"Failed to write speaker mapping to {output_path}: {e}")
+        logger.error(f"Failed to write speaker mapping to {output_path}: {e}")
         raise
 
     return output_path
@@ -152,11 +167,17 @@ ABSOLUTE_TRANSCRIPT_PATH = Path(
 )
 
 if __name__ == "__main__":
+    # Setup logging
+    logger = setup_logging(
+        logger_name="speaker_mapper", log_file="logs/speaker_mapper.log", verbose=True
+    )
+
+    logger.info("Starting speaker mapping process")
     txt = format_transcript_with_generic_speakers(ABSOLUTE_TRANSCRIPT_PATH, 10000)
     # print(txt)
-    print("Calling map_speakers_with_llm...")
+    logger.info("Calling map_speakers_with_llm...")
     result = map_speakers_with_llm(txt)
     save_speaker_mapping(result, episode_id=672)
-    print("Done")
+    logger.info("Speaker mapping completed successfully")
 
 # ========== TESTING END ===========
