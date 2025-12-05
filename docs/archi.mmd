@@ -1,0 +1,54 @@
+flowchart TB
+    subgraph "1 Metadata Ingestion"
+        RSS[RSS Feeds - Multiple Podcasts] --> |Fetch| Sync[sync_episodes.py]
+        Sync --> |Parse & Validate| MetaDB[(Metadata DB - SQLite/Postgres)]
+        MetaDB --> |Store| EpisodeData[Episodes Table: guid, title, description, audio_url, published_date]
+
+        Note1[Note: Deduplication by GUID, Supports multiple RSS feeds, Incremental updates]
+    end
+
+    subgraph "2 Audio Download"
+        MetaDB --> |Query Episodes| AudioScraper[audio_scrap.py]
+        AudioScraper --> |Download MP3| AudioStorage[Audio Files - Local/S3/GCS]
+        AudioStorage --> |episode_XXX_title.mp3| Files[data/audio/]
+
+        Note2[Note: Browser headers for feedpress.me, Database ID-based naming, Skip existing files]
+    end
+
+    subgraph "3 Transcription"
+        AudioStorage --> |Read Audio| Transcriber[transcript.py]
+        Transcriber --> |AssemblyAI API| AAI[AssemblyAI - Universal-2 Model]
+        AAI --> |Return JSON| TranscriptResult[Transcript + Diarization: speakers, segments, words, timestamps, confidence]
+        TranscriptResult --> |Process| SpeakerID[Speaker Identification - In Progress by Jay Mocker]
+        SpeakerID --> |Save| TranscriptStorage[Transcript Storage - Local/S3/GCS]
+
+        Note3[Note: Max 25MB chunks for Whisper, Reuse existing transcripts, Speaker diarization enabled]
+    end
+
+    subgraph "4 Chunking & Embedding"
+        TranscriptStorage --> |Read Transcripts| Chunker[Chunking Service - TBD]
+        Chunker --> |Split Text| Chunks[Text Chunks - Size: TBD]
+        Chunks --> |Embed| Embedder[Embedding Service - OpenAI/Alternative]
+        Embedder --> |Generate Vectors| VectorDB[(Vector Database - Qdrant/Alternative)]
+
+        Note4[Note: Chunk size optimization TBD, Qdrant: cheap/open-source, Self-deployable option]
+    end
+
+    subgraph "5 RAG System Live"
+        VectorDB --> |Query Vectors| RAG[MCP Server - llama-index RAG]
+        RAG --> |Retrieve Context| LLM[LLM Service - Claude/GPT]
+        LLM --> |Generate Response| Frontend[Chat Frontend - Vercel Chatbot Fork]
+        User[User] <--> |Chat| Frontend
+
+        Note5[Note: MCP server with RAG tool, llama-index framework, Separate frontend repo]
+    end
+
+    style RSS fill:#e1f5ff
+    style MetaDB fill:#fff4e1
+    style AudioStorage fill:#f0e1ff
+    style TranscriptStorage fill:#e1ffe1
+    style VectorDB fill:#ffe1e1
+    style Frontend fill:#fff4e1
+
+    classDef noteStyle fill:#f9f9f9,stroke:#999,stroke-width:1px,stroke-dasharray: 5 5
+    class Note1,Note2,Note3,Note4,Note5 noteStyle
