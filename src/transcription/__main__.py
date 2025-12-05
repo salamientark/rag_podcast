@@ -21,6 +21,7 @@ from pathlib import Path
 
 # Import transcribe_audio function
 from src.transcription.transcript import transcribe_audio
+from src.logger import setup_logging
 
 
 def main():
@@ -60,6 +61,13 @@ Examples:
 
     args = parser.parse_args()
 
+    # Setup logging
+    logger = setup_logging(
+        logger_name="transcript", log_file="logs/transcript.log", verbose=args.verbose
+    )
+
+    logger.info("Starting transcription process")
+
     try:
         # Use the imported transcribe_audio function
         result = transcribe_audio(
@@ -89,12 +97,16 @@ Examples:
         print(f"Language: {args.language}")
         print(f"Confidence: {result['transcript']['confidence']:.2f}")
 
+        logger.info("Transcription completed successfully")
+
     except KeyboardInterrupt:
         print("\nTranscription interrupted by user")
+        logger.info("Transcription interrupted by user")
         sys.exit(130)
 
     except Exception as e:
         print(f"✗ Transcription failed: {e}")
+        logger.error(f"Transcription failed: {e}")
         sys.exit(1)
 
 

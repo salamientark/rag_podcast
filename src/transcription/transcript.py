@@ -11,31 +11,13 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Dict, Optional, Union
-import requests
 
+import requests
 from dotenv import load_dotenv
 import assemblyai as aai
+
 from src.ingestion.audio_scrap import sanitize_filename
-
-
-def setup_logging(verbose: bool = False) -> logging.Logger:
-    """Set up logging for the transcript script."""
-    logger = logging.getLogger("transcript")
-
-    # Avoid adding multiple handlers
-    if logger.handlers:
-        return logger
-
-    logger.setLevel(logging.DEBUG if verbose else logging.INFO)
-
-    # Console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.DEBUG if verbose else logging.INFO)
-    console_formatter = logging.Formatter("%(levelname)s: %(message)s")
-    console_handler.setFormatter(console_formatter)
-    logger.addHandler(console_handler)
-
-    return logger
+from src.logger import setup_logging, log_function
 
 
 def is_url(input_str: str) -> bool:
@@ -43,6 +25,7 @@ def is_url(input_str: str) -> bool:
     return input_str.startswith(("http://", "https://"))
 
 
+@log_function(logger_name="transcript", log_args=True, log_execution_time=True)
 def download_from_url(url: str, temp_dir: Path, max_retries: int = 3) -> Path:
     """
     Download audio from URL using proven audio_scrap.py logic.
@@ -131,6 +114,7 @@ def download_from_url(url: str, temp_dir: Path, max_retries: int = 3) -> Path:
     raise Exception(f"Failed to download {filename} after {max_retries} attempts")
 
 
+@log_function(logger_name="transcript", log_args=True, log_execution_time=True)
 def transcribe_with_diarization(file_path: Path, language: str = "fr") -> Dict:
     """
     Transcribe audio file using AssemblyAI Universal-2 with full diarization.
@@ -250,6 +234,7 @@ def transcribe_with_diarization(file_path: Path, language: str = "fr") -> Dict:
         raise Exception(f"AssemblyAI transcription failed: {e}")
 
 
+@log_function(logger_name="transcript", log_execution_time=True)
 def cleanup_temp_files(temp_dir: Path, keep_files: bool = False) -> None:
     """
     Clean up temporary files.
@@ -275,6 +260,7 @@ def cleanup_temp_files(temp_dir: Path, keep_files: bool = False) -> None:
         logger.warning(f"Failed to cleanup temporary files: {e}")
 
 
+@log_function(logger_name="transcript", log_execution_time=True)
 def transcribe_audio(
     input_source: Union[str, Path],
     language: str = "fr",
