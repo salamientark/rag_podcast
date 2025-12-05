@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 import assemblyai as aai
 
 from src.ingestion.audio_scrap import sanitize_filename
-from src.logger import setup_logging, log_function
+from src.logger import log_function
 
 
 def is_url(input_str: str) -> bool:

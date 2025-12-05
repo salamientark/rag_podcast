@@ -13,9 +13,40 @@ OPENAI_MODEL = "gpt-5-nano-2025-08-07"
 #     ...
 
 
+def _apply_speaker_mapping(
+    speaker: str, speaker_mapping: Optional[Dict[str, str]]
+) -> str:
+    """
+    Apply speaker mapping to convert generic label to real name.
+
+    Args:
+        speaker: Generic speaker label like "A", "B", "C"
+        speaker_mapping: Optional mapping dict
+
+    Returns:
+        Mapped name or generic label "Speaker X"
+    """
+    generic_label = f"Speaker {speaker}"
+
+    if not speaker_mapping:
+        return generic_label
+
+    # Check if mapping exists for this speaker
+    if generic_label in speaker_mapping:
+        mapped_value = speaker_mapping[generic_label]
+        # If value is "unknown" (case-insensitive), keep generic label
+        if mapped_value.lower() == "unknown":
+            return generic_label
+        return mapped_value
+
+    return generic_label
+
+
 @log_function(logger_name="speaker_mapper", log_args=True, log_execution_time=True)
-def format_transcript_with_generic_speakers(
-    json_path: Path, max_tokens: Optional[int] = None
+def format_transcript(
+    json_path: Path,
+    max_tokens: Optional[int] = None,
+    speaker_mapping: Optional[Dict[str, str]] = None,
 ) -> str:
     """
     Transform Universal-2 JSON transcript to plain text with generic speaker labels.
@@ -23,6 +54,9 @@ def format_transcript_with_generic_speakers(
     Args:
         json_path: Path to transcript JSON file
         max_tokens: Optional token limit for output (None = no limit)
+        speaker_mapping: Optional dict mapping generic labels to real names.
+                        Format: {"Speaker A": "John Doe", "Speaker B": "unknown"}
+                        If value is "unknown" (case-insensitive), keeps generic label.
 
     Returns:
         Formatted string like "Speaker A: ...\n\nSpeaker B: ..."
@@ -60,7 +94,9 @@ def format_transcript_with_generic_speakers(
         for word in words:
             # Speaker change detected
             if word["speaker"] != speaker:
-                final_text += f"Speaker {speaker}: {speaker_text}\n\n"
+                # Apply speaker mapping if provided
+                speaker_label = _apply_speaker_mapping(speaker, speaker_mapping)
+                final_text += f"{speaker_label}: {speaker_text}\n\n"
                 speaker = word["speaker"]
                 speaker_text = ""
             speaker_text += word["text"] + " "
@@ -70,7 +106,10 @@ def format_transcript_with_generic_speakers(
                 word_count += 1
                 if word_count * 0.75 >= max_tokens:
                     break
-        final_text += f"Speaker {speaker}: {speaker_text}"
+
+        # Apply mapping to final speaker
+        speaker_label = _apply_speaker_mapping(speaker, speaker_mapping)
+        final_text += f"{speaker_label}: {speaker_text}"
         return final_text
     except (KeyError, IndexError) as e:
         logger.error(f"Missing expected fields in transcript data: {e}")
@@ -173,7 +212,7 @@ if __name__ == "__main__":
     )
 
     logger.info("Starting speaker mapping process")
-    txt = format_transcript_with_generic_speakers(ABSOLUTE_TRANSCRIPT_PATH, 10000)
+    txt = format_transcript(ABSOLUTE_TRANSCRIPT_PATH, 10000)
     # print(txt)
     logger.info("Calling map_speakers_with_llm...")
     result = map_speakers_with_llm(txt)
