@@ -7,7 +7,7 @@ from src.llm import _speaker_identification_prompt, init_llm_openai
 from src.logger import setup_logging, log_function
 
 
-OPENAI_MODEL = "gpt-5-nano-2025-08-07"
+OPENAI_MODEL = "gpt-5"
 
 # def extract_episode_id(json_path: Path) -> int:
 #     ...

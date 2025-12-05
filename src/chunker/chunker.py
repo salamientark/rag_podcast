@@ -58,10 +58,12 @@ if __name__ == "__main__":
         word_count_squared += wc * wc
 
     # Compute statistics
+    input_wc = len(text.split())
     average_wc = word_count / len(chunks)
     variance_wc = (word_count_squared / len(chunks)) - (average_wc * average_wc)
     total_wc = word_count
 
-    print(f"Total word count: {total_wc}")
+    print(f"Total input word count: {input_wc}")
+    print(f"Total output word count: {total_wc}")
     print(f"Average word count per chunk: {average_wc:.2f}")
     print(f"Variance of word count per chunk: {variance_wc:.2f}")
