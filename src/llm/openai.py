@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 
-def init_llm_openai() -> OpenAI:
+def init_llm_openai() -> OpenAI | None:
     """
     Initialize OpenAI LLM client.
 

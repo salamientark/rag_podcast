@@ -28,39 +28,44 @@ def format_transcript_with_generic_speakers(
     Returns:
         Formatted string like "Speaker A: ...\n\nSpeaker B: ..."
     """
-    # 1. Load JSON transcript
-    with open(json_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    try:
+        # 1. Load JSON transcript
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
 
-    # 2. Check for diarization
-    if not data["speakers"]:
-        print("No diarization data found. Returning original transcript.")
+        # 2. Check for diarization
+        if not data["speakers"]:
+            print("No diarization data found. Returning original transcript.")
+            return ""
+
+        # 3. Iterate throught text
+        words = data["words"]
+        speaker = words[0]["speaker"]
+        speaker_text = ""
+        final_text = ""
+
+        # token limit
+        if max_tokens:
+            word_count = 0
+
+        for word in words:
+            # Speaker change detected
+            if word["speaker"] != speaker:
+                final_text += f"Speaker {speaker}: {speaker_text}\n\n"
+                speaker = word["speaker"]
+                speaker_text = ""
+            speaker_text += word["text"] + " "
+
+            # Max token reached
+            if max_tokens:
+                word_count += 1
+                if word_count * 0.75 >= max_tokens:
+                    break
+        final_text += f"Speaker {speaker}: {speaker_text}"
+        return final_text
+    except Exception as e:
+        print(f"Error formatting transcript: {e}")
         return ""
-
-    # 3. Iterate throught text
-    words = data["words"]
-    speaker = words[0]["speaker"]
-    speaker_text = ""
-    final_text = ""
-
-    # token limit
-    if max_tokens:
-        word_count = 0
-
-    for word in words:
-        # Speaker change detected
-        if word["speaker"] != speaker:
-            final_text += f"Speaker {speaker}: {speaker_text}\n\n"
-            speaker = word["speaker"]
-            speaker_text = ""
-        speaker_text += word["text"] + " "
-        word_count += 1
-
-        # Max token reached
-        if max_tokens and word_count * 0.75 >= max_tokens:
-            final_text += f"Speaker {speaker}: {speaker_text}"
-            break
-    return final_text
 
 
 def map_speakers_with_llm(
@@ -78,6 +83,8 @@ def map_speakers_with_llm(
     try:
         # Init llm client
         llm = init_llm_openai()
+        if llm is None:
+            raise ValueError("LLM client initialization failed.")
 
         # Ask for speaker mapping
         reponse = llm.responses.create(
@@ -112,12 +119,14 @@ def save_speaker_mapping(
         os.makedirs(output_dir)
 
     # Save mapping to JSON
+    name = f"episode_{episode_id}_speakers_mapping.json"
     with open(
-        output_dir / f"episode_{episode_id}_speakers_mapping.json",
+        output_dir / name,
         "w",
         encoding="utf-8",
     ) as f:
         json.dump(mapping, f, indent=4)
+    return output_dir / name
 
 
 ABSOLUTE_TRANSCRIPT_PATH = (
