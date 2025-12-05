@@ -6,11 +6,7 @@ from src.llm import _speaker_identification_prompt, init_llm_openai
 
 OPENAI_MODEL = "gpt-5-nano-2025-08-07"
 
-# def estimate_token_count(text: str) -> int:
-#     ...
 # def extract_episode_id(json_path: Path) -> int:
-#     ...
-# def build_speaker_prompt(formatted_text: str, speaker_labels: List[str]) -> str:
 #     ...
 
 
@@ -31,7 +27,14 @@ def format_transcript_with_generic_speakers(
         # 1. Load JSON transcript
         with open(json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
+    except FileNotFoundError:
+        print(f"Transcript file not found: {json_path}")
+        raise
+    except json.JSONDecodeError as e:
+        print(f"Invalid JSON in transcript file: {e}")
+        raise
 
+    try:
         # 2. Check for diarization
         if not data["speakers"]:
             print("No diarization data found. Returning original transcript.")
@@ -39,6 +42,10 @@ def format_transcript_with_generic_speakers(
 
         # 3. Iterate through text
         words = data["words"]
+        if not words:
+            print("No word data found in transcript.")
+            return ""
+
         speaker = words[0]["speaker"]
         speaker_text = ""
         final_text = ""
@@ -59,9 +66,9 @@ def format_transcript_with_generic_speakers(
                     break
         final_text += f"Speaker {speaker}: {speaker_text}"
         return final_text
-    except Exception as e:
-        print(f"Error formatting transcript: {e}")
-        return ""
+    except (KeyError, IndexError) as e:
+        print(f"Missing expected fields in transcript data: {e}")
+        raise
 
 
 def map_speakers_with_llm(
@@ -83,16 +90,22 @@ def map_speakers_with_llm(
             raise ValueError("LLM client initialization failed.")
 
         # Ask for speaker mapping
-        reponse = llm.responses.create(
+        response = llm.responses.create(
             model=OPENAI_MODEL,
             instructions=_speaker_identification_prompt(),
             input=formatted_text,
         )
 
-        result = json.loads(reponse.output_text)
+        result = json.loads(response.output_text)
         return result
-    except Exception as e:
-        print(f"Error during speaker mapping: {e}")
+    except json.JSONDecodeError as e:
+        print(f"Failed to parse LLM response as JSON: {e}")
+        return {}
+    except AttributeError as e:
+        print(f"Invalid LLM API call: {e}")
+        return {}
+    except (ValueError, KeyError) as e:
+        print(f"Error in LLM processing: {e}")
         return {}
 
 
@@ -110,17 +123,25 @@ def save_speaker_mapping(
     Returns:
         Path to saved JSON file
     """
-    # Create output directory if not exists
-    output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        # Create output directory if not exists
+        output_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        print(f"Failed to create output directory {output_dir}: {e}")
+        raise
 
     # Save mapping to JSON
     output_path = output_dir / f"episode_{episode_id}_speakers_mapping.json"
-    with open(
-        output_path,
-        "w",
-        encoding="utf-8",
-    ) as f:
-        json.dump(mapping, f, indent=4)
+    try:
+        with open(
+            output_path,
+            "w",
+            encoding="utf-8",
+        ) as f:
+            json.dump(mapping, f, indent=4)
+    except OSError as e:
+        print(f"Failed to write speaker mapping to {output_path}: {e}")
+        raise
 
     return output_path
 

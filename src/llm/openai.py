@@ -19,6 +19,9 @@ def init_llm_openai() -> OpenAI | None:
             api_key=openai_api_key,
         )
         return client
-    except Exception as e:
-        print(f"Error initializing OpenAI client: {e}")
+    except ValueError as e:
+        print(f"Environment configuration error: {e}")
+        return None
+    except (OSError, IOError) as e:
+        print(f"Failed to load environment file: {e}")
         return None
