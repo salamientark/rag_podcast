@@ -201,7 +201,7 @@ def save_speaker_mapping(
 
 
 @log_function(logger_name="speaker_mapper", log_execution_time=True)
-def get_mapped_transcript(raw_transcript_path: Path) -> str
+def get_mapped_transcript(raw_transcript_path: Path) -> str:
     """Get formatted transcript with mapped speaker names.
 
     Args:

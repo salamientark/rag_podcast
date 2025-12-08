@@ -3,11 +3,11 @@
 # Import the main transcription functions
 from src.transcription.transcript import (
     transcribe_audio,
-    get_mapped_transcript,
 )
 from src.transcription.speaker_mapper import (
     map_speakers_with_llm,
     format_transcript,
+    get_mapped_transcript,
 )
 
 # Main public API - these are the functions other modules should use
