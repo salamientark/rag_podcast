@@ -200,6 +200,28 @@ def save_speaker_mapping(
     return output_path
 
 
+@log_function(logger_name="speaker_mapper", log_execution_time=True)
+def get_mapped_transcript(raw_transcript_path: Path) -> str
+    """Get formatted transcript with mapped speaker names.
+
+    Args:
+        raw_transcript_path: Path to raw transcript JSON file
+    Returns:
+        Formatted transcript with real speaker names
+    """
+    # Init logger
+    logger = logging.getLogger("speaker_mapper")
+
+    logger.info("Formatting raw transcript...")
+    raw_text = format_transcript(raw_transcript_path, max_tokens=10000)
+    logger.info("Mapping speakers with LLM...")
+    speaker_mapping = map_speakers_with_llm(raw_text)
+    logger.info("Re-formatting transcript with mapped speaker names...")
+    final_text = format_transcript(raw_transcript_path, speaker_mapping=speaker_mapping)
+    logger.info("Transcript formatting complete.")
+    return final_text
+
+
 # ========= TESTING BEGIN ==========
 ABSOLUTE_TRANSCRIPT_PATH = Path(
     "/home/madlab/Code/rag_podcast/data/transcript/episode_672_universal.json"
