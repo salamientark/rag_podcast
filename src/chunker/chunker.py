@@ -1,12 +1,7 @@
 import json
 from pathlib import Path
 from chonkie import SemanticChunker, Chunk
-from src.transcription import format_transcript, map_speakers_with_llm
-
-
-ABSOLUTE_EPISODE_PATH = Path(
-    "/home/madlab/Code/rag_podcast/data/transcript/episode_672_universal.json"
-)
+from src.transcription import get_mapped_transcript
 
 
 def chunk_text(text: str, chunk_size: int = 8192) -> list[Chunk]:
@@ -24,22 +19,15 @@ def chunk_text(text: str, chunk_size: int = 8192) -> list[Chunk]:
     return chunks
 
 
+ABSOLUTE_EPISODE_PATH = Path(
+    "/home/madlab/Code/rag_podcast/data/transcript/episode_672_universal.json"
+)
+
+
 if __name__ == "__main__":
-    # Load and format the transcript
-    print("Loading and formatting transcript... ", end="", flush=True)
-    text = format_transcript(ABSOLUTE_EPISODE_PATH, max_tokens=10000)
-    print("Done")
-
-    # Map speakers
-    print("Mapping speakers... ", end="", flush=True)
-    speaker_mapping = map_speakers_with_llm(text)
-    print("Done")
-    print("Speaker Mapping:")
-    print(json.dumps(speaker_mapping, indent=4, ensure_ascii=False))
-
     # Format transcript with speaker names
     print("Formatting full transcript with speaker names... ", end="", flush=True)
-    text = format_transcript(ABSOLUTE_EPISODE_PATH, speaker_mapping=speaker_mapping)
+    text = get_mapped_transcript(ABSOLUTE_EPISODE_PATH)
     print("Done")
 
     # Chunk the text
