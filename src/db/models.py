@@ -86,6 +86,7 @@ class Episode(Base, TimestampMixin):
         processing_stage: Current stage in the processing pipeline (ProcessingStage enum)
         audio_file_path: Local path to downloaded audio file (set after download)
         raw_transcript_path: Path to raw transcript JSON (with diarization)
+        speaker_mapping_path: Path to speaker mapping JSON file
         formatted_transcript_path: Path to formatted transcript (with speaker names)
         transcript_duration: Audio duration in seconds (from transcription)
         transcript_confidence: Transcription confidence score (0.0-1.0)
@@ -119,6 +120,7 @@ class Episode(Base, TimestampMixin):
     # File paths (populated as processing progresses)
     audio_file_path = Column(String, nullable=True)
     raw_transcript_path = Column(String, nullable=True)
+    speaker_mapping_path = Column(String, nullable=True)
     formatted_transcript_path = Column(String, nullable=True)
 
     # Transcription metadata
