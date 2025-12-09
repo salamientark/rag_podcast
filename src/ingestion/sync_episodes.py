@@ -14,9 +14,11 @@ Usage:
 import argparse
 import hashlib
 import logging
+import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+from dotenv import load_dotenv
 
 import requests
 from bs4 import BeautifulSoup
@@ -30,18 +32,25 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 
-FEED_URL = "https://feedpress.me/rdvtech"
+# Init logger
+logger = setup_logging(logger_name="sync_episodes", log_file="logs/sync_episodes.log")
 
 
 @log_function(logger_name="sync_episodes", log_execution_time=True)
 def fetch_podcast_episodes():
     """Fetch episodes from RSS feed - proven working approach"""
-    print(f"Fetching feed from {FEED_URL}...")
+    # Get feed URL from .env
+    env = load_dotenv()
+    if not env:
+        raise EnvironmentError("Could not load .env file")
+    FEED_URL = os.getenv("FEED_URL")
+
+    logger.info(f"Fetching feed from {FEED_URL}...")
     try:
         response = requests.get(FEED_URL, timeout=30)
         response.raise_for_status()
     except requests.RequestException as e:
-        print(f"Error fetching feed: {e}")
+        logger.error(f"Error fetching feed: {e}")
         return []
 
     # Parse XML
@@ -68,7 +77,7 @@ def fetch_podcast_episodes():
                     date_str_no_tz, "%a, %d %b %Y %H:%M:%S"
                 )
             except (ValueError, IndexError) as e:
-                print(f"Could not parse date: {date_str}, error: {e}")
+                logger.error(f"Could not parse date: {date_str}, error: {e}")
                 continue
 
         # MP3 URL (store original feedpress.me URL - works with browser headers)
@@ -183,6 +192,7 @@ def sync_to_database(episodes, dry_run=False):
                         published_date=episode_data["date"],
                         audio_url=episode_data["audio_url"],
                         description=episode_data.get("description", ""),
+                        processing_stage="synced",
                     )
                     session.add(episode)
                     session.commit()
