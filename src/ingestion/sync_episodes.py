@@ -63,13 +63,11 @@ def find_episode_file(episode_id: int, file_dir: Path, pattern: str) -> Optional
 
 
 def determine_stage_for_file(
-    audio_exists: bool,
-    raw_exists: bool,
-    formatted_exists: bool
+    audio_exists: bool, raw_exists: bool, formatted_exists: bool
 ) -> ProcessingStage:
     """
     Determine highest processing stage based on which files exist.
-    
+
     Returns the maximum stage that can be proven by existing files.
     """
     if formatted_exists and raw_exists and audio_exists:
@@ -80,7 +78,7 @@ def determine_stage_for_file(
         return ProcessingStage.AUDIO_DOWNLOADED
     else:
         return ProcessingStage.SYNCED
-    
+
 
 @log_function(logger_name="sync_episodes", log_execution_time=True)
 def reconcile_episode_status(
@@ -91,81 +89,95 @@ def reconcile_episode_status(
 ) -> dict:
     """
     Reconcile episode processing stages based on filesystem state.
-    
+
     Args:
         episodes: List of Episode objects to reconcile
         audio_dir: Directory containing audio files
         transcript_dir: Directory containing transcript files
         dry_run: If True, do not commit changes to database
-        
+
     Returns:
         Dict with stats: {"processed": N, "updated": N, "unchanged": N, "errors": N}
     """
     logger = logging.getLogger("sync_episodes")
-    
+
     if not episodes:
         print("No episodes to reconcile")
         return {"processed": 0, "updated": 0, "unchanged": 0, "errors": 0}
-    
+
     print(f"Reconciling {len(episodes)} episodes from filesystem...")
-    
+
     stats = {"processed": 0, "updated": 0, "unchanged": 0, "errors": 0}
-    
+
     with get_db_session() as session:
         for episode in episodes:
             try:
                 # Refresh episode to ensure it's attached to this session
                 episode = session.merge(episode)
-                
+
                 # Find files using patterns
                 episode_transcript_dir = f"{transcript_dir}/episode_{episode.id:03d}"
 
                 audio_pattern = f"episode_{episode.id:03d}_*.mp3"
-                audio_path = find_episode_file(episode.id, Path(audio_dir), audio_pattern)
-                
+                audio_path = find_episode_file(
+                    episode.id, Path(audio_dir), audio_pattern
+                )
+
                 raw_pattern = f"raw_episode_{episode.id}_*.json"
-                raw_path = find_episode_file(episode.id, Path(episode_transcript_dir), raw_pattern)
-                
+                raw_path = find_episode_file(
+                    episode.id, Path(episode_transcript_dir), raw_pattern
+                )
+
                 formatted_pattern = f"formatted_episode_{episode.id}_*.txt"
-                formatted_path = find_episode_file(episode.id, Path(episode_transcript_dir), formatted_pattern)
-                
+                formatted_path = find_episode_file(
+                    episode.id, Path(episode_transcript_dir), formatted_pattern
+                )
+
                 # Determine target stage
                 target_stage = determine_stage_for_file(
                     audio_exists=audio_path is not None,
                     raw_exists=raw_path is not None,
-                    formatted_exists=formatted_path is not None
+                    formatted_exists=formatted_path is not None,
                 )
-                
+
                 # Get stage ordering for comparison
                 stage_order = list(ProcessingStage)
                 current_stage_index = stage_order.index(episode.processing_stage)
                 target_stage_index = stage_order.index(target_stage)
-                
+
                 # Only update if moving forward
                 if target_stage_index > current_stage_index:
                     # Update stage
                     old_stage = episode.processing_stage
                     episode.processing_stage = target_stage
-                    
+
                     # Update paths with warnings for overwrites
                     if audio_path:
-                        if episode.audio_file_path and episode.audio_file_path != str(audio_path):
+                        if episode.audio_file_path and episode.audio_file_path != str(
+                            audio_path
+                        ):
                             logger.warning(
                                 f"Episode {episode.id}: Overwriting audio_file_path "
                                 f"from '{episode.audio_file_path}' to '{audio_path}'"
                             )
                         episode.audio_file_path = str(audio_path)
-                    
+
                     if raw_path:
-                        if episode.raw_transcript_path and episode.raw_transcript_path != str(raw_path):
+                        if (
+                            episode.raw_transcript_path
+                            and episode.raw_transcript_path != str(raw_path)
+                        ):
                             logger.warning(
                                 f"Episode {episode.id}: Overwriting raw_transcript_path "
                                 f"from '{episode.raw_transcript_path}' to '{raw_path}'"
                             )
                         episode.raw_transcript_path = str(raw_path)
-                    
+
                     if formatted_path:
-                        if episode.formatted_transcript_path and episode.formatted_transcript_path != str(formatted_path):
+                        if (
+                            episode.formatted_transcript_path
+                            and episode.formatted_transcript_path != str(formatted_path)
+                        ):
                             logger.warning(
                                 f"Episode {episode.id}: Overwriting formatted_transcript_path "
                                 f"from '{episode.formatted_transcript_path}' to '{formatted_path}'"
@@ -175,21 +187,27 @@ def reconcile_episode_status(
                     # Commit changes
                     if not dry_run:
                         session.commit()
-                    
-                    print(f"  ✓ Episode {episode.id}: {old_stage.value} → {target_stage.value}")
-                    logger.info(f"Updated episode {episode.id} from {old_stage.value} to {target_stage.value}")
+
+                    print(
+                        f"  ✓ Episode {episode.id}: {old_stage.value} → {target_stage.value}"
+                    )
+                    logger.info(
+                        f"Updated episode {episode.id} from {old_stage.value} to {target_stage.value}"
+                    )
                     stats["updated"] += 1
                 else:
-                    print(f"  - Episode {episode.id}: No update needed (stage: {episode.processing_stage.value})")
+                    print(
+                        f"  - Episode {episode.id}: No update needed (stage: {episode.processing_stage.value})"
+                    )
                     stats["unchanged"] += 1
-                
+
                 stats["processed"] += 1
-                
+
             except Exception as e:
                 print(f"  ✗ Error reconciling episode {episode.id}: {e}")
                 logger.error(f"Error reconciling episode {episode.id}: {e}")
                 stats["errors"] += 1
-    
+
     return stats
 
 
@@ -373,6 +391,7 @@ def sync_to_database(episodes, dry_run=False):
 
     return stats
 
+
 # ============ SHARED ENTRY POINT ============
 def main():
     """Main function"""
@@ -424,29 +443,29 @@ Examples:
         # Validate reconcile usage
         if args.reconcile and not (args.full_sync or args.limit):
             parser.error("--reconcile requires either --full-sync or --limit")
-        
+
         if args.reconcile:
             # RECONCILIATION WORKFLOW: Query database and reconcile from filesystem
             print("Running reconciliation from filesystem...")
-            
+
             with get_db_session() as session:
                 query = session.query(Episode).order_by(Episode.published_date.desc())
-                
+
                 # Apply filtering
                 if not args.full_sync and args.days > 0:
                     cutoff_date = datetime.now() - timedelta(days=args.days)
                     query = query.filter(Episode.published_date >= cutoff_date)
                     print(f"Filtering to episodes from last {args.days} days")
-                
+
                 if args.limit:
                     query = query.limit(args.limit)
                     print(f"Limited to {args.limit} episodes")
-                
+
                 episodes = query.all()
-            
+
             # Run reconciliation
             stats = reconcile_episode_status(episodes, dry_run=args.dry_run)
-            
+
             # Print summary
             print(
                 f"\nReconciliation completed: {stats['processed']} processed, "
