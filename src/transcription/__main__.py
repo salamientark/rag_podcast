@@ -114,11 +114,11 @@ if __name__ == "__main__":
     # main()
 
     logger = setup_logging(logger_name="transcript", log_file="logs/transcript.log", verbose=True)
-    episode_path = Path("/home/madlab/Code/rag_podcast/data/audio/episode_672_Surprise,_ChatGPT_a_besoin_d’argent_–_RDV_Tech.mp3")
+    episode_path = Path("/home/madlab/Code/rag_podcast/data/audio/episode_673_qui_va_racheter_warner_rdv_tech.mp3")
     transcript_path = Path(
         "/home/madlab/Code/rag_podcast/data/transcript/"
     )
-    print(f"Trying full transcript on episode 672")
+    print(f"Trying full transcript on episode 673")
     try:
         transcribe_local_file(episode_path, language="fr", output_dir=transcript_path, episode_id=672)
     except Exception as e:

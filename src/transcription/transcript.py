@@ -400,7 +400,7 @@ def update_episode_transcription_paths(
             if current_stage_index < target_stage_index:
                 episode.processing_stage = ProcessingStage.FORMATTED_TRANSCRIPT
             episode.raw_transcript_path = raw_transcript_path
-            # episode.speaker_mapping_path = speaker_mapping_path
+            episode.speaker_mapping_path = speaker_mapping_path
             episode.formatted_transcript_path = formatted_transcript_path
             episode.transcript_duration = transcript_duration
             episode.transcript_confidence = transcript_confidence
