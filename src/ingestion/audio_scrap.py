@@ -30,19 +30,39 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 
-def sanitize_filename(title, max_length=200):
-    """Clean filename for safe filesystem usage"""
+def sanitize_filename(title, max_length=100):
+    """
+    Clean filename for safe filesystem usage - removes ALL punctuation.
+
+    Strategy for short, efficient filenames:
+    - Remove all punctuation and special characters
+    - Convert to lowercase for consistency
+    - Limit to max_length characters (default 100)
+    - Truncate at word boundaries to avoid cutting words
+
+    Args:
+        title: Episode title to sanitize
+        max_length: Maximum length for filename (default 100)
+
+    Returns:
+        Sanitized filename string
+    """
     if not title:
         return "unknown_episode"
 
-    # Remove problematic characters but keep basic punctuation
-    safe = re.sub(r'[/\\:*?"<>|]', "_", title)
-    # Replace multiple spaces/underscores with single underscore
-    safe = re.sub(r"[\s_]+", "_", safe)
-    # Clean up
-    safe = safe.strip("_").strip()
+    # Convert to lowercase for consistency
+    safe = title.lower()
 
-    # Truncate if too long
+    # Remove ALL punctuation and special characters, keep only alphanumeric and spaces
+    safe = re.sub(r"[^a-z0-9\s]", "", safe)
+
+    # Replace multiple spaces with single underscore
+    safe = re.sub(r"\s+", "_", safe)
+
+    # Remove leading/trailing underscores
+    safe = safe.strip("_")
+
+    # Truncate if too long, breaking at word boundary
     if len(safe) > max_length:
         safe = safe[:max_length].rsplit("_", 1)[0]
 

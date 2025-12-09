@@ -4,6 +4,7 @@ Core transcription functionality using AssemblyAI Universal-2 with diarization.
 This module provides the core functions for transcribing audio files and URLs.
 """
 
+import re
 import json
 import logging
 import os
@@ -17,101 +18,104 @@ from dotenv import load_dotenv
 import assemblyai as aai
 
 from src.ingestion.audio_scrap import sanitize_filename
+from src.transcription.speaker_mapper import format_transcript, map_speakers_with_llm
+from src.db.database import get_db_session
+from src.db.models import Episode, ProcessingStage
 from src.logger import log_function
 
 
-def is_url(input_str: str) -> bool:
-    """Check if input string is a URL."""
-    return input_str.startswith(("http://", "https://"))
-
-
-@log_function(logger_name="transcript", log_args=True, log_execution_time=True)
-def download_from_url(url: str, temp_dir: Path, max_retries: int = 3) -> Path:
-    """
-    Download audio from URL using proven audio_scrap.py logic.
-
-    Args:
-        url: Audio URL to download
-        temp_dir: Directory for temporary files
-        max_retries: Maximum download attempts
-
-    Returns:
-        Path to downloaded file
-
-    Raises:
-        Exception: If download fails after all retries
-    """
-    logger = logging.getLogger("transcript")
-
-    # Generate filename from URL
-    url_title = url.split("/")[-1].split("?")[0].replace(".mp3", "")
-    safe_title = sanitize_filename(url_title or "downloaded_audio")
-    filename = f"{safe_title}.mp3"
-    filepath = temp_dir / filename
-
-    # Browser headers from audio_scrap.py to handle feedpress.me redirects
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-        "Accept": "audio/mpeg, audio/*, */*",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-    }
-
-    temp_dir.mkdir(parents=True, exist_ok=True)
-
-    for attempt in range(max_retries):
-        try:
-            logger.info(f"Downloading {filename} (attempt {attempt + 1}/{max_retries})")
-            print(f"  Downloading: {url[:60]}...")
-
-            # Download with browser headers and redirects
-            response = requests.get(url, stream=True, headers=headers, timeout=120)
-            response.raise_for_status()
-
-            # Write file in chunks
-            with open(filepath, "wb") as f:
-                downloaded = 0
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-                        downloaded += len(chunk)
-
-            # Verify file size
-            file_size = filepath.stat().st_size
-            if file_size < 100 * 1024:  # Less than 100KB is suspicious
-                logger.warning(
-                    f"File {filename} is suspiciously small: {file_size} bytes"
-                )
-                filepath.unlink()
-                raise Exception(f"Downloaded file too small: {file_size} bytes")
-
-            logger.info(f"Successfully downloaded {filename} ({file_size:,} bytes)")
-            print(f"  ✓ Downloaded {filename} ({file_size:,} bytes)")
-            return filepath
-
-        except requests.exceptions.RequestException as e:
-            logger.warning(f"Download attempt {attempt + 1} failed for {filename}: {e}")
-            print(f"  ✗ Attempt {attempt + 1} failed: {e}")
-
-            # Clean up partial file
-            if filepath.exists():
-                filepath.unlink()
-
-        except Exception as e:
-            logger.error(f"Unexpected error downloading {filename}: {e}")
-            print(f"  ✗ Unexpected error: {e}")
-
-            # Clean up partial file
-            if filepath.exists():
-                filepath.unlink()
-
-        # Wait before retry
-        if attempt < max_retries - 1:
-            wait_time = 2**attempt  # 1s, 2s, 4s
-            logger.info(f"Waiting {wait_time}s before retry...")
-            time.sleep(wait_time)
-
-    raise Exception(f"Failed to download {filename} after {max_retries} attempts")
+# def is_url(input_str: str) -> bool:
+#     """Check if input string is a URL."""
+#     return input_str.startswith(("http://", "https://"))
+#
+#
+# @log_function(logger_name="transcript", log_args=True, log_execution_time=True)
+# def download_from_url(url: str, temp_dir: Path, max_retries: int = 3) -> Path:
+#     """
+#     Download audio from URL using proven audio_scrap.py logic.
+#
+#     Args:
+#         url: Audio URL to download
+#         temp_dir: Directory for temporary files
+#         max_retries: Maximum download attempts
+#
+#     Returns:
+#         Path to downloaded file
+#
+#     Raises:
+#         Exception: If download fails after all retries
+#     """
+#     logger = logging.getLogger("transcript")
+#
+#     # Generate filename from URL
+#     url_title = url.split("/")[-1].split("?")[0].replace(".mp3", "")
+#     safe_title = sanitize_filename(url_title or "downloaded_audio")
+#     filename = f"{safe_title}.mp3"
+#     filepath = temp_dir / filename
+#
+#     # Browser headers from audio_scrap.py to handle feedpress.me redirects
+#     headers = {
+#         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+#         "Accept": "audio/mpeg, audio/*, */*",
+#         "Accept-Language": "en-US,en;q=0.9",
+#         "Accept-Encoding": "gzip, deflate, br",
+#     }
+#
+#     temp_dir.mkdir(parents=True, exist_ok=True)
+#
+#     for attempt in range(max_retries):
+#         try:
+#             logger.info(f"Downloading {filename} (attempt {attempt + 1}/{max_retries})")
+#             print(f"  Downloading: {url[:60]}...")
+#
+#             # Download with browser headers and redirects
+#             response = requests.get(url, stream=True, headers=headers, timeout=120)
+#             response.raise_for_status()
+#
+#             # Write file in chunks
+#             with open(filepath, "wb") as f:
+#                 downloaded = 0
+#                 for chunk in response.iter_content(chunk_size=8192):
+#                     if chunk:
+#                         f.write(chunk)
+#                         downloaded += len(chunk)
+#
+#             # Verify file size
+#             file_size = filepath.stat().st_size
+#             if file_size < 100 * 1024:  # Less than 100KB is suspicious
+#                 logger.warning(
+#                     f"File {filename} is suspiciously small: {file_size} bytes"
+#                 )
+#                 filepath.unlink()
+#                 raise Exception(f"Downloaded file too small: {file_size} bytes")
+#
+#             logger.info(f"Successfully downloaded {filename} ({file_size:,} bytes)")
+#             print(f"  ✓ Downloaded {filename} ({file_size:,} bytes)")
+#             return filepath
+#
+#         except requests.exceptions.RequestException as e:
+#             logger.warning(f"Download attempt {attempt + 1} failed for {filename}: {e}")
+#             print(f"  ✗ Attempt {attempt + 1} failed: {e}")
+#
+#             # Clean up partial file
+#             if filepath.exists():
+#                 filepath.unlink()
+#
+#         except Exception as e:
+#             logger.error(f"Unexpected error downloading {filename}: {e}")
+#             print(f"  ✗ Unexpected error: {e}")
+#
+#             # Clean up partial file
+#             if filepath.exists():
+#                 filepath.unlink()
+#
+#         # Wait before retry
+#         if attempt < max_retries - 1:
+#             wait_time = 2**attempt  # 1s, 2s, 4s
+#             logger.info(f"Waiting {wait_time}s before retry...")
+#             time.sleep(wait_time)
+#
+#     raise Exception(f"Failed to download {filename} after {max_retries} attempts")
 
 
 @log_function(logger_name="transcript", log_args=True, log_execution_time=True)
@@ -234,106 +238,285 @@ def transcribe_with_diarization(file_path: Path, language: str = "fr") -> Dict:
         raise Exception(f"AssemblyAI transcription failed: {e}")
 
 
-@log_function(logger_name="transcript", log_execution_time=True)
-def cleanup_temp_files(temp_dir: Path, keep_files: bool = False) -> None:
-    """
-    Clean up temporary files.
+ # @log_function(logger_name="transcript", log_execution_time=True)
+# def cleanup_temp_files(temp_dir: Path, keep_files: bool = False) -> None:
+#     """
+#     Clean up temporary files.
+#
+#     Args:
+#         temp_dir: Directory containing temporary files
+#         keep_files: If True, preserve files for debugging
+#     """
+#     logger = logging.getLogger("transcript")
+#
+#     if keep_files:
+#         logger.info(f"Keeping temporary files in: {temp_dir}")
+#         print(f"Temporary files preserved in: {temp_dir}")
+#         return
+#
+#     try:
+#         if temp_dir.exists() and temp_dir.is_dir():
+#             import shutil
+#
+#             shutil.rmtree(temp_dir)
+#             logger.debug(f"Cleaned up temporary directory: {temp_dir}")
+#     except Exception as e:
+#         logger.warning(f"Failed to cleanup temporary files: {e}")
+#
+#
+# @log_function(logger_name="transcript", log_execution_time=True)
+# def transcribe_audio(
+#     input_source: Union[str, Path],
+#     language: str = "fr",
+#     output_file: Optional[Union[str, Path]] = None,
+#     verbose: bool = False,
+#     keep_temp: bool = False,
+#     temp_dir: Optional[Path] = None,
+# ) -> Dict:
+#     """
+#     High-level function to transcribe audio from file or URL.
+#
+#     This is the main function intended for use when importing this module.
+#
+#     Args:
+#         input_source: Audio file path or URL to transcribe
+#         language: Language code for transcription (default: fr)
+#         output_file: Optional path to save JSON output
+#         verbose: Enable verbose logging
+#         keep_temp: Keep temporary files for debugging
+#         temp_dir: Custom temporary directory
+#
+#     Returns:
+#         Dict with comprehensive transcription and speaker data
+#
+#     Raises:
+#         FileNotFoundError: If local file doesn't exist
+#         ValueError: If API key is missing
+#         Exception: If transcription or download fails
+#     """
+#     # Initialize variables
+#     input_path = None
+#     created_temp_dir = None
+#
+#     try:
+#         # Convert input to string for URL checking
+#         input_str = str(input_source)
+#
+#         # Determine if input is URL or file
+#         if is_url(input_str):
+#             # Create temporary directory for download
+#             temp_base = temp_dir or Path(tempfile.gettempdir())
+#             created_temp_dir = temp_base / f"transcript_{os.getpid()}"
+#
+#             if verbose:
+#                 print(f"Downloading from URL: {input_str}")
+#             input_path = download_from_url(input_str, created_temp_dir)
+#         else:
+#             # Local file
+#             input_path = Path(input_str)
+#             if not input_path.exists():
+#                 raise FileNotFoundError(f"Audio file not found: {input_path}")
+#
+#         # Transcribe with diarization
+#         if verbose:
+#             print(f"Starting transcription with language: {language}")
+#         result = transcribe_with_diarization(input_path, language)
+#
+#         # Save to file if specified
+#         if output_file:
+#             output_path = Path(output_file)
+#             json_output = json.dumps(result, indent=2, ensure_ascii=False)
+#             output_path.write_text(json_output, encoding="utf-8")
+#             if verbose:
+#                 print(f"✓ Transcript saved to: {output_file}")
+#
+#         # Cleanup temporary files
+#         if created_temp_dir:
+#             cleanup_temp_files(created_temp_dir, keep_files=keep_temp)
+#
+#         return result
+#
+#     except Exception as e:
+#         # Cleanup on error
+#         if created_temp_dir:
+#             cleanup_temp_files(created_temp_dir, keep_files=False)
+#         raise e
+
+
+# -------- NEW -------
+def get_episode_id_from_path(file_path: str | Path) -> str:
+    """Get episode number from file path.
+
+    Used in automatic audio to transcript naming.
 
     Args:
-        temp_dir: Directory containing temporary files
-        keep_files: If True, preserve files for debugging
-    """
-    logger = logging.getLogger("transcript")
-
-    if keep_files:
-        logger.info(f"Keeping temporary files in: {temp_dir}")
-        print(f"Temporary files preserved in: {temp_dir}")
-        return
-
-    try:
-        if temp_dir.exists() and temp_dir.is_dir():
-            import shutil
-
-            shutil.rmtree(temp_dir)
-            logger.debug(f"Cleaned up temporary directory: {temp_dir}")
-    except Exception as e:
-        logger.warning(f"Failed to cleanup temporary files: {e}")
-
-
-@log_function(logger_name="transcript", log_execution_time=True)
-def transcribe_audio(
-    input_source: Union[str, Path],
-    language: str = "fr",
-    output_file: Optional[Union[str, Path]] = None,
-    verbose: bool = False,
-    keep_temp: bool = False,
-    temp_dir: Optional[Path] = None,
-) -> Dict:
-    """
-    High-level function to transcribe audio from file or URL.
-
-    This is the main function intended for use when importing this module.
-
-    Args:
-        input_source: Audio file path or URL to transcribe
-        language: Language code for transcription (default: fr)
-        output_file: Optional path to save JSON output
-        verbose: Enable verbose logging
-        keep_temp: Keep temporary files for debugging
-        temp_dir: Custom temporary directory
+        file_path: Path to audio file
 
     Returns:
-        Dict with comprehensive transcription and speaker data
+        Episode ID as string if found else random UUID
+    """
+    pattern = re.compile(r"episode_(\d{3})_")
+    match = pattern.search(str(file_path))
+    if match:
+        episode_num = match.group(1)  # '001'
+        return episode_num
+    return "000"  # Fallback to UUID if not found
+
+
+@log_function(logger_name="transcript", log_execution_time=True)
+def update_episode_transcription_paths(
+    episode_id: int,
+    raw_transcript_path: str,
+    speaker_mapping_path: str,
+    formatted_transcript_path: str,
+    transcript_duration: Optional[int] = None,
+    transcript_confidence: Optional[float] = None,
+) -> bool:
+    """
+    Update episode database record with transcription file paths.
+    
+    Args:
+        episode_id: Database ID of the episode
+        raw_transcript_path: Path to raw transcription JSON
+        speaker_mapping_path: Path to speaker mapping JSON
+        formatted_transcript_path: Path to formatted transcript text
+        
+    Returns:
+        bool: True if update successful, False otherwise
+    """
+    logger = logging.getLogger("audio_scraper")
+    try:
+        with get_db_session() as session:
+            episode = session.query(Episode).filter_by(id=episode_id).first()
+
+            if not episode:
+                logger.error(f"Episode {episode_id} not found in database")
+                return False
+
+            # Update db fields
+            stage_order = list(ProcessingStage)
+            current_stage_index = stage_order.index(episode.processing_stage)
+            target_stage_index = stage_order.index(ProcessingStage.FORMATTED_TRANSCRIPT)
+            if current_stage_index < target_stage_index:
+                episode.processing_stage = ProcessingStage.FORMATTED_TRANSCRIPT
+            episode.raw_transcript_path = raw_transcript_path
+            # episode.speaker_mapping_path = speaker_mapping_path
+            episode.formatted_transcript_path = formatted_transcript_path
+            episode.transcript_duration = transcript_duration
+            episode.transcript_confidence = transcript_confidence
+
+            session.commit()
+            logger.info(f"Updated episode ID {episode_id} with audio file path")
+            return True
+    except Exception as e:
+        logger.error(f"Failed to update episode ID {episode_id}: {e}")
+        return False
+
+
+@log_function(logger_name="transcript", log_execution_time=True)
+def transcribe_local_file(
+    input_file: Union[str, Path],
+    language: str = "fr",
+    output_dir: Optional[Union[str, Path]] = "data/transcripts/",
+    episode_id: Optional[int] = None,
+):
+    """High level function to transcribe a local audio file.
+
+    Transcribe a local audio file and save the following files:
+        - The raw transcription JSON with diarization
+        - The speaker mapping JSON
+        - The formatted transcript text file
+
+    BEWARE: The files will be saved in a subdirectory of output_dir
+
+    Transcribe using AssemblyAI Universal-2 with diarization.
+
+    Args:
+        input_path: Path to local audio file
+        language: Language code for transcription (default: fr)
+        output_dir: Directory to save output files (default: data/transcripts/)
+        episode_id: Optional episode ID for naming else try to found it file name
 
     Raises:
         FileNotFoundError: If local file doesn't exist
         ValueError: If API key is missing
         Exception: If transcription or download fails
     """
-    # Initialize variables
-    input_path = None
-    created_temp_dir = None
+    logger = logging.getLogger("transcript")
 
     try:
-        # Convert input to string for URL checking
-        input_str = str(input_source)
+        # Find episode id for naming if not provided
+        input_path = Path(input_file)
+        episode_nbr = int(episode_id if episode_id is not None else get_episode_id_from_path(input_path))
 
-        # Determine if input is URL or file
-        if is_url(input_str):
-            # Create temporary directory for download
-            temp_base = temp_dir or Path(tempfile.gettempdir())
-            created_temp_dir = temp_base / f"transcript_{os.getpid()}"
+        # Create output directory if not exists
+        out_dir_path = Path(output_dir / f"episode_{episode_nbr:03d}/")
+        try:
+            out_dir_path.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            logger.error(f"Failed to create output directory {out_dir_path}: {e}")
+            raise
 
-            if verbose:
-                print(f"Downloading from URL: {input_str}")
-            input_path = download_from_url(input_str, created_temp_dir)
+        # Raw transcription
+        raw_file_path = Path(out_dir_path / f"raw_episode_{episode_nbr:03d}.json")
+        # Take transcription from cache if exists
+        if raw_file_path.exists():
+            raw_result = json.loads(raw_file_path.read_text(encoding="utf-8"))
         else:
-            # Local file
-            input_path = Path(input_str)
-            if not input_path.exists():
-                raise FileNotFoundError(f"Audio file not found: {input_path}")
+            raw_result = transcribe_with_diarization(input_path, language)
+            try:
+                with open(raw_file_path, "w", encoding="utf-8") as f:
+                    json.dump(raw_result, f, indent=4)
+                    logger.info(f"Saved raw transcription to {raw_file_path}")
+            except OSError as e:
+                logger.error(f"Failed to write raw transcript to {raw_file_path}: {e}")
+                raise
 
-        # Transcribe with diarization
-        if verbose:
-            print(f"Starting transcription with language: {language}")
-        result = transcribe_with_diarization(input_path, language)
+        # Speaker mapping
+        mapping_file_path = Path(out_dir_path / f"speakers_episode_{episode_nbr:03d}.json")
+        # Take mapping from cache if exists
+        mapping_result = {}
+        if mapping_file_path.exists():
+            raw_formatted_text = format_transcript(raw_file_path, max_tokens=10000)
+        else:
+            raw_formatted_text = format_transcript(raw_file_path, max_tokens=10000)
+            mapping_result = map_speakers_with_llm(raw_formatted_text)
+            try:
+                with open(mapping_file_path, "w", encoding="utf-8") as f:
+                    json.dump(mapping_result, f, indent=4)
+                    logger.info(f"Saved mapping result to {mapping_file_path}")
+            except OSError as e:
+                logger.error(f"Failed to write mapping result to {mapping_file_path}: {e}")
+                raise
 
-        # Save to file if specified
-        if output_file:
-            output_path = Path(output_file)
-            json_output = json.dumps(result, indent=2, ensure_ascii=False)
-            output_path.write_text(json_output, encoding="utf-8")
-            if verbose:
-                print(f"✓ Transcript saved to: {output_file}")
+        # Formatted transcript
+        formatted_transcript_path = Path(out_dir_path / f"formatted_episode_{episode_nbr:03d}.txt")
+        formatted_text = format_transcript(raw_file_path, speaker_mapping=mapping_result)
+        try:
+            with open(formatted_transcript_path, "w", encoding="utf-8") as f:
+                f.write(formatted_text)
+                logger.info(f"Saved mapping result to {formatted_transcript_path}")
+        except OSError as e:
+            logger.error(f"Failed to write mapping result to {formatted_transcript_path}: {e}")
+            raise
 
-        # Cleanup temporary files
-        if created_temp_dir:
-            cleanup_temp_files(created_temp_dir, keep_files=keep_temp)
-
-        return result
-
+        # Update database record
+        try:
+            transcript_duration = raw_result["transcript"].get("audio_duration")
+            transcript_confidence = raw_result["transcript"].get("confidence")
+            update_episode_transcription_paths(
+                episode_nbr,
+                str(raw_file_path),
+                str(mapping_file_path),
+                str(formatted_transcript_path),
+                transcript_duration=transcript_duration,
+                transcript_confidence=transcript_confidence,
+            )
+            logger.info("Database updated successfully")
+        except Exception as db_error:
+            logger.error(f"DB update failed but files saved: {db_error}")
+            # Files exist but DB not updated - manual intervention needed
+        
     except Exception as e:
-        # Cleanup on error
-        if created_temp_dir:
-            cleanup_temp_files(created_temp_dir, keep_files=False)
-        raise e
+        print(f"Transcription failed: {e}")
+        raise
