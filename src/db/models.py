@@ -1,5 +1,14 @@
 from enum import Enum as PyEnum
-from sqlalchemy import Column, Integer, Float, Enum, String, Text, DateTime, UniqueConstraint
+from sqlalchemy import (
+    Column,
+    Integer,
+    Float,
+    Enum,
+    String,
+    Text,
+    DateTime,
+    UniqueConstraint,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 
@@ -17,11 +26,12 @@ class TimestampMixin:
 
 class ProcessingStage(str, PyEnum):
     """Enum representing processing stages of an episodes."""
-    SYNCED = "synced"                               # Episode in DB, no processing yet
-    AUDIO_DOWNLOADED = "audio_downloaded"           # Audio file downloaded
-    RAW_TRANSCRIPT = "raw_transcript"               # Initial raw transcription done
-    FORMATTED_TRANSCRIPT = "formatted_transcript"   # Speaker-mapper transcription done
-    EMBEDDED = "embedded"                           # Chunks embedded in vectorial DB (Qdrant)
+
+    SYNCED = "synced"  # Episode in DB, no processing yet
+    AUDIO_DOWNLOADED = "audio_downloaded"  # Audio file downloaded
+    RAW_TRANSCRIPT = "raw_transcript"  # Initial raw transcription done
+    FORMATTED_TRANSCRIPT = "formatted_transcript"  # Speaker-mapper transcription done
+    EMBEDDED = "embedded"  # Chunks embedded in vectorial DB (Qdrant)
 
 
 class Episode(Base, TimestampMixin):
