@@ -21,7 +21,7 @@ from pathlib import Path
 
 import requests
 
-from src.db import get_db_session, Episode
+from src.db import get_db_session, Episode, ProcessingStage
 from src.logger import setup_logging, log_function
 
 
@@ -53,6 +53,43 @@ def generate_filename(episode_number, title):
     """Generate filename: episode_{number:03d}_{title}.mp3"""
     safe_title = sanitize_filename(title)
     return f"episode_{episode_number:03d}_{safe_title}.mp3"
+
+
+@log_function(logger_name="audio_scraper", log_execution_time=True)
+def update_episode_status(episode_id: int, audio_file_path: str) -> bool:
+    """
+    Update episode database record after successful audio download.
+
+    Args:
+        episode_id: Database ID of the episode
+        audio_file_path: Path to the downloaded audio file
+
+    Returns:
+        bool: True if update successful, False otherwise
+    """
+    logger = logging.getLogger("audio_scraper")
+    try:
+        with get_db_session() as session:
+            episode = session.query(Episode).filter_by(id=episode_id).first()
+
+            if not episode:
+                logger.error(f"Episode {episode_id} not found in database")
+                return False
+
+            # Update db fields
+            stage_order = list(ProcessingStage)
+            current_stage_index = stage_order.index(episode.processing_stage)
+            target_stage_index = stage_order.index(ProcessingStage.AUDIO_DOWNLOADED)
+            if current_stage_index < target_stage_index:
+                episode.processing_stage = ProcessingStage.AUDIO_DOWNLOADED
+            episode.audio_file_path = audio_file_path
+
+            session.commit()
+            logger.info(f"Updated episode ID {episode_id} with audio file path")
+            return True
+    except Exception as e:
+        logger.error(f"Failed to update episode ID {episode_id}: {e}")
+        return False
 
 
 @log_function(logger_name="audio_scraper", log_execution_time=True)
@@ -104,7 +141,9 @@ def get_existing_files(audio_dir):
 
 
 @log_function(logger_name="audio_scraper", log_execution_time=True)
-def download_episode(episode_number, title, url, audio_dir, max_retries=3):
+def download_episode(
+    episode_number, title, url, audio_dir, max_retries=3
+) -> tuple[bool, str]:
     """Download single episode with browser headers for feedpress.me URLs"""
     logger = logging.getLogger("audio_scraper")
 
@@ -153,7 +192,7 @@ def download_episode(episode_number, title, url, audio_dir, max_retries=3):
 
             logger.info(f"Successfully downloaded {filename} ({file_size:,} bytes)")
             print(f"  ✓ Downloaded {filename} ({file_size:,} bytes)")
-            return True
+            return True, filepath
 
         except requests.exceptions.RequestException as e:
             logger.warning(f"Download attempt {attempt + 1} failed for {filename}: {e}")
@@ -179,7 +218,7 @@ def download_episode(episode_number, title, url, audio_dir, max_retries=3):
 
     logger.error(f"Failed to download {filename} after {max_retries} attempts")
     print(f"  ✗ Failed after {max_retries} attempts")
-    return False
+    return False, ""
 
 
 @log_function(logger_name="audio_scraper", log_execution_time=True)
@@ -252,12 +291,14 @@ def download_missing_episodes(audio_dir="data/audio", limit=None, dry_run=False)
             "downloaded": 0,
             "failed": 0,
             "skipped": len(existing_files),
+            "db_updated": 0,
+            "db_failed": 0,
         }
 
         for i, episode in enumerate(missing_episodes, 1):
             print(f"\n[{i}/{len(missing_episodes)}] {episode['title'][:60]}...")
 
-            success = download_episode(
+            success, filepath = download_episode(
                 episode["episode_number"],
                 episode["title"],
                 episode["audio_url"],
@@ -266,6 +307,13 @@ def download_missing_episodes(audio_dir="data/audio", limit=None, dry_run=False)
 
             if success:
                 stats["downloaded"] += 1
+                if update_episode_status(episode["id"], filepath):
+                    stats["db_updated"] += 1
+                else:
+                    logger.warning(
+                        f"Downloaded episode {episode['id']} but failed to update database"
+                    )
+                    stats["db_failed"] += 1
             else:
                 stats["failed"] += 1
 
@@ -327,6 +375,8 @@ Examples:
         print(f"  Downloaded: {stats['downloaded']}")
         print(f"  Already existed: {stats['skipped']}")
         print(f"  Failed: {stats['failed']}")
+        print(f"  DB updated: {stats.get('db_updated', 0)}")
+        print(f"  DB update failed: {stats.get('db_failed', 0)}")
 
         if stats["failed"] > 0:
             print("\n⚠️  Check logs/audio_download.log for detailed error information")

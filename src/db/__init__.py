@@ -16,7 +16,7 @@ naming conventions (singular class names, plural table names).
 """
 
 # Import key components for easy access
-from .models import Base, Episode, TimestampMixin
+from .models import Base, Episode, ProcessingStage, TimestampMixin
 from .database import (
     get_db_session,
     check_database_connection,
@@ -34,6 +34,7 @@ __all__ = [
     # Models
     "Base",
     "Episode",
+    "ProcessingStage",
     "TimestampMixin",
     # Database utilities
     "get_db_session",
