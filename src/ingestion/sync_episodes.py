@@ -86,7 +86,8 @@ def determine_stage_for_file(
 def reconcile_episode_status(
     episodes,
     audio_dir: Path = Path("data/audio"),
-    transcript_dir: Path = Path("data/transcript")
+    transcript_dir: Path = Path("data/transcript"),
+    dry_run: bool = False,
 ) -> dict:
     """
     Reconcile episode processing stages based on filesystem state.
@@ -95,6 +96,7 @@ def reconcile_episode_status(
         episodes: List of Episode objects to reconcile
         audio_dir: Directory containing audio files
         transcript_dir: Directory containing transcript files
+        dry_run: If True, do not commit changes to database
         
     Returns:
         Dict with stats: {"processed": N, "updated": N, "unchanged": N, "errors": N}
@@ -169,6 +171,10 @@ def reconcile_episode_status(
                                 f"from '{episode.formatted_transcript_path}' to '{formatted_path}'"
                             )
                         episode.formatted_transcript_path = str(formatted_path)
+
+                    # Commit changes
+                    if not dry_run:
+                        session.commit()
                     
                     print(f"  ✓ Episode {episode.id}: {old_stage.value} → {target_stage.value}")
                     logger.info(f"Updated episode {episode.id} from {old_stage.value} to {target_stage.value}")
@@ -439,7 +445,7 @@ Examples:
                 episodes = query.all()
             
             # Run reconciliation
-            stats = reconcile_episode_status(episodes)
+            stats = reconcile_episode_status(episodes, dry_run=args.dry_run)
             
             # Print summary
             print(
