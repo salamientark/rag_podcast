@@ -15,7 +15,7 @@ import hashlib
 import logging
 import os
 import sys
-from typing import Optional
+from typing import Optional, Any
 from datetime import datetime, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
@@ -40,8 +40,16 @@ logger = setup_logging(logger_name="sync_episodes", log_file="logs/sync_episodes
 @log_function(logger_name="sync_episodes", log_execution_time=True)
 def find_episode_file(episode_id: int, file_dir: Path, pattern: str) -> Optional[Path]:
     """
-    Find episode file using glob pattern used to find audio and transcript file.
-    Returns Path if found and valid, None otherwise.
+    Find episode file using glob pattern to locate audio and transcript files.
+
+    Args:
+        episode_id: The database ID of the episode to search for
+        file_dir: Directory path to search within
+        pattern: Glob pattern to match files (e.g., "episode_001_*.mp3")
+
+    Returns:
+        Path object if exactly one valid file is found, None otherwise
+        Returns None if no files match, multiple files match, or file is empty
     """
     matches = list(file_dir.glob(pattern))
 
@@ -67,7 +75,14 @@ def determine_stage_for_file(
     """
     Determine highest processing stage based on which files exist.
 
-    Returns the maximum stage that can be proven by existing files.
+    Args:
+        audio_exists: True if audio file exists on disk
+        raw_exists: True if raw transcript JSON file exists on disk
+        formatted_exists: True if formatted transcript TXT file exists on disk
+
+    Returns:
+        ProcessingStage enum representing the maximum stage that can be
+        proven by existing files. Stages are ordered from SYNCED to FORMATTED_TRANSCRIPT.
     """
     if formatted_exists and raw_exists and audio_exists:
         return ProcessingStage.FORMATTED_TRANSCRIPT
@@ -81,11 +96,11 @@ def determine_stage_for_file(
 
 @log_function(logger_name="sync_episodes", log_execution_time=True)
 def reconcile_episode_status(
-    episodes,
+    episodes: list[Episode],
     audio_dir: Path = Path("data/audio"),
     transcript_dir: Path = Path("data/transcript"),
     dry_run: bool = False,
-) -> dict:
+) -> dict[str, int]:
     """
     Reconcile episode processing stages based on filesystem state.
 
@@ -212,13 +227,33 @@ def reconcile_episode_status(
 
 # ============ RSS SYNC FUNCTIONS ============
 @log_function(logger_name="sync_episodes", log_execution_time=True)
-def fetch_podcast_episodes():
-    """Fetch episodes from RSS feed - proven working approach"""
+def fetch_podcast_episodes() -> list[dict[str, Any]]:
+    """
+    Fetch episodes from RSS feed and parse episode metadata.
+
+    Retrieves the RSS feed URL from environment variables, parses the XML feed,
+    and extracts episode information including title, date, audio URL, and description.
+
+    Returns:
+        List of dictionaries containing episode data with keys:
+        - title (str): Episode title
+        - date (datetime): Publication date
+        - audio_url (str): URL to audio file
+        - guid (str): Unique episode identifier
+        - description (str, optional): Episode description (max 1000 chars)
+
+    Raises:
+        EnvironmentError: If .env file cannot be loaded or FEED_URL is missing
+        requests.RequestException: If feed fetch fails
+    """
     # Get feed URL from .env
     env = load_dotenv()
     if not env:
         raise EnvironmentError("Could not load .env file")
     FEED_URL = os.getenv("FEED_URL")
+
+    if not FEED_URL:
+        raise EnvironmentError("FEED_URL not found in .env file")
 
     logger.info(f"Fetching feed from {FEED_URL}...")
     try:
@@ -289,8 +324,29 @@ def fetch_podcast_episodes():
     return episodes
 
 
-def filter_episodes(episodes, full_sync=False, days_back=30, limit=None):
-    """Filter and limit episodes"""
+def filter_episodes(
+    episodes: list[dict[str, Any]],
+    full_sync: bool = False,
+    days_back: int = 30,
+    limit: Optional[int] = None,
+) -> list[dict[str, Any]]:
+    """
+    Filter and limit episodes based on date range and count.
+
+    Sorts episodes chronologically (oldest first) and applies optional filtering
+    by date range and limiting by count. For partial syncs, takes the most recent
+    episodes; for full syncs, processes all episodes chronologically.
+
+    Args:
+        episodes: List of episode dictionaries from RSS feed
+        full_sync: If True, process all episodes; if False, filter by date range
+        days_back: Number of days to look back for episodes (ignored if full_sync=True)
+        limit: Maximum number of episodes to process (None for no limit)
+
+    Returns:
+        Filtered and sorted list of episode dictionaries in chronological order
+        (oldest first for consistent database ID assignment)
+    """
     # Sort by date (oldest first) for chronological database ID assignment
     episodes.sort(key=lambda x: x["date"], reverse=False)
 
@@ -321,8 +377,28 @@ def filter_episodes(episodes, full_sync=False, days_back=30, limit=None):
 
 
 @log_function(logger_name="sync_episodes", log_execution_time=True)
-def sync_to_database(episodes, dry_run=False):
-    """Sync episodes to database"""
+def sync_to_database(
+    episodes: list[dict[str, Any]], dry_run: bool = False
+) -> dict[str, int]:
+    """
+    Sync episodes from RSS feed to database.
+
+    Processes episodes in chronological order (oldest first) for consistent database
+    ID assignment. Skips episodes that already exist (based on GUID). In dry-run mode,
+    displays what would be added without making database changes.
+
+    Args:
+        episodes: List of episode dictionaries from RSS feed with keys:
+                  guid, title, date, audio_url, description
+        dry_run: If True, display actions without committing to database
+
+    Returns:
+        Dictionary with statistics:
+        - processed: Total number of episodes processed
+        - added: Number of new episodes added to database
+        - skipped: Number of episodes that already existed
+        - errors: Number of episodes that failed to process
+    """
     logger = logging.getLogger("sync_episodes")
 
     if not episodes:
