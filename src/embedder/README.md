@@ -5,19 +5,118 @@ Generate text embeddings from podcast transcripts using VoyageAI's embedding mod
 ## Overview
 
 The embedder module provides:
-- **CLI tool** for generating embeddings from transcript files
+- **Batch processing CLI** (`main.py`) for embedding multiple files and storing in Qdrant database
+- **Single file CLI** (`__main__.py`) for generating embeddings from single transcript files
 - **Token counter** for validating text length before API calls
 - **Automatic validation** against Voyage AI token limits
 
-## CLI Usage
+## CLI Tools
 
-### Basic Command
+### 1. Batch Processing with Qdrant (NEW - main.py)
+
+**Use this for:** Processing multiple transcript files and storing embeddings in Qdrant vector database for RAG applications.
+
+#### Basic Command
+
+```bash
+uv run -m src.embedder.main <input_files...> [options]
+```
+
+#### Options
+
+| Option | Short | Type | Description |
+|--------|-------|------|-------------|
+| `input_files` | - | Path(s) | **Required.** One or more transcript files. Supports glob patterns (e.g., `*.txt`, `data/**/*.txt`) |
+| `--collection` | - | str | Qdrant collection name (default: from environment) |
+| `--dimensions` | `-d` | int | Output vector dimensions: 256, 512, 1024, 2048 (default: 1024) |
+| `--save-local` | - | flag | Save embeddings as local .npy files (format: `episode_<id>_d<dim>.npy`) |
+| `--episode-id` | - | int | Episode ID for database tracking (default: auto-extract from filename) |
+| `--dry-run` | - | flag | Validate files without processing |
+| `--verbose` | `-v` | flag | Enable detailed logging output |
+
+#### Examples
+
+```bash
+# Single file to Qdrant (default collection)
+uv run -m src.embedder.main data/transcripts/episode_672/formatted_episode_672.txt
+
+# Multiple files
+uv run -m src.embedder.main file1.txt file2.txt file3.txt
+
+# Glob pattern - process all formatted transcripts
+uv run -m src.embedder.main "data/transcripts/*/formatted_*.txt"
+
+# Custom collection and dimensions
+uv run -m src.embedder.main *.txt --collection my_podcasts --dimensions 512
+
+# Save local copies with custom dimensions
+uv run -m src.embedder.main transcript.txt --save-local --dimensions 512
+
+# Dry run to validate files
+uv run -m src.embedder.main "data/transcripts/**/*.txt" --dry-run --verbose
+
+# With explicit episode ID
+uv run -m src.embedder.main transcript.txt --episode-id 123
+```
+
+#### Output Example
+
+```
+Expanding file patterns...
+Validating 3 file(s)...
+✓ Found 3 valid file(s) to process
+
+Verifying Qdrant collection 'podcasts'...
+✓ Collection 'podcasts' ready
+
+Processing 3 file(s)...
+------------------------------------------------------------
+
+[1/3] Processing: formatted_episode_671.txt
+  ✓ Successfully processed formatted_episode_671.txt
+
+[2/3] Processing: formatted_episode_672.txt
+  ✓ Successfully processed formatted_episode_672.txt
+    Local file: data/embeddings/episode_672_d1024.npy
+
+[3/3] Processing: formatted_episode_673.txt
+  ✓ Successfully processed formatted_episode_673.txt
+
+============================================================
+PROCESSING SUMMARY
+============================================================
+Total files:    3
+Successful:     3
+Failed:         0
+Collection:     podcasts
+Dimensions:     1024
+
+✓ Batch processing complete!
+```
+
+#### Features
+
+- **Glob pattern support:** Process multiple files with wildcards (`*.txt`, `**/*.txt`)
+- **Auto episode ID extraction:** Extracts episode numbers from filenames (e.g., `episode_672` → ID 672)
+- **Database integration:** Stores embeddings in Qdrant with metadata (title, episode ID, source file)
+- **Batch progress tracking:** Shows progress for each file with success/failure status
+- **Optional local storage:** Save embeddings as `.npy` files with naming format `episode_<id>_d<dimensions>.npy`
+- **Dry run mode:** Validate files and patterns without processing
+- **Comprehensive error handling:** Continues processing on errors, reports summary at end
+
+---
+
+### 2. Single File Embedder (__main__.py)
+
+**Use this for:** Generating embeddings from a single file and saving as `.npy` (no database storage).
+
+#### Basic Command
 
 ```bash
 uv run -m src.embedder <input_file> [options]
 ```
 
-### Options
+#### Options
 
 | Option | Short | Type | Description |
 |--------|-------|------|-------------|

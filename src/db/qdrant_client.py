@@ -25,7 +25,13 @@ from contextlib import contextmanager
 from typing import Generator, Dict, Any
 
 from qdrant_client import QdrantClient
-from qdrant_client.models import VectorParams, Distance
+from qdrant_client.models import (
+    VectorParams,
+    Distance,
+    Filter,
+    FieldCondition,
+    MatchValue,
+)
 
 from src.logger import setup_logging, log_function
 
@@ -186,6 +192,66 @@ def insert_one_point(
             }
         ],
     )
+
+
+@log_function(logger_name="qdrant_client", log_execution_time=True)
+def check_episode_exists_in_qdrant(
+    client: QdrantClient,
+    collection_name: str,
+    episode_id: int,
+) -> bool:
+    """Check if an episode is already embedded in the Qdrant collection.
+
+    Queries the collection for any points with matching episode_id in payload.
+
+    Args:
+        client (QdrantClient): Active Qdrant client instance
+        collection_name (str): Name of the collection to search
+        episode_id (int): Episode ID to check for
+
+    Returns:
+        bool: True if episode exists in collection, False otherwise
+    """
+    try:
+        # Check if collection exists first
+        if not client.collection_exists(collection_name=collection_name):
+            qdrant_logger.debug(
+                f"Collection '{collection_name}' does not exist, episode not found"
+            )
+            return False
+
+        # Build filter for episode_id
+        scroll_filter = Filter(
+            must=[FieldCondition(key="episode_id", match=MatchValue(value=episode_id))]
+        )
+
+        # Query for matching points (limit 1 since we only need to know if it exists)
+        records, _ = client.scroll(
+            collection_name=collection_name,
+            scroll_filter=scroll_filter,
+            limit=1,
+            with_payload=True,
+            with_vectors=False,
+        )
+
+        exists = len(records) > 0
+        if exists:
+            qdrant_logger.debug(
+                f"Episode {episode_id} found in collection '{collection_name}'"
+            )
+        else:
+            qdrant_logger.debug(
+                f"Episode {episode_id} not found in collection '{collection_name}'"
+            )
+
+        return exists
+
+    except Exception as e:
+        qdrant_logger.error(
+            f"Error checking if episode {episode_id} exists in '{collection_name}': {e}"
+        )
+        # On error, return False to allow processing (fail-open approach)
+        return False
 
 
 # Log Qdrant configuration on module load
