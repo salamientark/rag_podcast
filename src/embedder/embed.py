@@ -6,6 +6,7 @@ from pathlib import Path
 import voyageai
 
 from src.logger import log_function
+from src.embedder.token_counter import check_voyage_limits
 
 
 @log_function(logger_name="embedder", log_args=False, log_execution_time=True)
@@ -42,14 +43,31 @@ def embed_text(text: str | list[str], dimensions: int = 1024) -> Any:
         # Ensure text is a list for API compatibility
         texts_to_embed = [text] if isinstance(text, str) else text
 
-        logger.info(f"Generating embeddings with {dimensions} dimensions")
+        # Check token limits before making API call
+        model_name = "voyage-3"
+        limit_check = check_voyage_limits(texts_to_embed, model=model_name)
+
+        if not limit_check["fits"]:
+            error_msg = f"Text exceeds Voyage AI limits: {limit_check['issues']}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
+        logger.info(
+            f"Generating embeddings with {dimensions} dimensions "
+            f"({limit_check['total_tokens']} tokens, "
+            f"{limit_check['total_tokens'] / limit_check['model_limits']['context_length'] * 100:.1f}% of limit)"
+        )
+
         result = vo.embed(
             texts_to_embed,
-            model="voyage-3",
+            model=model_name,
             input_type="document",
             output_dimension=dimensions,
         )
-        logger.info("Embeddings generated successfully")
+        logger.info(
+            f"Embeddings generated successfully. "
+            f"API reported {result.total_tokens} tokens"
+        )
         return result
     except Exception as e:
         logger.error(f"Error generating embeddings: {e}")

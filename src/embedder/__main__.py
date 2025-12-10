@@ -29,7 +29,6 @@ import sys
 from pathlib import Path
 
 from src.embedder.embed import embed_text, save_embedding_to_file
-from src.transcription import get_mapped_transcript
 from src.logger import setup_logging
 
 
@@ -153,7 +152,6 @@ def main() -> int:
         # raw_transcript = get_mapped_transcript(args.input_file)
         with open(args.input_file, "r", encoding="utf-8") as f:
             transcript = f.read()
-
 
         if args.verbose:
             print(f"Transcript preview (first 500 chars):\n{transcript[:500]}\n")
