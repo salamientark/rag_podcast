@@ -9,7 +9,12 @@ This package contains all database-related functionality including:
 Structure:
 - models.py: SQLAlchemy ORM models (Episode, TimestampMixin)
 - database.py: Database connection, engine, and session factory
+- qdrant_client.py: Qdrant vector database client and utilities
 - __init__.py: Package initialization and exports
+
+Database Patterns:
+- SQLite uses session-per-operation with get_db_session() context manager
+- Qdrant uses connection-per-operation with get_qdrant_client() context manager
 
 All models inherit from a common Base declarative class and follow consistent
 naming conventions (singular class names, plural table names).
@@ -24,6 +29,16 @@ from .database import (
     get_database_info,
     engine,
     SessionLocal,
+)
+from .qdrant_client import (
+    get_qdrant_client,
+    check_qdrant_connection,
+    get_qdrant_info,
+    insert_one_point,
+    create_collection,
+    QDRANT_URL,
+    QDRANT_COLLECTION_NAME,
+    EMBEDDING_DIMENSION,
 )
 
 # This allows other parts of the application to import like:
@@ -43,4 +58,13 @@ __all__ = [
     "get_database_info",
     "engine",
     "SessionLocal",
+    # Qdrant Vector Database utilities
+    "get_qdrant_client",
+    "check_qdrant_connection",
+    "get_qdrant_info",
+    "create_collection",
+    "insert_one_point",
+    "QDRANT_URL",
+    "QDRANT_COLLECTION_NAME",
+    "EMBEDDING_DIMENSION",
 ]
