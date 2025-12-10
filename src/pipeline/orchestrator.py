@@ -1,0 +1,167 @@
+import logging
+
+from typing import Optional
+
+from src.logger import log_function, setup_logging
+from src.db import get_db_session, Episode, ProcessingStage
+from src.ingestion.sync_episodes import fetch_podcast_episodes, sync_to_database
+from .stages import run_sync_stage, run_download_stage
+
+
+ARG_TO_PROCESSING_STAGE = {
+        "sync": ProcessingStage.SYNCED,
+        "download": ProcessingStage.AUDIO_DOWNLOADED,
+        "raw_transcript": ProcessingStage.RAW_TRANSCRIPT,
+        "formatted_transcript": ProcessingStage.FORMATTED_TRANSCRIPT,
+        "embed": ProcessingStage.EMBEDDED,
+}
+
+
+@log_function(logger_name="pipeline", log_execution_time=True)
+def fetch_db_episodes() -> list[Episode]:
+    """Fetch all episodes from the database.
+
+    Returns:
+        List of Episode objects from the database, sorted by published date descending.
+    """
+    logger = logging.getLogger("pipeline")
+    logger.info("Fetching episodes from database...")
+    with get_db_session() as session:
+        episodes = session.query(Episode).order_by(Episode.published_date.desc()).all()
+    logger.info(f"Fetched {len(episodes)} episodes from database.")
+    return episodes
+
+
+def get_last_requested_stage(stages: list[str]) -> ProcessingStage:
+    """
+    Get the last requested stage from the list of stages.
+
+    Used in pipeline process to filter episodes to process.
+
+    Args:
+        stages (list[str]): List of stage names.
+
+    Returns:
+        ProcessingStage: The last requested processing stage.
+    """
+    stage_order = list(ProcessingStage)
+    last_stage = None
+    for stage in stages:
+        converted_stage = ARG_TO_PROCESSING_STAGE.get(stage)
+        if converted_stage is None:
+            continue
+        if last_stage is None:
+            last_stage = converted_stage
+            continue
+        converted_stage_index = stage_order.index(converted_stage)
+        target_stage_index = stage_order.index(last_stage)
+        if converted_stage_index > target_stage_index:
+            last_stage = converted_stage
+    return last_stage
+        
+
+def filter_episode(
+    episodes: list[Episode],
+    episodes_id: Optional[list[int]] = None,
+    limit: Optional[int] = None,
+    stage: Optional[ProcessingStage] = ProcessingStage.EMBEDDED,
+    ) -> list[Episode]:
+    """
+    Filter episodes based on provided IDs and limit.
+
+    Args:
+        episodes (list[Episode]): List of Episode objects to filter.
+        episodes_id (Optional[list[int]]): List of episode IDs to include. If None, include all.
+        limit (Optional[int]): Maximum number of episodes to return. If None, no limit.
+        stage (Optional[ProcessingStage]): Processing stage to filter by. If None, defaults to EMBEDDED.
+
+    Returns:
+        list[Episode]: Filtered list of Episode objects.
+    """
+    filetered_episodes = []
+    stage_limit = stage if stage is not None else ProcessingStage.EMBEDDED
+    stage_order = list(ProcessingStage)
+
+    # Select by IDs
+    if episodes_id is not None:
+        filetered_episodes = [ep for ep in episodes if ep.id in episodes_id]
+    # Select by limit
+    elif limit is not None:
+        episode_left = limit
+        for ep in episodes:
+            if episode_left <= 0:
+                break
+            current_stage_index = stage_order.index(ep.processing_stage)
+            target_stage_index = stage_order.index(stage)
+            if current_stage_index < target_stage_index:
+                filetered_episodes.append(ep)
+                episode_left -= 1
+    else:
+        raise ValueError("Either episodes_id or limit must be provided for filtering.")
+
+    return filetered_episodes
+
+
+@log_function(logger_name="pipeline", log_execution_time=True)
+def run_pipeline(
+        episodes_id: Optional[list[int]] = None,
+        limit: Optional[int] = None,
+        stages: Optional[list[str]] = None,
+        dry_run: bool = False,
+        verbose: bool = False,
+    ):
+    logger = logging.getLogger("pipeline")
+
+    try:
+        # Get last requested stage if exist
+        last_stage = ProcessingStage.EMBEDDED
+        if stages is not None:
+            last_stage = get_last_requested_stage(stages)
+
+        # Run sync Stage
+        logger.info("=== PIPELINE STARTED ===")
+        if stages is None or "sync" in stages:
+            run_sync_stage()
+
+        # Filter episodes to process
+        episodes_to_process = filter_episode(
+            fetch_db_episodes(),
+            episodes_id=episodes_id,
+            limit=limit,
+            stage=last_stage,
+        )
+
+        print(f"DEBUG: Episodes to process: {[ep.id for ep in episodes_to_process]}")
+    
+        # Run download audio stage
+        if stages is None or "download" in stages:
+            audio_path = run_download_stage(episodes_to_process)
+            print(f"DEBUG: Downloaded audio paths: {audio_path}")
+
+
+
+
+
+
+
+    except Exception as e:
+        print(f"FATAL ERROR: {e}")
+        logger.error(f"Pipeline failed: {e}")
+        raise
+    
+
+if __name__ == "__main__":
+    try:
+        logger = setup_logging("pipeline", verbose=True)
+        print("TESTING")
+        run_pipeline(
+            stages=["sync", "download"],
+            episodes_id=[671, 672, 673],
+            # limit=3,
+        )
+        # db_episodes = fetch_db_episodes()
+        # print(f"Episodes fetched : {db_episodes}")
+        # print(f"Fetched {len(db_episodes)} episodes from DB")
+        # print(f"Episode 1: {db_episodes[0]}")
+    except Exception as e:
+        print(f"FATAL ERROR: {e}")
