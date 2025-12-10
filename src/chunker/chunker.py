@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 from chonkie import SemanticChunker, Chunk
 from src.transcription import get_mapped_transcript

@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 from pathlib import Path
 from chonkie import Chunk
 from src.transcription import get_mapped_transcript
-from src.chunker.chunker import chunk_text
 from src.logger import setup_logging, log_function
 
 
@@ -43,7 +42,7 @@ ABSOLUTE_EPISODE_PATH = Path(
 )
 
 
-def chunks_to_text(chunks : list[Chunk]) -> list[str]:
+def chunks_to_text(chunks: list[Chunk]) -> list[str]:
     """Convert list of Chunks to list of text strings.
 
     Args:
@@ -53,12 +52,9 @@ def chunks_to_text(chunks : list[Chunk]) -> list[str]:
     """
     text_list = [chunk.text.strip() for chunk in chunks]
     return text_list
-    
 
-def save_embedding_to_file(
-        filename : str,
-        embed : list[float] | np.ndarray
-    ) -> Path:
+
+def save_embedding_to_file(filename: str, embed: list[float] | np.ndarray) -> Path:
     """Save the requested file to data/embeddings/<filename>.npy
 
     Args:
@@ -71,10 +67,10 @@ def save_embedding_to_file(
     file_path = base_path / f"{filename}.npy"
     with open(file_path, "w", encoding="utf-8") as f:
         if isinstance(embed, np.ndarray):
-            np.save(file_path, embed)
+            np.save(f, embed)
         else:
             np_embed = np.array(embed)
-            np.save(file_path, np_embed)
+            np.save(f, np_embed)
         return Path(f"data/embeddings/{filename}.npy")
 
 

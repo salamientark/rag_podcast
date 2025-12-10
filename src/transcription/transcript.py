@@ -8,16 +8,13 @@ import re
 import json
 import logging
 import os
-import tempfile
 import time
 from pathlib import Path
 from typing import Dict, Optional, Union
 
-import requests
 from dotenv import load_dotenv
 import assemblyai as aai
 
-from src.ingestion.audio_scrap import sanitize_filename
 from src.transcription.speaker_mapper import format_transcript, map_speakers_with_llm
 from src.db.database import get_db_session
 from src.db.models import Episode, ProcessingStage
@@ -238,7 +235,7 @@ def transcribe_with_diarization(file_path: Path, language: str = "fr") -> Dict:
         raise Exception(f"AssemblyAI transcription failed: {e}")
 
 
- # @log_function(logger_name="transcript", log_execution_time=True)
+# @log_function(logger_name="transcript", log_execution_time=True)
 # def cleanup_temp_files(temp_dir: Path, keep_files: bool = False) -> None:
 #     """
 #     Clean up temporary files.
@@ -374,13 +371,13 @@ def update_episode_transcription_paths(
 ) -> bool:
     """
     Update episode database record with transcription file paths.
-    
+
     Args:
         episode_id: Database ID of the episode
         raw_transcript_path: Path to raw transcription JSON
         speaker_mapping_path: Path to speaker mapping JSON
         formatted_transcript_path: Path to formatted transcript text
-        
+
     Returns:
         bool: True if update successful, False otherwise
     """
@@ -447,7 +444,11 @@ def transcribe_local_file(
     try:
         # Find episode id for naming if not provided
         input_path = Path(input_file)
-        episode_nbr = int(episode_id if episode_id is not None else get_episode_id_from_path(input_path))
+        episode_nbr = int(
+            episode_id
+            if episode_id is not None
+            else get_episode_id_from_path(input_path)
+        )
 
         # Create output directory if not exists
         out_dir_path = Path(output_dir / f"episode_{episode_nbr:03d}/")
@@ -473,7 +474,9 @@ def transcribe_local_file(
                 raise
 
         # Speaker mapping
-        mapping_file_path = Path(out_dir_path / f"speakers_episode_{episode_nbr:03d}.json")
+        mapping_file_path = Path(
+            out_dir_path / f"speakers_episode_{episode_nbr:03d}.json"
+        )
         # Take mapping from cache if exists
         mapping_result = {}
         if mapping_file_path.exists():
@@ -486,18 +489,26 @@ def transcribe_local_file(
                     json.dump(mapping_result, f, indent=4)
                     logger.info(f"Saved mapping result to {mapping_file_path}")
             except OSError as e:
-                logger.error(f"Failed to write mapping result to {mapping_file_path}: {e}")
+                logger.error(
+                    f"Failed to write mapping result to {mapping_file_path}: {e}"
+                )
                 raise
 
         # Formatted transcript
-        formatted_transcript_path = Path(out_dir_path / f"formatted_episode_{episode_nbr:03d}.txt")
-        formatted_text = format_transcript(raw_file_path, speaker_mapping=mapping_result)
+        formatted_transcript_path = Path(
+            out_dir_path / f"formatted_episode_{episode_nbr:03d}.txt"
+        )
+        formatted_text = format_transcript(
+            raw_file_path, speaker_mapping=mapping_result
+        )
         try:
             with open(formatted_transcript_path, "w", encoding="utf-8") as f:
                 f.write(formatted_text)
                 logger.info(f"Saved mapping result to {formatted_transcript_path}")
         except OSError as e:
-            logger.error(f"Failed to write mapping result to {formatted_transcript_path}: {e}")
+            logger.error(
+                f"Failed to write mapping result to {formatted_transcript_path}: {e}"
+            )
             raise
 
         # Update database record
@@ -516,7 +527,7 @@ def transcribe_local_file(
         except Exception as db_error:
             logger.error(f"DB update failed but files saved: {db_error}")
             # Files exist but DB not updated - manual intervention needed
-        
+
     except Exception as e:
         print(f"Transcription failed: {e}")
         raise

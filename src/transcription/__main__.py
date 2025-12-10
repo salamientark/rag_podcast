@@ -14,9 +14,6 @@ Examples:
     uv run -m src.transcription audio.mp3 --language en --verbose
 """
 
-import argparse
-import json
-import sys
 from pathlib import Path
 
 # Import transcribe_audio function
@@ -113,13 +110,17 @@ from src.logger import setup_logging
 if __name__ == "__main__":
     # main()
 
-    logger = setup_logging(logger_name="transcript", log_file="logs/transcript.log", verbose=True)
-    episode_path = Path("/home/madlab/Code/rag_podcast/data/audio/episode_673_qui_va_racheter_warner_rdv_tech.mp3")
-    transcript_path = Path(
-        "/home/madlab/Code/rag_podcast/data/transcript/"
+    logger = setup_logging(
+        logger_name="transcript", log_file="logs/transcript.log", verbose=True
     )
-    print(f"Trying full transcript on episode 673")
+    episode_path = Path(
+        "/home/madlab/Code/rag_podcast/data/audio/episode_673_qui_va_racheter_warner_rdv_tech.mp3"
+    )
+    transcript_path = Path("/home/madlab/Code/rag_podcast/data/transcript/")
+    print("Trying full transcript on episode 673")
     try:
-        transcribe_local_file(episode_path, language="fr", output_dir=transcript_path, episode_id=672)
+        transcribe_local_file(
+            episode_path, language="fr", output_dir=transcript_path, episode_id=672
+        )
     except Exception as e:
         print(f"Transcription failed: {e}")
