@@ -377,6 +377,8 @@ def update_episode_transcription_paths(
         raw_transcript_path: Path to raw transcription JSON
         speaker_mapping_path: Path to speaker mapping JSON
         formatted_transcript_path: Path to formatted transcript text
+        transcript_duration: Duration of the transcript audio in seconds
+        transcript_confidence: Confidence score of the transcription
 
     Returns:
         bool: True if update successful, False otherwise
