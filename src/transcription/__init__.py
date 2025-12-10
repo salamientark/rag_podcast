@@ -1,7 +1,10 @@
 # Transcription module - Main API for transcribing audio files and URLs
 
 # Import the main transcription functions
+
 from src.transcription.transcript import (
+    check_formatted_transcript_exists,
+    get_episode_id_from_path,
     transcribe_local_file,
 )
 from src.transcription.speaker_mapper import (
@@ -12,6 +15,8 @@ from src.transcription.speaker_mapper import (
 
 # Main public API - these are the functions other modules should use
 __all__ = [
+    "check_formatted_transcript_exists",
+    "get_episode_id_from_path",
     "transcribe_local_file",
     "get_mapped_transcript",
     "map_speakers_with_llm",

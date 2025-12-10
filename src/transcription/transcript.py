@@ -341,6 +341,25 @@ def transcribe_with_diarization(file_path: Path, language: str = "fr") -> Dict:
 
 
 # -------- NEW -------
+def check_formatted_transcript_exists(output_dir: Path, episode_id: int) -> bool:
+    """
+    Check if formatted transcript file already exists.
+
+    Args:
+        output_dir: Base output directory
+        episode_id: Episode ID number
+
+    Returns:
+        True if formatted transcript exists, False otherwise
+    """
+    formatted_path = (
+        output_dir
+        / f"episode_{episode_id:03d}"
+        / f"formatted_episode_{episode_id:03d}.txt"
+    )
+    return formatted_path.exists()
+
+
 def get_episode_id_from_path(file_path: str | Path) -> str:
     """Get episode number from file path.
 
@@ -529,6 +548,8 @@ def transcribe_local_file(
         except Exception as db_error:
             logger.error(f"DB update failed but files saved: {db_error}")
             # Files exist but DB not updated - manual intervention needed
+        # Return path to formatted transcript
+        return formatted_transcript_path
 
     except Exception as e:
         print(f"Transcription failed: {e}")
