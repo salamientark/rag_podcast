@@ -22,7 +22,7 @@ Usage:
 import uuid
 import os
 from contextlib import contextmanager
-from typing import Generator, Dict, Any
+from typing import Generator, Dict, Any, Optional
 
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
@@ -252,6 +252,63 @@ def check_episode_exists_in_qdrant(
         )
         # On error, return False to allow processing (fail-open approach)
         return False
+
+
+@log_function(logger_name="qdrant_client", log_execution_time=True)
+def get_episode_vector(
+    client: QdrantClient,
+    collection_name: str,
+    episode_id: int,
+) -> Optional[list[float]]:
+    """Retrieve an episode's embedding vector from the Qdrant collection.
+
+    Args:
+        client (QdrantClient): Active Qdrant client instance
+        collection_name (str): Name of the collection to search
+        episode_id (int): Episode ID to retrieve
+
+    Returns:
+        Optional[list[float]]: The embedding vector if found, None otherwise
+    """
+    try:
+        # Check if collection exists first
+        if not client.collection_exists(collection_name=collection_name):
+            qdrant_logger.debug(
+                f"Collection '{collection_name}' does not exist, cannot retrieve vector"
+            )
+            return None
+
+        # Build filter for episode_id
+        scroll_filter = Filter(
+            must=[FieldCondition(key="episode_id", match=MatchValue(value=episode_id))]
+        )
+
+        # Query for matching points with vectors
+        records, _ = client.scroll(
+            collection_name=collection_name,
+            scroll_filter=scroll_filter,
+            limit=1,
+            with_payload=True,
+            with_vectors=True,
+        )
+
+        if len(records) > 0:
+            vector = records[0].vector
+            qdrant_logger.info(
+                f"Retrieved vector for episode {episode_id} from collection '{collection_name}'"
+            )
+            return vector
+        else:
+            qdrant_logger.debug(
+                f"Episode {episode_id} not found in collection '{collection_name}'"
+            )
+            return None
+
+    except Exception as e:
+        qdrant_logger.error(
+            f"Error retrieving vector for episode {episode_id} from '{collection_name}': {e}"
+        )
+        return None
 
 
 # Log Qdrant configuration on module load

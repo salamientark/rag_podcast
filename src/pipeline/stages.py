@@ -27,12 +27,30 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 from src.logger import log_function
-from src.db import Episode, get_db_session, ProcessingStage, get_qdrant_client, create_collection
-from src.ingestion.sync_episodes import fetch_podcast_episodes, sync_to_database, filter_episodes
-from src.ingestion.audio_scrap import get_existing_files, generate_filename, download_episode
-from src.transcription import get_episode_id_from_path, format_transcript, map_speakers_with_llm
+from src.db import (
+    Episode,
+    get_db_session,
+    ProcessingStage,
+    get_qdrant_client,
+    create_collection,
+)
+from src.ingestion.sync_episodes import (
+    fetch_podcast_episodes,
+    sync_to_database,
+    filter_episodes,
+)
+from src.ingestion.audio_scrap import (
+    get_existing_files,
+    generate_filename,
+    download_episode,
+)
+from src.transcription import (
+    get_episode_id_from_path,
+    format_transcript,
+    map_speakers_with_llm,
+)
 from src.transcription.transcript import transcribe_with_diarization
-from src.embedder.embed import embed_file_to_db
+from src.embedder.embed import process_episode_embedding
 
 
 AUDIO_DIR = "data/audio"
@@ -137,8 +155,8 @@ def run_sync_stage():
         logger.info(f"Fetched {len(episodes)} episodes. Syncing to database...")
         stats = sync_to_database(episodes)
         logger.info(
-                f"\nSync stage completed: {stats['processed']} processed, {stats['added']} added, "
-                f"{stats['skipped']} skipped, {stats['errors']} errors"
+            f"\nSync stage completed: {stats['processed']} processed, {stats['added']} added, "
+            f"{stats['skipped']} skipped, {stats['errors']} errors"
         )
 
     except Exception as e:
@@ -164,16 +182,14 @@ def run_download_stage(episodes: list[Episode]) -> list[str]:
         logger.info("Starting download stage...")
         # Get existing audio file
         existing_files = get_existing_files(AUDIO_DIR)
-    
+
         # Find missing episodes and add path of existing episodes to list
         missing_episodes = []
         episodes_path_list = []
         for episode in episodes:
             ep_number = episode.id
             ep_title = episode.title
-            expected_filename = generate_filename(
-                ep_number, ep_title
-            )
+            expected_filename = generate_filename(ep_number, ep_title)
             if expected_filename not in existing_files:
                 missing_episodes.append(episode)
             else:
@@ -185,20 +201,18 @@ def run_download_stage(episodes: list[Episode]) -> list[str]:
             logger.info("No missing episodes to download.")
             return episodes_path_list
         logger.info(f"Found {len(missing_episodes)} missing episodes to download.")
-        
+
         for episode in missing_episodes:
             success, filepath = download_episode(
-                episode.id,
-                episode.title,
-                episode.audio_url,
-                AUDIO_DIR
+                episode.id, episode.title, episode.audio_url, AUDIO_DIR
             )
 
             if success:
                 episodes_path_list.append(filepath)
             else:
-                logger.warning(f"Failed to download episode {episode['id']}: {episode['title']}")
-
+                logger.warning(
+                    f"Failed to download episode {episode['id']}: {episode['title']}"
+                )
 
         logger.info("Download stage completed successfully.")
         return episodes_path_list
@@ -240,7 +254,9 @@ def run_raw_trancript_stage(audio_path: list[str]) -> list[str]:
             raw_file_path = Path(output_dir) / f"raw_episode_{episode_id:03d}.json"
             if raw_file_path.exists():
                 # Add to list
-                logger.info(f"Raw transcript already exists for episode ID {episode_id}, skipping transcription.")
+                logger.info(
+                    f"Raw transcript already exists for episode ID {episode_id}, skipping transcription."
+                )
             else:
                 # Call transcription function here
                 logger.info(f"Transcribing episode ID {episode_id} from file {path}...")
@@ -250,7 +266,9 @@ def run_raw_trancript_stage(audio_path: list[str]) -> list[str]:
                         json.dump(raw_trancript, f, indent=4)
                     logger.info(f"Saved raw transcription to {raw_file_path}")
                 except OSError as e:
-                    logger.error(f"Failed to save raw transcript for episode ID {episode_id}: {e}")
+                    logger.error(
+                        f"Failed to save raw transcript for episode ID {episode_id}: {e}"
+                    )
                     continue
             # Update db
             raw_transcript_paths.append(str(raw_file_path))
@@ -290,12 +308,18 @@ def run_speaker_mapping_stage(raw_transcript_path: list[str]) -> list[str]:
             output_dir = Path(TRANSCRIPT_DIR) / f"episode_{episode_id:03d}/"
 
             # Take mapping from cache if exists
-            mapping_file_path = Path(output_dir / f"speakers_episode_{episode_id:03d}.json")
+            mapping_file_path = Path(
+                output_dir / f"speakers_episode_{episode_id:03d}.json"
+            )
             mapping_result = {}
             if mapping_file_path.exists():
-                logger.info(f"Speaker mapping already exists for episode ID {episode_id}, loading from cache.")
+                logger.info(
+                    f"Speaker mapping already exists for episode ID {episode_id}, loading from cache."
+                )
             else:
-                logger.info(f"Generating speaker mapping for episode ID {episode_id} from file {path}...")
+                logger.info(
+                    f"Generating speaker mapping for episode ID {episode_id} from file {path}..."
+                )
                 raw_formatted_text = format_transcript(path, max_tokens=10000)
                 mapping_result = map_speakers_with_llm(raw_formatted_text)
                 try:
@@ -317,14 +341,16 @@ def run_speaker_mapping_stage(raw_transcript_path: list[str]) -> list[str]:
             )
         logger.info("Speaker mapping stage completed successfully.")
         return speaker_mapping_paths
-    
+
     except Exception as e:
         logger.error(f"Failed to complete speaker mapping pipeline : {e}")
         raise
 
 
 @log_function(logger_name="pipeline", log_execution_time=True)
-def run_formatted_trancript_stage(transcript_with_mapping: list[Dict[str, str]]) -> list[str]:
+def run_formatted_trancript_stage(
+    transcript_with_mapping: list[Dict[str, str]],
+) -> list[str]:
     """
     Generate formatted transcript  + speaker mapping from raw transcript files.
 
@@ -345,23 +371,37 @@ def run_formatted_trancript_stage(transcript_with_mapping: list[Dict[str, str]])
             speaker_map_path = item["speaker_mapping"]
 
             # Check if trancript already exist
-            print(f"DEBUG: transcript_path={transcript_path}, speaker_map_path={speaker_map_path}")
+            print(
+                f"DEBUG: transcript_path={transcript_path}, speaker_map_path={speaker_map_path}"
+            )
             episode_id = int(get_episode_id_from_path(transcript_path))
             output_dir = Path(TRANSCRIPT_DIR) / f"episode_{episode_id:03d}/"
-            formatted_file_path = Path(output_dir) / f"formatted_episode_{episode_id:03d}.txt"
+            formatted_file_path = (
+                Path(output_dir) / f"formatted_episode_{episode_id:03d}.txt"
+            )
             if formatted_file_path.exists():
                 # Add to list
-                logger.info(f"Formatted transcript already exists for episode ID {episode_id}, skipping transcription.")
+                logger.info(
+                    f"Formatted transcript already exists for episode ID {episode_id}, skipping transcription."
+                )
             else:
                 # Call transcription function here
-                logger.info(f"Transcribing episode ID {episode_id} from file {transcript_path}...")
-                formatted_trancript = format_transcript(transcript_path, speaker_mapping=speaker_map_path)
+                logger.info(
+                    f"Transcribing episode ID {episode_id} from file {transcript_path}..."
+                )
+                formatted_trancript = format_transcript(
+                    transcript_path, speaker_mapping=speaker_map_path
+                )
                 try:
                     with open(formatted_file_path, "w", encoding="utf-8") as f:
                         json.dump(formatted_trancript, f, indent=4)
-                    logger.info(f"Saved formatted transcript transcription to {formatted_file_path}")
+                    logger.info(
+                        f"Saved formatted transcript transcription to {formatted_file_path}"
+                    )
                 except OSError as e:
-                    logger.error(f"Failed to save formatted transcript for episode ID {episode_id}: {e}")
+                    logger.error(
+                        f"Failed to save formatted transcript for episode ID {episode_id}: {e}"
+                    )
                     continue
             formatted_transcript_paths.append(str(formatted_file_path))
 
@@ -383,9 +423,10 @@ def run_formatted_trancript_stage(transcript_with_mapping: list[Dict[str, str]])
 @log_function(logger_name="pipeline", log_execution_time=True)
 def run_embedding_stage(transcript_path: list[str]):
     """
-    Generate embeddings from formatted transcript files.
-
-    Save embeddings locally + store them in qdrant db
+    Generate embeddings from formatted transcript files with 3-tier caching:
+    1. Check Qdrant DB → save to local file if missing + update SQL
+    2. Check local file → upload to Qdrant + update SQL
+    3. Embed fresh → save to both + update SQL
 
     Args:
         transcript_path (list[str]): List of formatted transcript file paths.
@@ -400,10 +441,10 @@ def run_embedding_stage(transcript_path: list[str]):
         logger.info("Starting embedding stage...")
 
         # Create collection if not exist
-        load_dotenv()
         collection_name = os.getenv("QDRANT_COLLECTION_NAME")
         if collection_name is None:
             raise ValueError("QDRANT_COLLECTION_NAME not set in environment variables.")
+
         with get_qdrant_client() as qdrant_client:
             create_collection(
                 qdrant_client,
@@ -414,33 +455,49 @@ def run_embedding_stage(transcript_path: list[str]):
         output_dir = Path(EMBEDDING_DIR)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        
-        # Embed transcript one by one
+        embedding_paths = []
+        # Process each transcript with 3-tier caching
         for path in transcript_path:
-            episode_id = int(get_episode_id_from_path(transcript_path))
-            logger.info(f"Embedding episode ID {episode_id} from file {path}...")
+            episode_id = int(get_episode_id_from_path(path))
+            logger.info(
+                f"Processing embedding for episode ID {episode_id} from file {path}..."
+            )
 
-            embedding_path = Path(output_dir) / f"episode_{episode_id:03d}_d1024.npy"
-            print(f"DEBUG: embedding_path={embedding_path}")
-            if embedding_path.exists():
-                # Add to list
-                logger.info(f"Embedding already exists for episode ID {episode_id}, skipping transcription.")
+            # Use new 3-tier caching function
+            result = process_episode_embedding(
+                input_file=path,
+                episode_id=episode_id,
+                collection_name=collection_name,
+                dimensions=1024,
+            )
+
+            if result["success"]:
+                action = result["action"]
+                embedding_path = result["embedding_path"]
+                embedding_paths.append(embedding_path)
+
+                if action == "retrieved_from_qdrant":
+                    logger.info(
+                        f"Episode {episode_id}: Retrieved from Qdrant, saved to local cache"
+                    )
+                elif action == "loaded_from_file":
+                    logger.info(
+                        f"Episode {episode_id}: Loaded from local file, uploaded to Qdrant"
+                    )
+                elif action == "embedded_fresh":
+                    logger.info(
+                        f"Episode {episode_id}: Embedded fresh, saved to both locations"
+                    )
             else:
-                # Call transcription function here
-                logger.info(f"Embedding episode ID {episode_id} from file {path}...")
-                embed_file_to_db(
-                    path,
-                    episode_id,
-                    collection_name,
-                    save_to_file=True,
+                logger.error(
+                    f"Failed to process embedding for episode {episode_id}: {result.get('error')}"
                 )
 
-            update_episode_in_db(
-                episode_id=episode_id,
-                processing_stage=ProcessingStage.EMBEDDED,
-            )
-            logger.info(f"Saved embedding to {embedding_path}")
+        logger.info(
+            f"Embedding stage completed successfully. Processed {len(embedding_paths)} episodes."
+        )
+        return embedding_paths
 
     except Exception as e:
-        logger.error(f"Failed to complete embedding pipeline : {e}")
+        logger.error(f"Failed to complete embedding pipeline: {e}")
         raise

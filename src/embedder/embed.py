@@ -1,13 +1,13 @@
 import logging
 import numpy as np
-from typing import Any, Optional
+from typing import Any, Optional, Dict
 from dotenv import load_dotenv
 from pathlib import Path
 import voyageai
 
 from src.logger import log_function
 from src.db.database import get_db_session
-from src.db.qdrant_client import get_qdrant_client, insert_one_point
+from src.db.qdrant_client import get_qdrant_client, insert_one_point, get_episode_vector
 from src.db.models import Episode, ProcessingStage
 from src.embedder.token_counter import check_voyage_limits
 
@@ -91,6 +91,7 @@ def chunks_to_text(chunks: list[Any]) -> list[str]:
     text_list = [chunk.text.strip() for chunk in chunks]
     return text_list
 
+
 @log_function(logger_name="embedder", log_args=True, log_execution_time=True)
 def update_episode_processing_stage(
     episode_id: str,
@@ -122,7 +123,9 @@ def update_episode_processing_stage(
                 episode.processing_stage = ProcessingStage.EMBEDDED
 
             session.commit()
-            logger.info(f"Updated episode ID {episode_id} with EMBEDDED processing stage")
+            logger.info(
+                f"Updated episode ID {episode_id} with EMBEDDED processing stage"
+            )
             return True
     except Exception as e:
         logger.error(f"Failed to update episode ID {episode_id}: {e}")
@@ -159,6 +162,31 @@ def save_embedding_to_file(output_path: Path, embed: list[float] | np.ndarray) -
     return output_path
 
 
+def load_embedding_from_file(file_path: Path) -> Optional[np.ndarray]:
+    """Load embeddings from a .npy file.
+
+    Args:
+        file_path (Path): Path to the .npy embedding file.
+
+    Returns:
+        Optional[np.ndarray]: Loaded embedding vector, or None if file doesn't exist.
+
+    Raises:
+        Exception: If file exists but cannot be loaded.
+    """
+    if not file_path.exists():
+        return None
+
+    try:
+        with open(file_path, "rb") as f:
+            embedding = np.load(f)
+        return embedding
+    except Exception as e:
+        logger = logging.getLogger("embedder")
+        logger.error(f"Failed to load embedding from {file_path}: {e}")
+        raise
+
+
 @log_function(logger_name="embedder", log_args=True, log_execution_time=True)
 def embed_file_to_db(
     input_file: str | Path,
@@ -191,7 +219,10 @@ def embed_file_to_db(
         # Optionally save to file
         print(f"DEBUG: save_to_file={save_to_file}")
         if save_to_file:
-            filename = DEFAULT_EMBEDDING_OUTPUT_DIR / f"episode_{episode_id:03d}_d{dimensions}.npy"
+            filename = (
+                DEFAULT_EMBEDDING_OUTPUT_DIR
+                / f"episode_{episode_id:03d}_d{dimensions}.npy"
+            )
             print(f"DEBUG: Saving embeddings to file: {filename}")
             saved_path = save_embedding_to_file(Path(filename), embeddings)
             print(f"DEBUG: Saved path: {saved_path}")
@@ -207,10 +238,12 @@ def embed_file_to_db(
         payload = {
             "episode_id": episode_id,
             "title": episode.title,
-            "db_guid": str(episode.guid)
+            "db_guid": str(episode.guid),
         }
 
-        logger.info(f"Storing embeddings for episode ID {episode_id} in collection '{collection_name}'")
+        logger.info(
+            f"Storing embeddings for episode ID {episode_id} in collection '{collection_name}'"
+        )
         # Insert embeddings into Qdrant
         with get_qdrant_client() as client:
             insert_one_point(
@@ -226,3 +259,152 @@ def embed_file_to_db(
     except Exception as e:
         logger.error(f"Failed to embed file {input_file}: {e}")
         raise
+
+
+@log_function(logger_name="embedder", log_args=True, log_execution_time=True)
+def process_episode_embedding(
+    input_file: str | Path,
+    episode_id: int,
+    collection_name: str,
+    dimensions: int = 1024,
+) -> Dict[str, Any]:
+    """
+    Process episode embedding with 3-tier caching strategy:
+    1. Check if vector exists in Qdrant DB → save to local file if missing + update SQL
+    2. If not in Qdrant, check local file → upload to Qdrant + update SQL
+    3. If neither exists → embed fresh, save to both Qdrant + local file + update SQL
+
+    Args:
+        input_file (str | Path): Path to the input transcript file.
+        episode_id (int): Database ID of the episode.
+        collection_name (str): Name of the collection to store embeddings.
+        dimensions (int): Output vector dimensions (default: 1024).
+
+    Returns:
+        Dict[str, Any]: Status dict with keys:
+            - action: "retrieved_from_qdrant", "loaded_from_file", or "embedded_fresh"
+            - embedding_path: Path to local .npy file
+            - success: bool
+            - error: Optional error message
+    """
+    logger = logging.getLogger("embedder")
+    input_path = Path(input_file)
+    local_file_path = (
+        DEFAULT_EMBEDDING_OUTPUT_DIR / f"episode_{episode_id:03d}_d{dimensions}.npy"
+    )
+
+    result = {
+        "action": None,
+        "embedding_path": None,
+        "success": False,
+        "error": None,
+    }
+
+    try:
+        # Get episode info from database
+        with get_db_session() as session:
+            episode = session.query(Episode).filter_by(id=episode_id).first()
+            if not episode:
+                raise ValueError(f"Episode ID {episode_id} not found in database")
+
+        # Create payload metadata
+        payload = {
+            "episode_id": episode_id,
+            "title": episode.title,
+            "db_guid": str(episode.guid),
+            "dimensions": dimensions,
+        }
+
+        # TIER 1: Check if vector exists in Qdrant
+        logger.info(
+            f"Checking if episode {episode_id} exists in Qdrant collection '{collection_name}'"
+        )
+        with get_qdrant_client() as client:
+            vector = get_episode_vector(
+                client=client,
+                collection_name=collection_name,
+                episode_id=episode_id,
+            )
+
+        if vector is not None:
+            logger.info(f"Episode {episode_id} found in Qdrant, saving to local cache")
+            # Save to local file if it doesn't exist
+            if not local_file_path.exists():
+                saved_path = save_embedding_to_file(local_file_path, vector)
+                logger.info(f"Saved embedding from Qdrant to local file: {saved_path}")
+
+            # Update SQL database
+            update_episode_processing_stage(str(episode_id))
+
+            result["action"] = "retrieved_from_qdrant"
+            result["embedding_path"] = str(local_file_path)
+            result["success"] = True
+            return result
+
+        # TIER 2: Check if local file exists
+        logger.info(f"Episode {episode_id} not in Qdrant, checking local file")
+        local_embedding = load_embedding_from_file(local_file_path)
+
+        if local_embedding is not None:
+            logger.info(
+                f"Episode {episode_id} found in local file, uploading to Qdrant"
+            )
+            # Upload to Qdrant
+            with get_qdrant_client() as client:
+                insert_one_point(
+                    client=client,
+                    collection_name=collection_name,
+                    vector=local_embedding.tolist(),
+                    payload=payload,
+                )
+            logger.info(f"Uploaded embedding from local file to Qdrant")
+
+            # Update SQL database
+            update_episode_processing_stage(str(episode_id))
+
+            result["action"] = "loaded_from_file"
+            result["embedding_path"] = str(local_file_path)
+            result["success"] = True
+            return result
+
+        # TIER 3: Embed fresh from transcript
+        logger.info(
+            f"Episode {episode_id} not found locally, generating fresh embedding"
+        )
+
+        # Load transcript text
+        with input_path.open("r", encoding="utf-8") as f:
+            transcript_text = f.read()
+
+        # Generate embeddings
+        embedding_result = embed_text(transcript_text, dimensions=dimensions)
+        embeddings = embedding_result.embeddings[0]
+
+        # Save to local file
+        saved_path = save_embedding_to_file(local_file_path, embeddings)
+        logger.info(f"Saved fresh embedding to local file: {saved_path}")
+
+        # Upload to Qdrant
+        with get_qdrant_client() as client:
+            insert_one_point(
+                client=client,
+                collection_name=collection_name,
+                vector=embeddings,
+                payload=payload,
+            )
+        logger.info(
+            f"Uploaded fresh embedding to Qdrant collection '{collection_name}'"
+        )
+
+        # Update SQL database
+        update_episode_processing_stage(str(episode_id))
+
+        result["action"] = "embedded_fresh"
+        result["embedding_path"] = str(saved_path)
+        result["success"] = True
+        return result
+
+    except Exception as e:
+        logger.error(f"Failed to process embedding for episode {episode_id}: {e}")
+        result["error"] = str(e)
+        return result
