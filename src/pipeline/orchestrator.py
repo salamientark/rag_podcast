@@ -5,7 +5,7 @@ from typing import Optional
 from src.logger import log_function, setup_logging
 from src.db import get_db_session, Episode, ProcessingStage
 from src.ingestion.sync_episodes import fetch_podcast_episodes, sync_to_database
-from .stages import run_sync_stage, run_download_stage
+from .stages import run_raw_trancript_stage, run_sync_stage, run_download_stage
 
 
 ARG_TO_PROCESSING_STAGE = {
@@ -79,7 +79,6 @@ def filter_episode(
         list[Episode]: Filtered list of Episode objects.
     """
     filetered_episodes = []
-    stage_limit = stage if stage is not None else ProcessingStage.EMBEDDED
     stage_order = list(ProcessingStage)
 
     # Select by IDs
@@ -131,12 +130,24 @@ def run_pipeline(
             stage=last_stage,
         )
 
-        print(f"DEBUG: Episodes to process: {[ep.id for ep in episodes_to_process]}")
-    
         # Run download audio stage
         if stages is None or "download" in stages:
             audio_path = run_download_stage(episodes_to_process)
-            print(f"DEBUG: Downloaded audio paths: {audio_path}")
+        else:
+            audio_path = [
+                ep.audio_file_path for ep in episodes_to_process
+            ]
+
+        print(f"Audio paths: {audio_path}")
+        # Run raw transcript stage
+        if stages is None or "raw_transcript" in stages:
+            raw_transcript_path = run_raw_trancript_stage(audio_path)
+        else:
+            raw_transcript_path = [
+                ep.raw_transcript_path for ep in episodes_to_process
+            ]
+
+        print(f"DEBUG: Raw transcript paths: {raw_transcript_path}")
 
 
 
@@ -152,10 +163,14 @@ def run_pipeline(
 
 if __name__ == "__main__":
     try:
-        logger = setup_logging("pipeline", verbose=True)
+        logger = setup_logging(
+            "pipeline",
+            log_file="logs/pipeline.log",
+            verbose=True
+        )
         print("TESTING")
         run_pipeline(
-            stages=["sync", "download"],
+            stages=["sync", "download", "raw_transcript"],
             episodes_id=[671, 672, 673],
             # limit=3,
         )
