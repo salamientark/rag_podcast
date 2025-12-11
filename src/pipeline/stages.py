@@ -131,6 +131,7 @@ def update_episode_in_db(
             session.query(Episode).filter(Episode.id == episode_id).update(
                 update_data,
             )
+            session.commit()
     except Exception as e:
         raise e
 
