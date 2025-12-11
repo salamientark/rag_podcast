@@ -190,8 +190,8 @@ if __name__ == "__main__":
         print("TESTING")
         run_pipeline(
             # stages=["sync", "download", "raw_transcript", "format_transcript", "embed"],
-            # episodes_id=[671, 672, 673],
-            limit=3,
+            episodes_id=[671, 672, 673],
+            # limit=3,
         )
         # db_episodes = fetch_db_episodes()
         # print(f"Episodes fetched : {db_episodes}")

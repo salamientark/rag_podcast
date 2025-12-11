@@ -21,6 +21,7 @@ Usage:
 
 import uuid
 import os
+from dotenv import load_dotenv
 from contextlib import contextmanager
 from typing import Generator, Dict, Any, Optional
 
@@ -37,8 +38,9 @@ from src.logger import setup_logging, log_function
 
 
 # Configuration
+load_dotenv()
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
-QDRANT_COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_NAME", "podcast_embeddings")
+QDRANT_COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_NAME")
 EMBEDDING_DIMENSION = 1024  # VoyageAI voyage-3.5 embedding dimension
 
 
@@ -255,12 +257,15 @@ def check_episode_exists_in_qdrant(
 
 
 @log_function(logger_name="qdrant_client", log_execution_time=True)
-def get_episode_vector(
+def get_episode_vectors(
     client: QdrantClient,
     collection_name: str,
     episode_id: int,
-) -> Optional[list[float]]:
-    """Retrieve an episode's embedding vector from the Qdrant collection.
+) -> Optional[list[list[float]]]:
+    """
+    Retrieve all embedding vectors for an episode from Qdrant.
+
+    Handles both legacy single-chunk episodes and new multi-chunk episodes.
 
     Args:
         client (QdrantClient): Active Qdrant client instance
@@ -268,7 +273,7 @@ def get_episode_vector(
         episode_id (int): Episode ID to retrieve
 
     Returns:
-        Optional[list[float]]: The embedding vector if found, None otherwise
+        List of embedding vectors (sorted by chunk_index), or None if not found
     """
     try:
         # Check if collection exists first
@@ -283,30 +288,42 @@ def get_episode_vector(
             must=[FieldCondition(key="episode_id", match=MatchValue(value=episode_id))]
         )
 
-        # Query for matching points with vectors
+        # Query for ALL matching points (not just limit=1)
         records, _ = client.scroll(
             collection_name=collection_name,
             scroll_filter=scroll_filter,
-            limit=1,
+            limit=100,  # Assume max 100 chunks per episode
             with_payload=True,
             with_vectors=True,
         )
 
-        if len(records) > 0:
-            vector = records[0].vector
-            qdrant_logger.info(
-                f"Retrieved vector for episode {episode_id} from collection '{collection_name}'"
-            )
-            return vector
-        else:
+        if len(records) == 0:
             qdrant_logger.debug(
                 f"Episode {episode_id} not found in collection '{collection_name}'"
             )
             return None
 
+        # Sort by chunk_index if present (for multi-chunk episodes)
+        # For legacy episodes without chunk_index, treat as single chunk
+        records_sorted = sorted(records, key=lambda r: r.payload.get("chunk_index", 0))
+
+        # Extract vectors - handle both list and dict formats
+        vectors = []
+        for record in records_sorted:
+            vector = record.vector
+            # If vector is dict (named vectors), get the default vector
+            if isinstance(vector, dict):
+                vector = vector.get("", list(vector.values())[0] if vector else [])
+            vectors.append(vector)
+
+        qdrant_logger.info(
+            f"Retrieved {len(vectors)} chunk vector(s) for episode {episode_id}"
+        )
+        return vectors
+
     except Exception as e:
         qdrant_logger.error(
-            f"Error retrieving vector for episode {episode_id} from '{collection_name}': {e}"
+            f"Error retrieving vectors for episode {episode_id} from '{collection_name}': {e}"
         )
         return None
 
