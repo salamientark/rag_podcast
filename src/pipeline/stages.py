@@ -28,7 +28,7 @@ from dotenv import load_dotenv
 
 from src.logger import log_function
 from src.db import Episode, get_db_session, ProcessingStage, get_qdrant_client, create_collection
-from src.ingestion.sync_episodes import fetch_podcast_episodes, sync_to_database
+from src.ingestion.sync_episodes import fetch_podcast_episodes, sync_to_database, filter_episodes
 from src.ingestion.audio_scrap import get_existing_files, generate_filename, download_episode
 from src.transcription import get_episode_id_from_path, format_transcript, map_speakers_with_llm
 from src.transcription.transcript import transcribe_with_diarization
@@ -131,6 +131,8 @@ def run_sync_stage():
         if not episodes:
             logger.error("No episodes fetched during sync stage.")
             raise ValueError("No episodes fetched during sync stage.")
+
+        episodes = filter_episodes(episodes, full_sync=True)
 
         logger.info(f"Fetched {len(episodes)} episodes. Syncing to database...")
         stats = sync_to_database(episodes)
@@ -238,7 +240,6 @@ def run_raw_trancript_stage(audio_path: list[str]) -> list[str]:
             raw_file_path = Path(output_dir) / f"raw_episode_{episode_id:03d}.json"
             if raw_file_path.exists():
                 # Add to list
-                raw_transcript_paths.append(str(raw_file_path))
                 logger.info(f"Raw transcript already exists for episode ID {episode_id}, skipping transcription.")
             else:
                 # Call transcription function here
@@ -252,6 +253,7 @@ def run_raw_trancript_stage(audio_path: list[str]) -> list[str]:
                     logger.error(f"Failed to save raw transcript for episode ID {episode_id}: {e}")
                     continue
             # Update db
+            raw_transcript_paths.append(str(raw_file_path))
             update_episode_in_db(
                 episode_id=episode_id,
                 raw_transcript_path=str(raw_file_path),
