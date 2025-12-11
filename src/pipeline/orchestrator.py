@@ -5,14 +5,14 @@ from typing import Optional
 from src.logger import log_function, setup_logging
 from src.db import get_db_session, Episode, ProcessingStage
 from src.ingestion.sync_episodes import fetch_podcast_episodes, sync_to_database
-from .stages import run_raw_trancript_stage, run_sync_stage, run_download_stage
+from .stages import run_formatted_trancript_stage, run_raw_trancript_stage, run_speaker_mapping_stage, run_sync_stage, run_download_stage
 
 
 ARG_TO_PROCESSING_STAGE = {
         "sync": ProcessingStage.SYNCED,
         "download": ProcessingStage.AUDIO_DOWNLOADED,
         "raw_transcript": ProcessingStage.RAW_TRANSCRIPT,
-        "formatted_transcript": ProcessingStage.FORMATTED_TRANSCRIPT,
+        "format_transcript": ProcessingStage.FORMATTED_TRANSCRIPT,
         "embed": ProcessingStage.EMBEDDED,
 }
 
@@ -149,10 +149,21 @@ def run_pipeline(
 
         print(f"DEBUG: Raw transcript paths: {raw_transcript_path}")
 
+        # Run formatted transcript stage (Speaker mapping included)
+        if stages is None or "format_transcript" in stages:
+            speaker_mapping_paths = run_speaker_mapping_stage(raw_transcript_path)
+
+            transcript_with_mapping = [{"transcript": rt, "speaker_mapping": sm} for rt, sm in zip(raw_transcript_path, speaker_mapping_paths)]
+            formatted_transcript_paths = run_formatted_trancript_stage(transcript_with_mapping)
+        else:
+            formatted_transcript_paths = [
+                ep.formatted_transcript_path for ep in episodes_to_process
+            ]
+
+        print(f"DEBUG: Formatted transcript : {formatted_transcript_paths}")
 
 
-
-
+        logger.info("=== PIPELINE COMPLETED SUCCESSFULLY ===")
 
 
     except Exception as e:
@@ -170,9 +181,9 @@ if __name__ == "__main__":
         )
         print("TESTING")
         run_pipeline(
-            stages=["sync", "download", "raw_transcript"],
-            episodes_id=[671, 672, 673],
-            # limit=3,
+            stages=["sync", "download", "raw_transcript", "format_transcript"],
+            # episodes_id=[671, 672, 673],
+            limit=3,
         )
         # db_episodes = fetch_db_episodes()
         # print(f"Episodes fetched : {db_episodes}")

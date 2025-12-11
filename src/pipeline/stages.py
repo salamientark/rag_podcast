@@ -21,14 +21,14 @@ import os
 import json
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Dict
 from datetime import datetime
 
 from src.logger import log_function
 from src.db import Episode, get_db_session, ProcessingStage
 from src.ingestion.sync_episodes import fetch_podcast_episodes, sync_to_database
 from src.ingestion.audio_scrap import get_existing_files, generate_filename, download_episode
-from src.transcription import get_episode_id_from_path, check_formatted_transcript_exists, transcribe_local_file
+from src.transcription import get_episode_id_from_path, format_transcript, map_speakers_with_llm
 from src.transcription.transcript import transcribe_with_diarization
 
 
@@ -235,7 +235,7 @@ def run_raw_trancript_stage(audio_path: list[str]) -> list[str]:
             if raw_file_path.exists():
                 # Add to list
                 raw_transcript_paths.append(str(raw_file_path))
-                logger.info(f"Formatted transcript already exists for episode ID {episode_id}, skipping transcription.")
+                logger.info(f"Raw transcript already exists for episode ID {episode_id}, skipping transcription.")
             else:
                 # Call transcription function here
                 logger.info(f"Transcribing episode ID {episode_id} from file {path}...")
@@ -243,20 +243,132 @@ def run_raw_trancript_stage(audio_path: list[str]) -> list[str]:
                 try:
                     with open(raw_file_path, "w", encoding="utf-8") as f:
                         json.dump(raw_trancript, f, indent=4)
+                    logger.info(f"Saved raw transcription to {raw_file_path}")
                 except OSError as e:
                     logger.error(f"Failed to save raw transcript for episode ID {episode_id}: {e}")
                     continue
-                logger.info(f"Saved raw transcription to {raw_file_path}")
             # Update db
             update_episode_in_db(
                 episode_id=episode_id,
                 raw_transcript_path=str(raw_file_path),
                 processing_stage=ProcessingStage.RAW_TRANSCRIPT,
             )
-        # Placeholder for actual transcription logic
+
         logger.info("Raw transcription stage completed successfully.")
         return raw_transcript_paths
 
     except Exception as e:
         logger.error(f"Failed to complete raw transcript pipeline : {e}")
+        raise
+
+
+@log_function(logger_name="pipeline", log_execution_time=True)
+def run_speaker_mapping_stage(raw_transcript_path: list[str]) -> list[str]:
+    """
+    Generate speaker mapping from raw transcript files.
+
+    Args:
+        raw_transcript_path (list[str]): List of raw transcript file paths.
+
+    Returns:
+        list[str]: List of speaker mapping file paths.
+    """
+    logger = logging.getLogger("pipeline")
+
+    try:
+        logger.info("Starting speaker mapping stage...")
+        speaker_mapping_paths = []
+
+        for path in raw_transcript_path:
+            episode_id = int(get_episode_id_from_path(path))
+            output_dir = Path(TRANSCRIPT_DIR) / f"episode_{episode_id:03d}/"
+
+            # Take mapping from cache if exists
+            mapping_file_path = Path(output_dir / f"speakers_episode_{episode_id:03d}.json")
+            mapping_result = {}
+            if mapping_file_path.exists():
+                logger.info(f"Speaker mapping already exists for episode ID {episode_id}, loading from cache.")
+            else:
+                logger.info(f"Generating speaker mapping for episode ID {episode_id} from file {path}...")
+                raw_formatted_text = format_transcript(path, max_tokens=10000)
+                mapping_result = map_speakers_with_llm(raw_formatted_text)
+                try:
+                    with open(mapping_file_path, "w", encoding="utf-8") as f:
+                        json.dump(mapping_result, f, indent=4)
+                    logger.info(f"Saved mapping result to {mapping_file_path}")
+                except OSError as e:
+                    logger.error(
+                        f"Failed to write mapping result to {mapping_file_path}: {e}"
+                    )
+                    continue
+            speaker_mapping_paths.append(str(mapping_file_path))
+
+            # Save to db
+            update_episode_in_db(
+                episode_id=episode_id,
+                speaker_mapping_path=str(path),
+                processing_stage=ProcessingStage.RAW_TRANSCRIPT,
+            )
+        logger.info("Speaker mapping stage completed successfully.")
+        return speaker_mapping_paths
+    
+    except Exception as e:
+        logger.error(f"Failed to complete speaker mapping pipeline : {e}")
+        raise
+
+
+@log_function(logger_name="pipeline", log_execution_time=True)
+def run_formatted_trancript_stage(transcript_with_mapping: list[Dict[str, str]]) -> list[str]:
+    """
+    Generate formatted transcript  + speaker mapping from raw transcript files.
+
+    Args:
+        raw_transcript_path (list[Dict[str,str]]): List of raw transcript file + speaker mapping file
+
+    Returns:
+        list[str]: List of formatted transcript file paths.
+    """
+    logger = logging.getLogger("pipeline")
+
+    try:
+        logger.info("Starting formatted transcription stage...")
+        formatted_transcript_paths = []
+
+        for item in transcript_with_mapping:
+            transcript_path = item["transcript"]
+            speaker_map_path = item["speaker_mapping"]
+
+            # Check if trancript already exist
+            print(f"DEBUG: transcript_path={transcript_path}, speaker_map_path={speaker_map_path}")
+            episode_id = int(get_episode_id_from_path(transcript_path))
+            output_dir = Path(TRANSCRIPT_DIR) / f"episode_{episode_id:03d}/"
+            formatted_file_path = Path(output_dir) / f"formatted_episode_{episode_id:03d}.txt"
+            if formatted_file_path.exists():
+                # Add to list
+                logger.info(f"Formatted transcript already exists for episode ID {episode_id}, skipping transcription.")
+            else:
+                # Call transcription function here
+                logger.info(f"Transcribing episode ID {episode_id} from file {transcript_path}...")
+                formatted_trancript = format_transcript(transcript_path, speaker_mapping=speaker_map_path)
+                try:
+                    with open(formatted_file_path, "w", encoding="utf-8") as f:
+                        json.dump(formatted_trancript, f, indent=4)
+                    logger.info(f"Saved formatted transcript transcription to {formatted_file_path}")
+                except OSError as e:
+                    logger.error(f"Failed to save formatted transcript for episode ID {episode_id}: {e}")
+                    continue
+            formatted_transcript_paths.append(str(formatted_file_path))
+
+            # Update db
+            update_episode_in_db(
+                episode_id=episode_id,
+                formatted_transcript_path=str(formatted_file_path),
+                processing_stage=ProcessingStage.FORMATTED_TRANSCRIPT,
+            )
+
+        logger.info("Format transcription stage completed successfully.")
+        return formatted_transcript_paths
+
+    except Exception as e:
+        logger.error(f"Failed to complete formatted transcript pipeline : {e}")
         raise
