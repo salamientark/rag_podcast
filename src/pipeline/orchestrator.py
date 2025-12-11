@@ -5,7 +5,14 @@ from typing import Optional
 from src.logger import log_function, setup_logging
 from src.db import get_db_session, Episode, ProcessingStage
 from src.ingestion.sync_episodes import fetch_podcast_episodes, sync_to_database
-from .stages import run_formatted_trancript_stage, run_raw_trancript_stage, run_speaker_mapping_stage, run_sync_stage, run_download_stage
+from .stages import (
+    run_sync_stage,
+    run_download_stage,
+    run_raw_trancript_stage,
+    run_speaker_mapping_stage,
+    run_formatted_trancript_stage,
+    run_embedding_stage,
+)
 
 
 ARG_TO_PROCESSING_STAGE = {
@@ -160,8 +167,10 @@ def run_pipeline(
                 ep.formatted_transcript_path for ep in episodes_to_process
             ]
 
-        print(f"DEBUG: Formatted transcript : {formatted_transcript_paths}")
 
+        # Run embedding stage
+        if stages is None or "embed" in stages:
+            run_embedding_stage(formatted_transcript_paths)
 
         logger.info("=== PIPELINE COMPLETED SUCCESSFULLY ===")
 
@@ -181,9 +190,9 @@ if __name__ == "__main__":
         )
         print("TESTING")
         run_pipeline(
-            stages=["sync", "download", "raw_transcript", "format_transcript"],
-            # episodes_id=[671, 672, 673],
-            limit=3,
+            stages=["sync", "download", "raw_transcript", "format_transcript", "embed"],
+            episodes_id=[671, 672, 673],
+            # limit=3,
         )
         # db_episodes = fetch_db_episodes()
         # print(f"Episodes fetched : {db_episodes}")

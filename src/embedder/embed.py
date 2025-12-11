@@ -154,7 +154,8 @@ def save_embedding_to_file(output_path: Path, embed: list[float] | np.ndarray) -
         embed = np.array(embed)
 
     # Save as numpy file
-    np.save(output_path, embed)
+    with open(output_path, "wb") as f:
+        np.save(f, embed)
     return output_path
 
 
@@ -185,7 +186,16 @@ def embed_file_to_db(
             transcript_text = f.read()
         # Generate embeddings
         embedding_result = embed_text(transcript_text, dimensions=dimensions)
-        embeddings = embedding_result.embeddings
+        embeddings = embedding_result.embeddings[0]
+
+        # Optionally save to file
+        print(f"DEBUG: save_to_file={save_to_file}")
+        if save_to_file:
+            filename = f"episode_{episode_id:03d}_d{dimensions}.npy"
+            print(f"DEBUG: Saving embeddings to file: {filename}")
+            saved_path = save_embedding_to_file(Path(filename), embeddings)
+            print(f"DEBUG: Saved path: {saved_path}")
+            logger.info(f"Embeddings saved to file: {saved_path}")
 
         # Get episode info from database
         with get_db_session() as session:
@@ -200,6 +210,7 @@ def embed_file_to_db(
             "db_guid": str(episode.guid)
         }
 
+        logger.info(f"Storing embeddings for episode ID {episode_id} in collection '{collection_name}'")
         # Insert embeddings into Qdrant
         with get_qdrant_client() as client:
             insert_one_point(
@@ -210,10 +221,6 @@ def embed_file_to_db(
             )
         logger.info(f"Embeddings stored in database for episode ID {episode_id}")
 
-        # Optionally save to file
-        if save_to_file:
-            saved_path = save_embedding_to_file(Path(DEFAULT_EMBEDDING_OUTPUT_DIR), embeddings)
-            logger.info(f"Embeddings saved to file: {saved_path}")
         # Update episode processing stage
         update_episode_processing_stage(str(episode_id))
     except Exception as e:

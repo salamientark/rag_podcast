@@ -24,16 +24,20 @@ from pathlib import Path
 from typing import Any, Optional, Dict
 from datetime import datetime
 
+from dotenv import load_dotenv
+
 from src.logger import log_function
-from src.db import Episode, get_db_session, ProcessingStage
+from src.db import Episode, get_db_session, ProcessingStage, get_qdrant_client, create_collection
 from src.ingestion.sync_episodes import fetch_podcast_episodes, sync_to_database
 from src.ingestion.audio_scrap import get_existing_files, generate_filename, download_episode
 from src.transcription import get_episode_id_from_path, format_transcript, map_speakers_with_llm
 from src.transcription.transcript import transcribe_with_diarization
+from src.embedder.embed import embed_file_to_db
 
 
 AUDIO_DIR = "data/audio"
 TRANSCRIPT_DIR = "data/transcripts"
+EMBEDDING_DIR = "data/embeddings"
 
 
 @log_function(logger_name="pipeline", log_execution_time=True)
@@ -371,4 +375,70 @@ def run_formatted_trancript_stage(transcript_with_mapping: list[Dict[str, str]])
 
     except Exception as e:
         logger.error(f"Failed to complete formatted transcript pipeline : {e}")
+        raise
+
+
+@log_function(logger_name="pipeline", log_execution_time=True)
+def run_embedding_stage(transcript_path: list[str]):
+    """
+    Generate embeddings from formatted transcript files.
+
+    Save embeddings locally + store them in qdrant db
+
+    Args:
+        transcript_path (list[str]): List of formatted transcript file paths.
+
+    Returns:
+        list[str]: List of embedding file paths.
+    """
+    logger = logging.getLogger("pipeline")
+
+    try:
+        load_dotenv()
+        logger.info("Starting embedding stage...")
+
+        # Create collection if not exist
+        load_dotenv()
+        collection_name = os.getenv("QDRANT_COLLECTION_NAME")
+        if collection_name is None:
+            raise ValueError("QDRANT_COLLECTION_NAME not set in environment variables.")
+        with get_qdrant_client() as qdrant_client:
+            create_collection(
+                qdrant_client,
+                collection_name,
+            )
+
+        # Create output directory if not exists
+        output_dir = Path(EMBEDDING_DIR)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        
+        # Embed transcript one by one
+        for path in transcript_path:
+            episode_id = int(get_episode_id_from_path(transcript_path))
+            logger.info(f"Embedding episode ID {episode_id} from file {path}...")
+
+            embedding_path = Path(output_dir) / f"episode_{episode_id:03d}_d1024.npy"
+            print(f"DEBUG: embedding_path={embedding_path}")
+            if embedding_path.exists():
+                # Add to list
+                logger.info(f"Embedding already exists for episode ID {episode_id}, skipping transcription.")
+            else:
+                # Call transcription function here
+                logger.info(f"Embedding episode ID {episode_id} from file {path}...")
+                embed_file_to_db(
+                    path,
+                    episode_id,
+                    collection_name,
+                    save_to_file=True,
+                )
+
+            update_episode_in_db(
+                episode_id=episode_id,
+                processing_stage=ProcessingStage.EMBEDDED,
+            )
+            logger.info(f"Saved embedding to {embedding_path}")
+
+    except Exception as e:
+        logger.error(f"Failed to complete embedding pipeline : {e}")
         raise
