@@ -191,7 +191,7 @@ def embed_file_to_db(
         # Optionally save to file
         print(f"DEBUG: save_to_file={save_to_file}")
         if save_to_file:
-            filename = f"episode_{episode_id:03d}_d{dimensions}.npy"
+            filename = DEFAULT_EMBEDDING_OUTPUT_DIR / f"episode_{episode_id:03d}_d{dimensions}.npy"
             print(f"DEBUG: Saving embeddings to file: {filename}")
             saved_path = save_embedding_to_file(Path(filename), embeddings)
             print(f"DEBUG: Saved path: {saved_path}")

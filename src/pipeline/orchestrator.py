@@ -4,7 +4,6 @@ from typing import Optional
 
 from src.logger import log_function, setup_logging
 from src.db import get_db_session, Episode, ProcessingStage
-from src.ingestion.sync_episodes import fetch_podcast_episodes, sync_to_database
 from .stages import (
     run_sync_stage,
     run_download_stage,
@@ -190,9 +189,9 @@ if __name__ == "__main__":
         )
         print("TESTING")
         run_pipeline(
-            stages=["sync", "download", "raw_transcript", "format_transcript", "embed"],
-            episodes_id=[671, 672, 673],
-            # limit=3,
+            # stages=["sync", "download", "raw_transcript", "format_transcript", "embed"],
+            # episodes_id=[671, 672, 673],
+            limit=3,
         )
         # db_episodes = fetch_db_episodes()
         # print(f"Episodes fetched : {db_episodes}")
