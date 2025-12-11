@@ -15,11 +15,11 @@ from .stages import (
 
 
 ARG_TO_PROCESSING_STAGE = {
-        "sync": ProcessingStage.SYNCED,
-        "download": ProcessingStage.AUDIO_DOWNLOADED,
-        "raw_transcript": ProcessingStage.RAW_TRANSCRIPT,
-        "format_transcript": ProcessingStage.FORMATTED_TRANSCRIPT,
-        "embed": ProcessingStage.EMBEDDED,
+    "sync": ProcessingStage.SYNCED,
+    "download": ProcessingStage.AUDIO_DOWNLOADED,
+    "raw_transcript": ProcessingStage.RAW_TRANSCRIPT,
+    "format_transcript": ProcessingStage.FORMATTED_TRANSCRIPT,
+    "embed": ProcessingStage.EMBEDDED,
 }
 
 
@@ -64,14 +64,14 @@ def get_last_requested_stage(stages: list[str]) -> ProcessingStage:
         if converted_stage_index > target_stage_index:
             last_stage = converted_stage
     return last_stage
-        
+
 
 def filter_episode(
     episodes: list[Episode],
     episodes_id: Optional[list[int]] = None,
     limit: Optional[int] = None,
     stage: Optional[ProcessingStage] = ProcessingStage.EMBEDDED,
-    ) -> list[Episode]:
+) -> list[Episode]:
     """
     Filter episodes based on provided IDs and limit.
 
@@ -102,19 +102,20 @@ def filter_episode(
                 filetered_episodes.append(ep)
                 episode_left -= 1
     else:
-        raise ValueError("Either episodes_id or limit must be provided for filtering.")
+        # Full mode - return all episodes
+        filetered_episodes = episodes
 
     return filetered_episodes
 
 
 @log_function(logger_name="pipeline", log_execution_time=True)
 def run_pipeline(
-        episodes_id: Optional[list[int]] = None,
-        limit: Optional[int] = None,
-        stages: Optional[list[str]] = None,
-        dry_run: bool = False,
-        verbose: bool = False,
-    ):
+    episodes_id: Optional[list[int]] = None,
+    limit: Optional[int] = None,
+    stages: Optional[list[str]] = None,
+    dry_run: bool = False,
+    verbose: bool = False,
+):
     logger = logging.getLogger("pipeline")
 
     try:
@@ -140,18 +141,14 @@ def run_pipeline(
         if stages is None or "download" in stages:
             audio_path = run_download_stage(episodes_to_process)
         else:
-            audio_path = [
-                ep.audio_file_path for ep in episodes_to_process
-            ]
+            audio_path = [ep.audio_file_path for ep in episodes_to_process]
 
         print(f"Audio paths: {audio_path}")
         # Run raw transcript stage
         if stages is None or "raw_transcript" in stages:
             raw_transcript_path = run_raw_trancript_stage(audio_path)
         else:
-            raw_transcript_path = [
-                ep.raw_transcript_path for ep in episodes_to_process
-            ]
+            raw_transcript_path = [ep.raw_transcript_path for ep in episodes_to_process]
 
         print(f"DEBUG: Raw transcript paths: {raw_transcript_path}")
 
@@ -159,13 +156,17 @@ def run_pipeline(
         if stages is None or "format_transcript" in stages:
             speaker_mapping_paths = run_speaker_mapping_stage(raw_transcript_path)
 
-            transcript_with_mapping = [{"transcript": rt, "speaker_mapping": sm} for rt, sm in zip(raw_transcript_path, speaker_mapping_paths)]
-            formatted_transcript_paths = run_formatted_trancript_stage(transcript_with_mapping)
+            transcript_with_mapping = [
+                {"transcript": rt, "speaker_mapping": sm}
+                for rt, sm in zip(raw_transcript_path, speaker_mapping_paths)
+            ]
+            formatted_transcript_paths = run_formatted_trancript_stage(
+                transcript_with_mapping
+            )
         else:
             formatted_transcript_paths = [
                 ep.formatted_transcript_path for ep in episodes_to_process
             ]
-
 
         # Run embedding stage
         if stages is None or "embed" in stages:
@@ -173,29 +174,7 @@ def run_pipeline(
 
         logger.info("=== PIPELINE COMPLETED SUCCESSFULLY ===")
 
-
     except Exception as e:
         print(f"FATAL ERROR: {e}")
         logger.error(f"Pipeline failed: {e}")
         raise
-    
-
-if __name__ == "__main__":
-    try:
-        logger = setup_logging(
-            "pipeline",
-            log_file="logs/pipeline.log",
-            verbose=True
-        )
-        print("TESTING")
-        run_pipeline(
-            # stages=["sync", "download", "raw_transcript", "format_transcript", "embed"],
-            episodes_id=[671, 672, 673],
-            # limit=3,
-        )
-        # db_episodes = fetch_db_episodes()
-        # print(f"Episodes fetched : {db_episodes}")
-        # print(f"Fetched {len(db_episodes)} episodes from DB")
-        # print(f"Episode 1: {db_episodes[0]}")
-    except Exception as e:
-        print(f"FATAL ERROR: {e}")

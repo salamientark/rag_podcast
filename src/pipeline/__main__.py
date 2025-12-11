@@ -47,6 +47,7 @@ from typing import List, Optional
 from src.logger import setup_logging
 from src.db.database import get_db_session
 from src.db.models import Episode, ProcessingStage
+from .orchestrator import run_pipeline
 
 
 def validate_episode_ids(episode_ids: List[int]) -> tuple[List[int], List[int]]:
@@ -79,7 +80,7 @@ def validate_episode_ids(episode_ids: List[int]) -> tuple[List[int], List[int]]:
 
 def validate_stages(stage_names: List[str]) -> tuple[List[ProcessingStage], List[str]]:
     """
-    Validate stage names against ProcessingStage enum.
+    Validate stage names against CLI stage names that map to orchestrator.
 
     Args:
         stage_names: List of stage names (strings)
@@ -90,11 +91,18 @@ def validate_stages(stage_names: List[str]) -> tuple[List[ProcessingStage], List
     valid_stages = []
     invalid_names = []
 
-    stage_map = {stage.value: stage for stage in ProcessingStage}
+    # CLI stage names that match orchestrator expectations
+    cli_to_enum_map = {
+        "sync": ProcessingStage.SYNCED,
+        "download": ProcessingStage.AUDIO_DOWNLOADED,
+        "raw_transcript": ProcessingStage.RAW_TRANSCRIPT,
+        "format_transcript": ProcessingStage.FORMATTED_TRANSCRIPT,
+        "embed": ProcessingStage.EMBEDDED,
+    }
 
     for name in stage_names:
-        if name in stage_map:
-            valid_stages.append(stage_map[name])
+        if name in cli_to_enum_map:
+            valid_stages.append(cli_to_enum_map[name])
         else:
             invalid_names.append(name)
 
@@ -123,6 +131,7 @@ def count_episodes_by_stage() -> dict:
 def validate_mutually_exclusive_args(args: argparse.Namespace) -> Optional[str]:
     """
     Validate that mutually exclusive argument combinations are not used.
+    Sets default behavior of --limit 5 if no mode is specified.
 
     Args:
         args: Parsed command-line arguments
@@ -134,7 +143,9 @@ def validate_mutually_exclusive_args(args: argparse.Namespace) -> Optional[str]:
     active_modes = sum(mode_flags)
 
     if active_modes == 0:
-        return "Must specify one of: --full, --episode-id, or --limit"
+        # Set default behavior: --limit 5
+        args.limit = 5
+        return None
 
     if active_modes > 1:
         return "Cannot combine --full, --episode-id, and --limit (choose one)"
@@ -230,20 +241,21 @@ def parse_arguments() -> argparse.Namespace:
         description="Podcast Processing Pipeline - Orchestrates RSS sync, audio download, transcription, chunking, and embedding",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Processing Modes (choose one):
+Processing Modes (choose one, default: --limit 5):
   --full            Process all episodes in database
   --episode-id      Process specific episode(s) by ID (can specify multiple)
   --limit           Process up to N episodes needing work
+  (default)         Process up to 5 episodes needing work (if no mode specified)
 
 Stage Control:
   --stages          Run only specific stages (comma-separated)
 
 Available Stages:
-  synced                   Episode metadata in database
-  audio_downloaded         Audio file downloaded
+  sync                     Episode metadata in database
+  download                 Audio file downloaded
   raw_transcript          Initial transcription complete
-  formatted_transcript    Speaker-identified transcript ready
-  embedded                Chunks embedded in Qdrant
+  format_transcript       Speaker-identified transcript ready
+  embed                   Chunks embedded in Qdrant
 
 Examples:
   # Process all episodes end-to-end
@@ -259,7 +271,7 @@ Examples:
   uv run -m src.pipeline --limit 5
 
   # Only transcribe and embed (skip download)
-  uv run -m src.pipeline --stages raw_transcript,formatted_transcript,embedded --limit 10
+  uv run -m src.pipeline --stages raw_transcript,format_transcript,embed --limit 10
 
   # Force reprocessing from beginning
   uv run -m src.pipeline --episode-id 672 --force
@@ -272,11 +284,14 @@ Notes:
   - Pipeline continues on error by default
   - Database tracks processing status for each episode
   - Logs written to logs/pipeline.log
+  - Default behavior (no args): processes up to 5 episodes needing work
         """,
     )
 
     # Processing mode (mutually exclusive)
-    mode_group = parser.add_argument_group("processing mode (choose one)")
+    mode_group = parser.add_argument_group(
+        "processing mode (choose one, default: --limit 5)"
+    )
     mode_group.add_argument(
         "--full",
         action="store_true",
@@ -302,7 +317,7 @@ Notes:
         "--stages",
         type=str,
         metavar="STAGE,...",
-        help="Run only specific stages (comma-separated, e.g., 'raw_transcript,formatted_transcript,embedded')",
+        help="Run only specific stages (comma-separated, e.g., 'raw_transcript,format_transcript,embed')",
     )
 
     # Options
@@ -355,7 +370,7 @@ def main():
                 file=sys.stderr,
             )
             print(
-                f"Valid stages: {', '.join([s.value for s in ProcessingStage])}",
+                "Valid stages: sync, download, raw_transcript, format_transcript, embed",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -404,26 +419,36 @@ def main():
     logger.info(f"Options: force={args.force}")
     logger.info("=" * 80)
 
-    # TODO: Call orchestrator.run_pipeline() here once implemented
-    print("=" * 80)
-    print("PIPELINE READY")
-    print("=" * 80)
-    print()
-    print("✓ Argument validation passed")
-    print("✓ Database connection verified")
-    print("✓ Logger initialized")
-    print()
-    print("Pipeline execution logic will be implemented in orchestrator.py")
-    print()
-    print("Next steps:")
-    print("  1. Implement orchestrator.run_pipeline()")
-    print("  2. Implement stage wrappers in stages.py")
-    print("  3. Integrate with existing modules")
-    print()
-    print("=" * 80)
+    # Execute the pipeline
+    try:
+        # Determine episodes to process based on mode
+        episodes_id = None
+        limit = None
 
-    logger.info("Pipeline execution completed (stub)")
-    sys.exit(0)
+        if args.episode_id:
+            episodes_id = args.episode_id
+        elif args.limit:
+            limit = args.limit
+        # For --full mode, both remain None
+
+        # Call the orchestrator
+        run_pipeline(
+            episodes_id=episodes_id,
+            limit=limit,
+            stages=args.stages,
+            dry_run=args.dry_run,
+            verbose=args.verbose,
+        )
+
+        logger.info("Pipeline execution completed successfully")
+        print("\n" + "=" * 80)
+        print("✓ PIPELINE COMPLETED SUCCESSFULLY")
+        print("=" * 80)
+
+    except Exception as e:
+        logger.error(f"Pipeline execution failed: {e}")
+        print(f"\n✗ PIPELINE FAILED: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
