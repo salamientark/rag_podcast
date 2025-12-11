@@ -253,15 +253,35 @@ def run_raw_trancript_stage(audio_path: list[str]) -> list[str]:
 
             # Check if transcript already exist
             raw_file_path = Path(output_dir) / f"raw_episode_{episode_id:03d}.json"
+            transcript_duration = None
+            transcript_confidence = None
+
             if raw_file_path.exists():
-                # Add to list
+                # Load existing transcript to extract metadata
                 logger.info(
-                    f"Raw transcript already exists for episode ID {episode_id}, skipping transcription."
+                    f"Raw transcript already exists for episode ID {episode_id}, loading metadata."
                 )
             else:
                 # Call transcription function here
                 logger.info(f"Transcribing episode ID {episode_id} from file {path}...")
                 raw_trancript = transcribe_with_diarization(Path(path), language="fr")
+
+                # Extract metadata from new transcription
+                transcript_duration = raw_trancript.get("transcript", {}).get(
+                    "audio_duration"
+                )
+                transcript_confidence = raw_trancript.get("transcript", {}).get(
+                    "confidence"
+                )
+
+                # Convert duration to int if it exists (database expects Integer)
+                if transcript_duration is not None:
+                    transcript_duration = int(transcript_duration)
+
+                logger.info(
+                    f"Transcription metadata: duration={transcript_duration}s, confidence={transcript_confidence}"
+                )
+
                 try:
                     with open(raw_file_path, "w", encoding="utf-8") as f:
                         json.dump(raw_trancript, f, indent=4)
@@ -271,12 +291,15 @@ def run_raw_trancript_stage(audio_path: list[str]) -> list[str]:
                         f"Failed to save raw transcript for episode ID {episode_id}: {e}"
                     )
                     continue
-            # Update db
+
+            # Update db with transcript path and metadata
             raw_transcript_paths.append(str(raw_file_path))
             update_episode_in_db(
                 episode_id=episode_id,
                 raw_transcript_path=str(raw_file_path),
                 processing_stage=ProcessingStage.RAW_TRANSCRIPT,
+                transcript_duration=transcript_duration,
+                transcript_confidence=transcript_confidence,
             )
 
         logger.info("Raw transcription stage completed successfully.")
