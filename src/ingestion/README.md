@@ -23,16 +23,12 @@ uv run -m src.ingestion.sync_episodes --full-sync
 
 # Sync specific number
 uv run -m src.ingestion.sync_episodes --limit 5
-
-# Fix database status from files
-uv run -m src.ingestion.sync_episodes --reconcile --full-sync
 ```
 
 **Options:**
 - `--full-sync` - Sync all episodes
 - `--days N` - Sync last N days (default: 30)
 - `--limit N` - Process only N episodes
-- `--reconcile` - Update database status from filesystem
 - `--dry-run` - Preview without saving
 - `--verbose` - Show detailed output
 
@@ -41,6 +37,56 @@ uv run -m src.ingestion.sync_episodes --reconcile --full-sync
 - Stores title, date, audio URL, description in database
 - Skips duplicates automatically
 - Log: `logs/sync_episodes.log`
+
+### `reconcile.py` - Database Reconciliation
+
+```bash
+# Reconcile all episodes
+uv run -m src.ingestion.reconcile --all
+
+# Reconcile specific episodes
+uv run -m src.ingestion.reconcile --episodes 670 671 672
+
+# Reconcile recent episodes
+uv run -m src.ingestion.reconcile --days 7
+
+# Preview changes without saving
+uv run -m src.ingestion.reconcile --all --dry-run
+
+# Skip Qdrant verification (filesystem only)
+uv run -m src.ingestion.reconcile --all --skip-qdrant
+```
+
+**Options:**
+- `--all` - Reconcile ALL episodes (required flag for safety)
+- `--episodes ID [ID ...]` - Specific episode IDs to reconcile
+- `--days N` - Reconcile episodes from last N days
+- `--dry-run` - Preview changes without committing to database
+- `--skip-qdrant` - Skip Qdrant verification (filesystem only)
+- `--verbose` - Show detailed output
+
+**What it does:**
+- Scans filesystem for episode files (audio, transcripts, speaker mappings)
+- Extracts metadata from transcript JSON files (duration, confidence)
+- Updates database fields to match filesystem reality:
+  - `audio_file_path`
+  - `raw_transcript_path`
+  - `formatted_transcript_path`
+  - `speaker_mapping_path` ✨
+  - `transcript_duration` ✨
+  - `transcript_confidence` ✨
+  - `processing_stage`
+- Verifies embeddings in Qdrant vector database
+- Upgrades stage to `EMBEDDED` if found in Qdrant
+- Downgrades stage if marked `EMBEDDED` but not in Qdrant
+- Log: `logs/reconcile.log`
+
+**When to use:**
+- After manual file operations (moving/copying episodes)
+- Database got out of sync with filesystem
+- After recovering from errors or crashes
+- Verify which episodes are fully processed
+- Check Qdrant embedding status
 
 ### `audio_scrap.py` - Download Audio Files
 
@@ -91,6 +137,18 @@ uv run -m src.ingestion.sync_episodes --days 7
 uv run -m src.ingestion.audio_scrap
 ```
 
+**Verify database consistency:**
+```bash
+# Check all episodes are in sync
+uv run -m src.ingestion.reconcile --all
+
+# Fix specific episodes
+uv run -m src.ingestion.reconcile --episodes 670 671 672
+
+# Check what would change (safe preview)
+uv run -m src.ingestion.reconcile --all --dry-run
+```
+
 **Testing:**
 ```bash
 uv run -m src.ingestion.sync_episodes --limit 3 --dry-run
@@ -99,7 +157,8 @@ uv run -m src.ingestion.audio_scrap --limit 3
 
 **Fix database after manual changes:**
 ```bash
-uv run -m src.ingestion.sync_episodes --reconcile --full-sync
+# Reconcile all episodes with filesystem and Qdrant
+uv run -m src.ingestion.reconcile --all
 ```
 
 ## Environment Setup
