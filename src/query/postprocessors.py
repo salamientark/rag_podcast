@@ -1,0 +1,81 @@
+"""
+Postprocessors for the podcast query system.
+
+This module provides:
+- HiddenMetadataProcessor: Injects episode metadata into chunks for LLM context
+- get_reranker: Creates BGE-M3 multilingual reranker for better French results
+"""
+
+from typing import List, Optional
+from llama_index.core.postprocessor import SentenceTransformerRerank
+from llama_index.core.schema import NodeWithScore, QueryBundle
+
+
+def get_reranker(model_name: str, top_n: int) -> SentenceTransformerRerank:
+    """
+    Get French-optimized reranker using sentence-transformers.
+
+    Args:
+        model_name: Model name (e.g., "BAAI/bge-reranker-v2-m3")
+        top_n: Number of top chunks to return after reranking
+
+    Returns:
+        Configured SentenceTransformerRerank postprocessor
+    """
+    return SentenceTransformerRerank(
+        model=model_name,
+        top_n=top_n,
+    )
+
+
+def process_nodes_with_metadata(nodes: List[NodeWithScore]) -> List[NodeWithScore]:
+    """
+    Simple function to inject episode metadata into nodes.
+
+    Args:
+        nodes: List of retrieved nodes with scores
+
+    Returns:
+        List of nodes with metadata injected into content
+    """
+    for node in nodes:
+        metadata = node.node.metadata
+
+        # Extract metadata for LLM context
+        episode_id = metadata.get("episode_id", "Unknown")
+        title = metadata.get("title", "Unknown Episode")
+        chunk_idx = metadata.get("chunk_index", 0)
+        total_chunks = metadata.get("total_chunks", 1)
+
+        # Build hidden context prefix for LLM
+        context_prefix = f"[Episode {episode_id}: {title}"
+
+        # Add chunk information for multi-chunk episodes
+        if total_chunks > 1:
+            context_prefix += f" - Part {chunk_idx + 1}/{total_chunks}"
+
+        context_prefix += "]\n\n"
+
+        # Get original text using get_content() method
+        try:
+            original_text = node.node.get_content()
+            # Create new text with metadata prefix
+            new_text = context_prefix + original_text
+
+            # Update the node content
+            # We'll use the node's internal methods to update content
+            from llama_index.core.schema import TextNode
+
+            if isinstance(node.node, TextNode):
+                # Create a new TextNode with updated content
+                updated_node = TextNode(
+                    text=new_text,
+                    metadata=metadata,
+                    id_=node.node.node_id,
+                )
+                node.node = updated_node
+        except Exception as e:
+            # If we can't modify the node, just continue
+            pass
+
+    return nodes

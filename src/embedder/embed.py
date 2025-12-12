@@ -269,15 +269,12 @@ def embed_file_to_db(
         embeddings = embedding_result.embeddings[0]
 
         # Optionally save to file
-        print(f"DEBUG: save_to_file={save_to_file}")
         if save_to_file:
             filename = (
                 DEFAULT_EMBEDDING_OUTPUT_DIR
                 / f"episode_{episode_id:03d}_d{dimensions}.npy"
             )
-            print(f"DEBUG: Saving embeddings to file: {filename}")
             saved_path = save_embedding_to_file(Path(filename), embeddings)
-            print(f"DEBUG: Saved path: {saved_path}")
             logger.info(f"Embeddings saved to file: {saved_path}")
 
         # Get episode info from database
@@ -479,6 +476,7 @@ def process_episode_embedding(
                     "chunk_index": i,
                     "total_chunks": len(chunk_texts),
                     "token_count": count_tokens(chunk_text),
+                    "text": chunk_text,
                 }
                 insert_one_point(
                     client=client,
