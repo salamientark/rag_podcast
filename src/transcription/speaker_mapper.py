@@ -9,9 +9,6 @@ from src.logger import setup_logging, log_function
 
 OPENAI_MODEL = "gpt-5"
 
-# def extract_episode_id(json_path: Path) -> int:
-#     ...
-
 
 def _apply_speaker_mapping(
     speaker: str, speaker_mapping: Optional[Dict[str, str]]
@@ -224,7 +221,7 @@ def get_mapped_transcript(raw_transcript_path: Path) -> str:
 
 # ========= TESTING BEGIN ==========
 ABSOLUTE_TRANSCRIPT_PATH = Path(
-    "/home/madlab/Code/rag_podcast/data/transcript/episode_672_universal.json"
+    "./data/transcript/episode_672_universal.json"
 )
 
 if __name__ == "__main__":
