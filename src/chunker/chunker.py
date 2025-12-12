@@ -19,7 +19,7 @@ def chunk_text(text: str, chunk_size: int = 8192) -> list[Chunk]:
 
 
 ABSOLUTE_EPISODE_PATH = Path(
-    "/home/madlab/Code/rag_podcast/data/transcript/episode_672_universal.json"
+    "./data/transcript/episode_672_universal.json"
 )
 
 
