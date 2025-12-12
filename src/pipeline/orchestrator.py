@@ -143,14 +143,11 @@ def run_pipeline(
         else:
             audio_path = [ep.audio_file_path for ep in episodes_to_process]
 
-        print(f"Audio paths: {audio_path}")
         # Run raw transcript stage
         if stages is None or "raw_transcript" in stages:
             raw_transcript_path = run_raw_trancript_stage(audio_path)
         else:
             raw_transcript_path = [ep.raw_transcript_path for ep in episodes_to_process]
-
-        print(f"DEBUG: Raw transcript paths: {raw_transcript_path}")
 
         # Run formatted transcript stage (Speaker mapping included)
         if stages is None or "format_transcript" in stages:
@@ -175,6 +172,4 @@ def run_pipeline(
         logger.info("=== PIPELINE COMPLETED SUCCESSFULLY ===")
 
     except Exception as e:
-        print(f"FATAL ERROR: {e}")
-        logger.error(f"Pipeline failed: {e}")
         raise

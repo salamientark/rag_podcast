@@ -79,24 +79,22 @@ uv run -m src.pipeline --dry-run --limit 10 --verbose
 
 ## Features
 
-### Implemented (v0.1.0)
-- ✓ Comprehensive argument parsing with validation
-- ✓ Multiple episode ID support
-- ✓ Stage validation against ProcessingStage enum
-- ✓ Database connectivity check
-- ✓ Episode ID validation
-- ✓ Dry-run mode with detailed preview
-- ✓ Mutually exclusive argument validation
-- ✓ Database status reporting
-- ✓ Logging infrastructure
+### Features
+- **Multi-episode Processing** - Handle single episodes or batches
+- **Stage Selection** - Run specific stages or complete pipeline
+- **Smart Resumption** - Skip already completed stages automatically
+- **Force Reprocessing** - Override completion status when needed
+- **Comprehensive Logging** - Detailed progress and error reporting
+- **Dry Run Mode** - Preview operations without execution
+- **Database Integration** - Automatic status tracking and updates
 
-### To Be Implemented
-- Pipeline orchestration logic (`orchestrator.py`)
-- Stage wrapper functions (`stages.py`)
-- Progress tracking and reporting
-- Error handling and recovery
-- Stage skipping based on completion status
-- Force reprocessing logic
+### Status
+- ✅ **CLI Interface** - Complete argument parsing and validation
+- ✅ **Orchestration Logic** - Core pipeline coordination implemented
+- ✅ **Stage Wrappers** - Individual stage execution functions
+- ✅ **Progress Tracking** - Detailed logging and status reporting
+- ✅ **Error Handling** - Graceful failure handling and recovery
+- ✅ **Force Reprocessing** - Skip completion checks when needed
 
 ## Architecture
 
@@ -158,13 +156,3 @@ uv run -m src.pipeline --limit 5
 # Verbose logging
 uv run -m src.pipeline --limit 5 --verbose
 ```
-
-## Next Steps
-
-1. Implement `orchestrator.run_pipeline()` function
-2. Implement stage wrappers in `stages.py`
-3. Add progress tracking and reporting
-4. Integrate with existing modules (ingestion, transcription, embedder)
-5. Add comprehensive error handling
-6. Implement force reprocessing logic
-7. Add unit tests

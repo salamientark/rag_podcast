@@ -354,5 +354,4 @@ def transcribe_local_file(
         return formatted_transcript_path
 
     except Exception as e:
-        print(f"Transcription failed: {e}")
         raise

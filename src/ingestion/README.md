@@ -163,10 +163,19 @@ uv run -m src.ingestion.reconcile --all
 
 ## Environment Setup
 
+## Environment Variables
+
 Required in `.env`:
 ```env
+# RSS Feed
 FEED_URL=https://feeds.feedpress.me/your-podcast-feed
+
+# Database
 DATABASE_URL=sqlite:///data/podcast.db
+
+# Qdrant (for reconcile.py)
+QDRANT_URL=http://localhost:6333
+QDRANT_COLLECTION_NAME=podcasts
 ```
 
 ## Troubleshooting
