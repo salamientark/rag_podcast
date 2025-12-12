@@ -1,113 +1,197 @@
 # RAG Podcast Project
 
-A RAG (Retrieval-Augmented Generation) system for podcast content analysis, featuring automated episode ingestion, transcription, and AI-powered processing.
+A complete RAG (Retrieval-Augmented Generation) system for podcast content analysis and querying. This project provides an end-to-end pipeline from RSS feeds to AI-powered conversations about podcast content.
 
-## Overview
+## 🎯 Overview
 
-This project provides tools to:
-- **Sync podcast episodes** from RSS feeds to a local database
-- **Download audio files** from podcast episodes
-- **Transcribe audio** with speaker identification
-- **Process transcripts** using LLM services for analysis and Q&A
+Transform podcast episodes into a searchable, queryable knowledge base:
+- **📡 Automated ingestion** from RSS feeds with metadata extraction
+- **📁 Audio file management** with organized download and storage
+- **🎙️ Advanced transcription** using AssemblyAI with speaker diarization  
+- **📝 Intelligent text processing** with semantic chunking for RAG
+- **🔍 Vector embeddings** using VoyageAI stored in Qdrant database
+- **🤖 AI query agent** for natural language conversations about episodes
 
-## Project Structure
+## 🏗️ Architecture
 
 ```
 rag_podcast/
 ├── src/
-│   ├── db/              # Database models and connection management
-│   ├── ingestion/       # RSS feed sync and audio download tools
-│   ├── transcription/   # Audio transcription with speaker mapping
-│   ├── llm/             # LLM integration (OpenAI, etc.)
-│   └── utils/           # Shared utilities (logging, etc.)
-├── alembic/             # Database migrations
-├── data/                # Data storage (audio, transcripts, database)
-├── logs/                # Application logs
-└── examples/            # Usage examples
+│   ├── db/              # SQLAlchemy models, database connections, migrations
+│   ├── ingestion/       # RSS sync, audio downloads, reconciliation
+│   ├── transcription/   # AssemblyAI integration, speaker mapping
+│   ├── chunker/         # Semantic text chunking for RAG
+│   ├── embedder/        # VoyageAI embeddings with Qdrant storage
+│   ├── query/           # RAG query agent with LlamaIndex
+│   ├── pipeline/        # End-to-end orchestration system
+│   ├── llm/             # OpenAI integration and LLM abstractions
+│   └── logger/          # Centralized logging infrastructure
+├── alembic/             # Database schema migrations
+├── data/                # Episode storage (audio, transcripts, embeddings)
+└── logs/                # Application logs by module
 ```
 
-## Requirements
+## 🔄 Processing Pipeline
 
-- Python >= 3.13
-- `uv` package manager (recommended)
+Episodes flow through these automated stages:
+1. **`SYNCED`** → Metadata fetched from RSS feed
+2. **`AUDIO_DOWNLOADED`** → MP3 files downloaded locally  
+3. **`RAW_TRANSCRIPT`** → Transcribed with AssemblyAI Universal-2
+4. **`FORMATTED_TRANSCRIPT`** → Speaker diarization and formatting
+5. **`EMBEDDED`** → Chunked and embedded in Qdrant vector database
 
-## Setup
+## 🚀 Key Features
 
-1. **Install dependencies**:
-   ```bash
-   uv sync
-   ```
+- **🎯 Complete automation** - One command processes entire pipeline
+- **🔍 Advanced search** - Vector similarity + keyword search + reranking
+- **🎭 Speaker identification** - AI-powered speaker name mapping
+- **📊 Progress tracking** - Detailed logging and status monitoring  
+- **🔧 Flexible configuration** - Granular control over each stage
+- **💾 Incremental processing** - Smart resumption and duplicate handling
 
-2. **Configure environment**:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
-   ```
+## ⚙️ Requirements
 
-3. **Setup database**:
-   ```bash
-   uv run alembic upgrade head
-   ```
+- **Python** >= 3.13
+- **Package Manager**: [`uv`](https://docs.astral.sh/uv/) (fast Python package manager)
+- **Vector Database**: [Qdrant](https://qdrant.tech/) (local or cloud instance)
+- **API Keys**: OpenAI, VoyageAI, AssemblyAI
 
-## Usage
+## 🛠️ Setup
 
-### Episode Ingestion
-
-#### Sync RSS Feed to Database
-
-Fetch episodes from the podcast RSS feed and store metadata in the database:
-
+### 1. Install Dependencies
 ```bash
-# Sync last 30 days (default)
+# Clone repository
+git clone <repository-url>
+cd rag_podcast
+
+# Install with uv (recommended)
+uv sync
+
+# Alternative: pip install
+pip install -e .
+```
+
+### 2. Environment Configuration
+```bash
+# Copy example environment file
+cp .env.example .env
+
+# Required API keys (.env):
+OPENAI_API_KEY=your_openai_key_here
+VOYAGE_API_KEY=your_voyage_ai_key_here  
+ASSEMBLYAI_API_KEY=your_assemblyai_key_here
+
+# Database configuration
+DATABASE_URL=sqlite:///data/podcast.db
+QDRANT_URL=http://localhost:6333
+QDRANT_COLLECTION_NAME=podcasts
+
+# RSS feed URL
+FEED_URL=https://feeds.example.com/your-podcast-feed
+```
+
+### 3. Database Setup
+```bash
+# Apply database migrations
+uv run alembic upgrade head
+
+# Verify database creation
+ls -la data/podcast.db
+```
+
+### 4. Start Qdrant (Vector Database)
+```bash
+# Option 1: Docker (recommended)
+docker run -p 6333:6333 qdrant/qdrant
+
+# Option 2: Local installation
+# Follow instructions at https://qdrant.tech/documentation/quick-start/
+```
+
+## 🎯 Quick Start
+
+### Complete Pipeline (Recommended)
+```bash
+# Process everything: sync → download → transcribe → embed
+uv run -m src.pipeline --limit 5
+
+# Process specific episodes
+uv run -m src.pipeline --episode-id 672 673 674
+
+# Preview what would be processed (dry run)
+uv run -m src.pipeline --dry-run --limit 3
+```
+
+### Query Your Podcast Content
+```bash
+# Start the interactive query agent
+uv run -m src.query
+
+# Example conversation:
+# You: What did they discuss about AI in recent episodes?
+# Agent: Based on episodes 672-674, they covered Google's new AI models...
+```
+
+## 📋 Detailed Usage
+
+### 1. Episode Ingestion
+
+**Sync RSS Feed to Database:**
+```bash
+# Basic sync (last 30 days)
 uv run -m src.ingestion.sync_episodes
 
-# Sync all episodes (full history)
+# Full history sync
 uv run -m src.ingestion.sync_episodes --full-sync
 
-# Sync last 60 days
-uv run -m src.ingestion.sync_episodes --days 60
-
-# Sync only 5 most recent episodes
-uv run -m src.ingestion.sync_episodes --limit 5
-
-# Dry run (preview without saving)
-uv run -m src.ingestion.sync_episodes --dry-run --limit 5
-
-# Verbose output with debug logging
-uv run -m src.ingestion.sync_episodes --verbose
+# Limited sync with preview
+uv run -m src.ingestion.sync_episodes --limit 10 --dry-run --verbose
 ```
 
-#### Download Audio Files
-
-Download MP3 audio files for episodes in the database:
-
+**Download Audio Files:**
 ```bash
 # Download all missing episodes
 uv run -m src.ingestion.audio_scrap
 
-# Download 5 most recent missing episodes
-uv run -m src.ingestion.audio_scrap --limit 5
-
-# Dry run (show what would be downloaded)
-uv run -m src.ingestion.audio_scrap --dry-run
-
-# Verbose output with detailed logging
-uv run -m src.ingestion.audio_scrap --verbose
-
-# Custom audio directory
-uv run -m src.ingestion.audio_scrap --audio-dir /path/to/audio
+# Targeted download
+uv run -m src.ingestion.audio_scrap --limit 5 --verbose
 ```
 
-### Transcription
+### 2. Transcription & Processing
 
-Transcribe audio files with speaker identification:
-
+**Transcribe Audio:**
 ```bash
-# Transcribe audio files
+# Transcribe all pending audio files
 uv run -m src.transcription
 
-# Additional options (see src/transcription/ for details)
-uv run -m src.transcription --help
+# Force re-transcription
+uv run -m src.transcription --force
+
+# Preview transcription queue
+uv run -m src.transcription --dry-run
+```
+
+**Generate Embeddings:**
+```bash
+# Embed formatted transcripts into Qdrant
+uv run -m src.embedder "data/transcripts/*/formatted_*.txt"
+
+# Custom embedding dimensions
+uv run -m src.embedder transcript.txt --dimensions 512
+```
+
+### 3. End-to-End Pipeline
+
+**Automated Processing:**
+```bash
+# Process all episodes through complete pipeline
+uv run -m src.pipeline --full
+
+# Process specific stages only
+uv run -m src.pipeline --stages raw_transcript,embedded --limit 5
+
+# Force reprocessing
+uv run -m src.pipeline --episode-id 672 --force
 ```
 
 ### Database Management
@@ -183,57 +267,108 @@ def my_function():
 4. Update database models if needed and create migrations
 5. Add examples and documentation
 
-## Common Workflows
+## 🔄 Common Workflows
 
-### Complete Setup for New Episodes
-
+### Initial Setup (New Installation)
 ```bash
-# 1. Sync latest episodes from RSS feed
-uv run -m src.ingestion.sync_episodes --days 30
+# 1. Complete setup for first 10 episodes
+uv run -m src.pipeline --limit 10
 
-# 2. Download missing audio files
-uv run -m src.ingestion.audio_scrap --limit 10
-
-# 3. Transcribe new audio
-uv run -m src.transcription
+# 2. Start querying your content
+uv run -m src.query
 ```
 
-### Testing Before Production Run
-
+### Daily Updates
 ```bash
-# Preview what would be synced/downloaded without making changes
-uv run -m src.ingestion.sync_episodes --dry-run --limit 5
-uv run -m src.ingestion.audio_scrap --dry-run --limit 5
+# Process new episodes from last 7 days
+uv run -m src.ingestion.sync_episodes --days 7
+uv run -m src.pipeline --limit 5
 ```
 
-### Monitoring and Logs
-
-Check logs in the `logs/` directory:
-- `logs/sync_episodes.log` - RSS feed sync operations
-- `logs/audio_download.log` - Audio download operations
-- `logs/database.log` - Database operations
-- Custom log files for specific modules
-
-## Troubleshooting
-
-### Database Issues
-
+### Maintenance & Recovery
 ```bash
-# Check current migration status
+# Verify database consistency with filesystem
+uv run -m src.ingestion.reconcile --all --dry-run
+
+# Fix sync issues
+uv run -m src.ingestion.reconcile --all
+
+# Reprocess failed episodes
+uv run -m src.pipeline --episode-id 672 673 --force
+```
+
+### Development & Testing
+```bash
+# Safe preview mode (no changes)
+uv run -m src.ingestion.sync_episodes --dry-run --limit 3
+uv run -m src.pipeline --dry-run --limit 3
+
+# Process single episode end-to-end
+uv run -m src.pipeline --episode-id 672 --verbose
+```
+
+### Monitoring & Logs
+
+Log files in `logs/` directory:
+- `pipeline.log` - End-to-end pipeline operations
+- `sync_episodes.log` - RSS feed sync operations  
+- `audio_download.log` - Audio download operations
+- `transcript.log` - Transcription operations
+- `database.log` - Database operations
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+**Pipeline Failures:**
+```bash
+# Check pipeline status and logs
+uv run -m src.pipeline --dry-run --verbose
+
+# Verify database consistency
+uv run -m src.ingestion.reconcile --all --dry-run
+```
+
+**Database Issues:**
+```bash
+# Check migration status
 uv run alembic current
+uv run alembic history
 
-# Reset to a specific version
-uv run alembic downgrade <revision>
+# Reset database (caution!)
+rm data/podcast.db
 uv run alembic upgrade head
 ```
 
-### Audio Download Issues
+**API Key Errors:**
+```bash
+# Verify environment variables
+grep -E "(OPENAI|VOYAGE|ASSEMBLYAI)" .env
 
-- Check network connectivity
-- Verify episode URLs in database
-- Check `logs/audio_download.log` for detailed error messages
-- Try with `--verbose` flag for more information
+# Test API connectivity
+uv run python -c "import openai; print('OpenAI key valid')"
+```
 
-### Import Errors
+**Qdrant Connection Issues:**
+```bash
+# Check Qdrant status
+curl http://localhost:6333/health
 
-Make sure you're using `uv run` prefix for all commands to ensure proper environment activation.
+# Restart Qdrant
+docker restart $(docker ps -q --filter ancestor=qdrant/qdrant)
+```
+
+**Performance Issues:**
+- Large episodes: Use `--limit` flags to process in batches
+- Slow queries: Enable reranking with `--enable-rerank` 
+- Memory usage: Monitor with `uv run -m src.pipeline --verbose`
+
+### Getting Help
+
+1. **Check logs** in `logs/` directory for detailed error messages
+2. **Use verbose mode** with `--verbose` flag for debugging
+3. **Dry run mode** with `--dry-run` to preview operations safely
+4. **Run reconciliation** to fix database inconsistencies
+
+**Environment Setup:**
+Always use `uv run` prefix to ensure proper Python environment activation.

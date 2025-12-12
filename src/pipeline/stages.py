@@ -394,10 +394,6 @@ def run_formatted_trancript_stage(
             transcript_path = item["transcript"]
             speaker_map_path = item["speaker_mapping"]
 
-            # Check if trancript already exist
-            print(
-                f"DEBUG: transcript_path={transcript_path}, speaker_map_path={speaker_map_path}"
-            )
             episode_id = int(get_episode_id_from_path(transcript_path))
             output_dir = Path(TRANSCRIPT_DIR) / f"episode_{episode_id:03d}/"
             formatted_file_path = (
