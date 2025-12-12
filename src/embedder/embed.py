@@ -1,0 +1,504 @@
+import logging
+import numpy as np
+from typing import Any, Optional, Dict
+from dotenv import load_dotenv
+from pathlib import Path
+import voyageai
+
+from src.logger import log_function
+from src.db.database import get_db_session
+from src.db.qdrant_client import (
+    get_qdrant_client,
+    insert_one_point,
+    get_episode_vectors,
+)
+from src.db.models import Episode, ProcessingStage
+from src.embedder.token_counter import check_voyage_limits, count_tokens
+from chonkie.chunker.token import TokenChunker
+import tiktoken
+
+
+DEFAULT_EMBEDDING_OUTPUT_DIR = Path("data/embeddings")
+
+
+@log_function(logger_name="embedder", log_args=False, log_execution_time=True)
+def embed_text(text: str | list[str], dimensions: int = 1024) -> Any:
+    """Generate embeddings for the given text using VoyageAI's embedding model.
+
+    Args:
+        text (str | list[str]): The input text to be embedded.
+        dimensions (int): Output dimensions for the embedding.
+                         Valid values: 256, 512, 1024, 2048. Default: 1024.
+
+    Returns:
+        Any: VoyageAI embedding result object containing embeddings and metadata.
+
+    Raises:
+        ValueError: If dimensions parameter is not one of [256, 512, 1024, 2048].
+        Exception: If embedding generation fails.
+    """
+    logger = logging.getLogger("embedder")
+    load_dotenv()
+
+    # Validate dimensions parameter
+    valid_dimensions = [256, 512, 1024, 2048]
+    if dimensions not in valid_dimensions:
+        raise ValueError(
+            f"Invalid dimensions: {dimensions}. Must be one of {valid_dimensions}"
+        )
+
+    # Automatically look for VOYAGE_API_KEY env variable
+    try:
+        # Create embedding client
+        vo = voyageai.Client()  # type: ignore
+
+        # Ensure text is a list for API compatibility
+        texts_to_embed = [text] if isinstance(text, str) else text
+
+        # Check token limits before making API call
+        model_name = "voyage-3"
+        limit_check = check_voyage_limits(texts_to_embed, model=model_name)
+
+        if not limit_check["fits"]:
+            error_msg = f"Text exceeds Voyage AI limits: {limit_check['issues']}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
+        logger.info(
+            f"Generating embeddings with {dimensions} dimensions "
+            f"({limit_check['total_tokens']} tokens, "
+            f"{limit_check['total_tokens'] / limit_check['model_limits']['context_length'] * 100:.1f}% of limit)"
+        )
+
+        result = vo.embed(
+            texts_to_embed,
+            model=model_name,
+            input_type="document",
+            output_dimension=dimensions,
+        )
+        logger.info(
+            f"Embeddings generated successfully. "
+            f"API reported {result.total_tokens} tokens"
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error generating embeddings: {e}")
+        raise
+
+
+def chunks_to_text(chunks: list[Any]) -> list[str]:
+    """Convert list of Chunks to list of text strings.
+
+    Args:
+        chunks (list[Chunks]): List of Chunks objects.
+    Returns:
+        list[str]: List of text strings extracted from chunks.
+    """
+    text_list = [chunk.text.strip() for chunk in chunks]
+    return text_list
+
+
+@log_function(logger_name="embedder", log_args=True, log_execution_time=True)
+def update_episode_processing_stage(
+    episode_id: str,
+) -> bool:
+    """
+    Update episode database record with EMBEDDED processing stage.
+
+    Args:
+        episode_id: Database ID of the episode
+        processing_stage: New processing stage to set
+
+    Returns:
+        bool: True if update successful, False otherwise
+    """
+    logger = logging.getLogger("embedder")
+    try:
+        with get_db_session() as session:
+            episode = session.query(Episode).filter_by(id=episode_id).first()
+
+            if not episode:
+                logger.error(f"Episode {episode_id} not found in database")
+                return False
+
+            # Update db fields
+            stage_order = list(ProcessingStage)
+            current_stage_index = stage_order.index(episode.processing_stage)
+            target_stage_index = stage_order.index(ProcessingStage.EMBEDDED)
+            if current_stage_index < target_stage_index:
+                episode.processing_stage = ProcessingStage.EMBEDDED
+
+            session.commit()
+            logger.info(
+                f"Updated episode ID {episode_id} with EMBEDDED processing stage"
+            )
+            return True
+    except Exception as e:
+        logger.error(f"Failed to update episode ID {episode_id}: {e}")
+        return False
+
+
+def save_embedding_to_file(output_path: Path, embed: list[float] | np.ndarray) -> Path:
+    """Save embeddings to the specified output path as .npy file.
+
+    Args:
+        output_path (Path): Full path where the embedding file should be saved.
+        embed (list[float] | np.ndarray): The embedding vector to save.
+
+    Returns:
+        Path: The path where the file was saved.
+
+    Raises:
+        OSError: If file cannot be written.
+    """
+    # Create parent directory if it doesn't exist
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Ensure .npy extension
+    if output_path.suffix != ".npy":
+        output_path = output_path.with_suffix(".npy")
+
+    # Convert to numpy array if needed
+    if not isinstance(embed, np.ndarray):
+        embed = np.array(embed)
+
+    # Save as numpy file
+    with open(output_path, "wb") as f:
+        np.save(f, embed)
+    return output_path
+
+
+def load_embedding_from_file(file_path: Path) -> Optional[np.ndarray]:
+    """Load embeddings from a .npy file.
+
+    Args:
+        file_path (Path): Path to the .npy embedding file.
+
+    Returns:
+        Optional[np.ndarray]: Loaded embedding vector, or None if file doesn't exist.
+
+    Raises:
+        Exception: If file exists but cannot be loaded.
+    """
+    if not file_path.exists():
+        return None
+
+    try:
+        with open(file_path, "rb") as f:
+            embedding = np.load(f)
+        return embedding
+    except Exception as e:
+        logger = logging.getLogger("embedder")
+        logger.error(f"Failed to load embedding from {file_path}: {e}")
+        raise
+
+
+def chunk_long_text(
+    text: str, max_tokens: int = 30000, overlap_percent: float = 0.1
+) -> list[str]:
+    """
+    Chunk text if it exceeds token limit, with overlap between chunks.
+
+    Args:
+        text: Input text to chunk
+        max_tokens: Maximum tokens per chunk (default 30000)
+        overlap_percent: Overlap between chunks as percentage (default 0.1 = 10%)
+
+    Returns:
+        List of text chunks (single item if text fits within limit)
+    """
+    logger = logging.getLogger("embedder")
+
+    # Check total token count
+    token_count = count_tokens(text)
+
+    if token_count <= max_tokens:
+        logger.info(
+            f"Text fits within limit ({token_count} tokens), no chunking needed"
+        )
+        return [text]
+
+    # Calculate overlap in tokens
+    overlap_tokens = int(max_tokens * overlap_percent)
+
+    logger.info(
+        f"Text has {token_count} tokens, chunking with "
+        f"{max_tokens} tokens per chunk and {overlap_tokens} token overlap"
+    )
+
+    # Use TokenChunker from chonkie with tiktoken encoder
+    encoding = tiktoken.get_encoding("cl100k_base")
+    chunker = TokenChunker(
+        tokenizer=encoding, chunk_size=max_tokens, chunk_overlap=overlap_tokens
+    )
+
+    chunks = chunker.chunk(text)
+    chunk_texts = [chunk.text for chunk in chunks]
+
+    logger.info(f"Created {len(chunk_texts)} chunks from text")
+    return chunk_texts
+
+
+@log_function(logger_name="embedder", log_args=True, log_execution_time=True)
+def embed_file_to_db(
+    input_file: str | Path,
+    episode_id: int,
+    collection_name: str,
+    dimensions: int = 1024,
+    save_to_file: bool = False,
+):
+    """
+    High-level function to embed text from a file and store in database.
+
+    Args:
+        input_file (str | Path): Path to the input transcript file.
+        episode_id (int): Database ID of the episode.
+        collection_name (str): Name of the collection to store embeddings.
+        dimensions (int): Output vector dimensions (default: 1024).
+        output_path (Optional[str | Path]): Optional path to save embeddings as .npy file.
+        save_to_file (bool): Whether to save embeddings to file.
+    """
+    logger = logging.getLogger("embedder")
+    input_path = Path(input_file)
+    try:
+        # Load transcript text from file
+        with input_path.open("r", encoding="utf-8") as f:
+            transcript_text = f.read()
+        # Generate embeddings
+        embedding_result = embed_text(transcript_text, dimensions=dimensions)
+        embeddings = embedding_result.embeddings[0]
+
+        # Optionally save to file
+        print(f"DEBUG: save_to_file={save_to_file}")
+        if save_to_file:
+            filename = (
+                DEFAULT_EMBEDDING_OUTPUT_DIR
+                / f"episode_{episode_id:03d}_d{dimensions}.npy"
+            )
+            print(f"DEBUG: Saving embeddings to file: {filename}")
+            saved_path = save_embedding_to_file(Path(filename), embeddings)
+            print(f"DEBUG: Saved path: {saved_path}")
+            logger.info(f"Embeddings saved to file: {saved_path}")
+
+        # Get episode info from database
+        with get_db_session() as session:
+            episode = session.query(Episode).filter_by(id=episode_id).first()
+            if not episode:
+                raise ValueError(f"Episode ID {episode_id} not found in database")
+
+        # Create payload metadata
+        payload = {
+            "episode_id": episode_id,
+            "title": episode.title,
+            "db_guid": str(episode.guid),
+        }
+
+        logger.info(
+            f"Storing embeddings for episode ID {episode_id} in collection '{collection_name}'"
+        )
+        # Insert embeddings into Qdrant
+        with get_qdrant_client() as client:
+            insert_one_point(
+                client=client,
+                collection_name=collection_name,
+                vector=embeddings,
+                payload=payload,
+            )
+        logger.info(f"Embeddings stored in database for episode ID {episode_id}")
+
+        # Update episode processing stage
+        update_episode_processing_stage(str(episode_id))
+    except Exception as e:
+        logger.error(f"Failed to embed file {input_file}: {e}")
+        raise
+
+
+@log_function(logger_name="embedder", log_args=True, log_execution_time=True)
+def process_episode_embedding(
+    input_file: str | Path,
+    episode_id: int,
+    collection_name: str,
+    dimensions: int = 1024,
+) -> Dict[str, Any]:
+    """
+    Process episode embedding with 3-tier caching strategy and automatic chunking:
+    1. Check if vector exists in Qdrant DB → save to local file if missing + update SQL
+    2. If not in Qdrant, check local file → upload to Qdrant + update SQL
+    3. If neither exists → chunk if needed, embed, save to both Qdrant + local file + update SQL
+
+    Args:
+        input_file (str | Path): Path to the input transcript file.
+        episode_id (int): Database ID of the episode.
+        collection_name (str): Name of the collection to store embeddings.
+        dimensions (int): Output vector dimensions (default: 1024).
+
+    Returns:
+        Dict[str, Any]: Status dict with keys:
+            - action: "retrieved_from_qdrant", "loaded_from_file", or "embedded_fresh"
+            - embedding_path: Path to local .npy file
+            - success: bool
+            - error: Optional error message
+    """
+    logger = logging.getLogger("embedder")
+    input_path = Path(input_file)
+    local_file_path = (
+        DEFAULT_EMBEDDING_OUTPUT_DIR / f"episode_{episode_id:03d}_d{dimensions}.npy"
+    )
+
+    result = {
+        "action": None,
+        "embedding_path": None,
+        "success": False,
+        "error": None,
+    }
+
+    try:
+        # Get episode info from database
+        with get_db_session() as session:
+            episode = session.query(Episode).filter_by(id=episode_id).first()
+            if not episode:
+                raise ValueError(f"Episode ID {episode_id} not found in database")
+
+        # Create base payload metadata
+        base_payload = {
+            "episode_id": episode_id,
+            "title": episode.title,
+            "db_guid": str(episode.guid),
+            "dimensions": dimensions,
+        }
+
+        # TIER 1: Check if vectors exist in Qdrant
+        logger.info(
+            f"Checking if episode {episode_id} exists in Qdrant collection '{collection_name}'"
+        )
+        with get_qdrant_client() as client:
+            vectors = get_episode_vectors(
+                client=client,
+                collection_name=collection_name,
+                episode_id=episode_id,
+            )
+
+        if vectors is not None:
+            num_chunks = len(vectors)
+            logger.info(
+                f"Episode {episode_id} found in Qdrant ({num_chunks} chunk(s)), saving to local cache"
+            )
+            # Save to local file if it doesn't exist
+            if not local_file_path.exists():
+                embeddings_array = np.array(vectors)  # Shape: (num_chunks, dimensions)
+                saved_path = save_embedding_to_file(local_file_path, embeddings_array)
+                logger.info(
+                    f"Saved {num_chunks} chunk embedding(s) from Qdrant to local file: {saved_path}"
+                )
+
+            # Update SQL database
+            update_episode_processing_stage(str(episode_id))
+
+            result["action"] = "retrieved_from_qdrant"
+            result["embedding_path"] = str(local_file_path)
+            result["success"] = True
+            return result
+
+        # TIER 2: Check if local file exists
+        logger.info(f"Episode {episode_id} not in Qdrant, checking local file")
+        local_embedding = load_embedding_from_file(local_file_path)
+
+        if local_embedding is not None:
+            # Check if it's multi-chunk (2D array) or single chunk (1D array)
+            if local_embedding.ndim == 1:
+                # Legacy format: single embedding vector
+                embeddings_list = [local_embedding]
+            else:
+                # New format: multiple chunks
+                embeddings_list = [
+                    local_embedding[i] for i in range(local_embedding.shape[0])
+                ]
+
+            logger.info(
+                f"Episode {episode_id} found in local file ({len(embeddings_list)} chunk(s)), uploading to Qdrant"
+            )
+
+            # Upload all chunks to Qdrant
+            with get_qdrant_client() as client:
+                for i, embedding in enumerate(embeddings_list):
+                    chunk_payload = {
+                        **base_payload,
+                        "chunk_index": i,
+                        "total_chunks": len(embeddings_list),
+                    }
+                    insert_one_point(
+                        client=client,
+                        collection_name=collection_name,
+                        vector=embedding.tolist()
+                        if hasattr(embedding, "tolist")
+                        else embedding,
+                        payload=chunk_payload,
+                    )
+            logger.info(f"Uploaded {len(embeddings_list)} chunk embedding(s) to Qdrant")
+
+            # Update SQL database
+            update_episode_processing_stage(str(episode_id))
+
+            result["action"] = "loaded_from_file"
+            result["embedding_path"] = str(local_file_path)
+            result["success"] = True
+            return result
+
+        # TIER 3: Embed fresh from transcript with chunking
+        logger.info(
+            f"Episode {episode_id} not found locally, generating fresh embedding"
+        )
+
+        # Load transcript text
+        with input_path.open("r", encoding="utf-8") as f:
+            transcript_text = f.read()
+
+        # Chunk text if needed (max 30K tokens per chunk, 10% overlap)
+        chunk_texts = chunk_long_text(
+            transcript_text, max_tokens=30000, overlap_percent=0.1
+        )
+
+        # Embed all chunks in single API call
+        embedding_result = embed_text(chunk_texts, dimensions=dimensions)
+        embeddings_list = embedding_result.embeddings  # List of embeddings
+
+        # Save all chunks to single local file
+        embeddings_array = np.array(embeddings_list)  # Shape: (num_chunks, dimensions)
+        saved_path = save_embedding_to_file(local_file_path, embeddings_array)
+        logger.info(
+            f"Saved {len(chunk_texts)} chunk embedding(s) to local file: {saved_path}"
+        )
+
+        # Upload each chunk to Qdrant with metadata
+        with get_qdrant_client() as client:
+            for i, (embedding, chunk_text) in enumerate(
+                zip(embeddings_list, chunk_texts)
+            ):
+                chunk_payload = {
+                    **base_payload,
+                    "chunk_index": i,
+                    "total_chunks": len(chunk_texts),
+                    "token_count": count_tokens(chunk_text),
+                }
+                insert_one_point(
+                    client=client,
+                    collection_name=collection_name,
+                    vector=embedding,
+                    payload=chunk_payload,
+                )
+        logger.info(
+            f"Uploaded {len(embeddings_list)} chunk embedding(s) to Qdrant collection '{collection_name}'"
+        )
+
+        # Update SQL database
+        update_episode_processing_stage(str(episode_id))
+
+        result["action"] = "embedded_fresh"
+        result["embedding_path"] = str(saved_path)
+        result["success"] = True
+        return result
+
+    except Exception as e:
+        logger.error(f"Failed to process embedding for episode {episode_id}: {e}")
+        result["error"] = str(e)
+        return result

@@ -1,8 +1,8 @@
-"""Create episodes table
+"""Initial schema with episodes table
 
-Revision ID: d8604e9107f1
+Revision ID: ae80423cfac5
 Revises:
-Create Date: 2025-12-02 15:15:54.677435
+Create Date: 2025-12-09 17:01:18.385222
 
 """
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = "d8604e9107f1"
+revision: str = "ae80423cfac5"
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -30,6 +30,25 @@ def upgrade() -> None:
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("published_date", sa.DateTime(), nullable=False),
         sa.Column("audio_url", sa.String(), nullable=False),
+        sa.Column(
+            "processing_stage",
+            sa.Enum(
+                "SYNCED",
+                "AUDIO_DOWNLOADED",
+                "RAW_TRANSCRIPT",
+                "FORMATTED_TRANSCRIPT",
+                "EMBEDDED",
+                name="processingstage",
+            ),
+            server_default="synced",
+            nullable=False,
+        ),
+        sa.Column("audio_file_path", sa.String(), nullable=True),
+        sa.Column("raw_transcript_path", sa.String(), nullable=True),
+        sa.Column("speaker_mapping_path", sa.String(), nullable=True),
+        sa.Column("formatted_transcript_path", sa.String(), nullable=True),
+        sa.Column("transcript_duration", sa.Integer(), nullable=True),
+        sa.Column("transcript_confidence", sa.Float(), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(),

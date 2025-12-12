@@ -108,14 +108,11 @@ def complex_task(data):
 
 ## Examples
 
-Run the examples:
-```bash
-uv run python examples/logging_example.py
-```
-
-See real usage in:
-- `src/ingestion/audio_scrap.py`
-- `src/ingestion/sync_episodes.py`
+See real usage throughout the codebase:
+- `src/ingestion/audio_scrap.py` - Download operations logging
+- `src/ingestion/sync_episodes.py` - RSS sync logging  
+- `src/transcription/transcript.py` - Transcription process logging
+- `src/pipeline/orchestrator.py` - Pipeline orchestration logging
 
 ## Best Practices
 

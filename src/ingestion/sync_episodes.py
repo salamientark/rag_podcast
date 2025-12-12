@@ -11,17 +11,20 @@ Usage:
     uv run -m src.ingestion.sync_episodes --dry-run        # Test mode (very fast)
 """
 
-import argparse
 import hashlib
 import logging
+import os
 import sys
+from typing import Optional, Any
 from datetime import datetime, timedelta
 from pathlib import Path
+from dotenv import load_dotenv
 
 import requests
 from bs4 import BeautifulSoup
 
 from src.db import get_db_session, Episode
+from src.db.models import ProcessingStage
 from src.logger import setup_logging, log_function
 
 
@@ -29,19 +32,46 @@ from src.logger import setup_logging, log_function
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+# Init logger
+logger = setup_logging(logger_name="sync_episodes", log_file="logs/sync_episodes.log")
 
-FEED_URL = "https://feedpress.me/rdvtech"
 
-
+# ============ RSS SYNC FUNCTIONS ============
 @log_function(logger_name="sync_episodes", log_execution_time=True)
-def fetch_podcast_episodes():
-    """Fetch episodes from RSS feed - proven working approach"""
-    print(f"Fetching feed from {FEED_URL}...")
+def fetch_podcast_episodes() -> list[dict[str, Any]]:
+    """
+    Fetch episodes from RSS feed and parse episode metadata.
+
+    Retrieves the RSS feed URL from environment variables, parses the XML feed,
+    and extracts episode information including title, date, audio URL, and description.
+
+    Returns:
+        List of dictionaries containing episode data with keys:
+        - title (str): Episode title
+        - date (datetime): Publication date
+        - audio_url (str): URL to audio file
+        - guid (str): Unique episode identifier
+        - description (str, optional): Episode description (max 1000 chars)
+
+    Raises:
+        EnvironmentError: If .env file cannot be loaded or FEED_URL is missing
+        requests.RequestException: If feed fetch fails
+    """
+    # Get feed URL from .env
+    env = load_dotenv()
+    if not env:
+        raise EnvironmentError("Could not load .env file")
+    FEED_URL = os.getenv("FEED_URL")
+
+    if not FEED_URL:
+        raise EnvironmentError("FEED_URL not found in .env file")
+
+    logger.info(f"Fetching feed from {FEED_URL}...")
     try:
         response = requests.get(FEED_URL, timeout=30)
         response.raise_for_status()
     except requests.RequestException as e:
-        print(f"Error fetching feed: {e}")
+        logger.error(f"Error fetching feed: {e}")
         return []
 
     # Parse XML
@@ -68,7 +98,7 @@ def fetch_podcast_episodes():
                     date_str_no_tz, "%a, %d %b %Y %H:%M:%S"
                 )
             except (ValueError, IndexError) as e:
-                print(f"Could not parse date: {date_str}, error: {e}")
+                logger.error(f"Could not parse date: {date_str}, error: {e}")
                 continue
 
         # MP3 URL (store original feedpress.me URL - works with browser headers)
@@ -105,8 +135,29 @@ def fetch_podcast_episodes():
     return episodes
 
 
-def filter_episodes(episodes, full_sync=False, days_back=30, limit=None):
-    """Filter and limit episodes"""
+def filter_episodes(
+    episodes: list[dict[str, Any]],
+    full_sync: bool = False,
+    days_back: int = 30,
+    limit: Optional[int] = None,
+) -> list[dict[str, Any]]:
+    """
+    Filter and limit episodes based on date range and count.
+
+    Sorts episodes chronologically (oldest first) and applies optional filtering
+    by date range and limiting by count. For partial syncs, takes the most recent
+    episodes; for full syncs, processes all episodes chronologically.
+
+    Args:
+        episodes: List of episode dictionaries from RSS feed
+        full_sync: If True, process all episodes; if False, filter by date range
+        days_back: Number of days to look back for episodes (ignored if full_sync=True)
+        limit: Maximum number of episodes to process (None for no limit)
+
+    Returns:
+        Filtered and sorted list of episode dictionaries in chronological order
+        (oldest first for consistent database ID assignment)
+    """
     # Sort by date (oldest first) for chronological database ID assignment
     episodes.sort(key=lambda x: x["date"], reverse=False)
 
@@ -137,8 +188,28 @@ def filter_episodes(episodes, full_sync=False, days_back=30, limit=None):
 
 
 @log_function(logger_name="sync_episodes", log_execution_time=True)
-def sync_to_database(episodes, dry_run=False):
-    """Sync episodes to database"""
+def sync_to_database(
+    episodes: list[dict[str, Any]], dry_run: bool = False
+) -> dict[str, int]:
+    """
+    Sync episodes from RSS feed to database.
+
+    Processes episodes in chronological order (oldest first) for consistent database
+    ID assignment. Skips episodes that already exist (based on GUID). In dry-run mode,
+    displays what would be added without making database changes.
+
+    Args:
+        episodes: List of episode dictionaries from RSS feed with keys:
+                  guid, title, date, audio_url, description
+        dry_run: If True, display actions without committing to database
+
+    Returns:
+        Dictionary with statistics:
+        - processed: Total number of episodes processed
+        - added: Number of new episodes added to database
+        - skipped: Number of episodes that already existed
+        - errors: Number of episodes that failed to process
+    """
     logger = logging.getLogger("sync_episodes")
 
     if not episodes:
@@ -183,6 +254,7 @@ def sync_to_database(episodes, dry_run=False):
                         published_date=episode_data["date"],
                         audio_url=episode_data["audio_url"],
                         description=episode_data.get("description", ""),
+                        processing_stage="synced",
                     )
                     session.add(episode)
                     session.commit()
@@ -206,79 +278,4 @@ def sync_to_database(episodes, dry_run=False):
     return stats
 
 
-def main():
-    """Main function"""
-    parser = argparse.ArgumentParser(
-        description="Sync podcast episodes from RSS feed to database",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  uv run -m src.ingestion.sync_episodes                  # Sync last 30 days
-  uv run -m src.ingestion.sync_episodes --full-sync      # Sync all episodes
-  uv run -m src.ingestion.sync_episodes --days 60        # Sync last 60 days  
-  uv run -m src.ingestion.sync_episodes --limit 5        # Sync 5 most recent
-  uv run -m src.ingestion.sync_episodes --limit 5 --dry-run  # Test mode (fast)
-        """,
-    )
-
-    parser.add_argument(
-        "--full-sync", action="store_true", help="Sync all episodes (ignores --days)"
-    )
-    parser.add_argument(
-        "--days", type=int, default=30, help="Days back to sync (default: 30)"
-    )
-    parser.add_argument("--limit", type=int, help="Max episodes to process")
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Show what would be synced without saving",
-    )
-    parser.add_argument(
-        "--verbose", action="store_true", help="Detailed console output"
-    )
-
-    args = parser.parse_args()
-
-    # Setup logging using centralized utility
-    logger = setup_logging(
-        logger_name="sync_episodes",
-        log_file="logs/sync_episodes.log",
-        verbose=args.verbose,
-    )
-    logger.info("Starting episode sync")
-
-    try:
-        # Fetch episodes
-        episodes = fetch_podcast_episodes()
-        if not episodes:
-            print("No episodes found")
-            return
-
-        # Filter episodes
-        episodes = filter_episodes(episodes, args.full_sync, args.days, args.limit)
-
-        # Sync to database
-        stats = sync_to_database(episodes, dry_run=args.dry_run)
-
-        # Print summary
-        print(
-            f"\nCompleted: {stats['processed']} processed, {stats['added']} added, {stats['skipped']} skipped, {stats['errors']} errors"
-        )
-
-        if stats["errors"] > 0:
-            print("Check logs/sync_episodes.log for detailed error information")
-
-        logger.info(f"Sync completed: {stats}")
-        sys.exit(0 if stats["errors"] == 0 else 1)
-
-    except KeyboardInterrupt:
-        print("\nSync interrupted by user")
-        sys.exit(130)
-    except Exception as e:
-        print(f"✗ Sync failed: {e}")
-        logger.error(f"Sync failed: {e}")
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
+# ============ SHARED ENTRY POINT ============

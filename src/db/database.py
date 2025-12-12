@@ -9,6 +9,7 @@ This module provides SQLite-specific database connectivity with:
 """
 
 import os
+from dotenv import load_dotenv
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Generator
@@ -32,6 +33,7 @@ db_logger = setup_logging(
 
 
 # Database configuration
+env = load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///data/podcast.db")
 
 
