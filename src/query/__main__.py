@@ -87,7 +87,7 @@ async def interactive_chat(config: QueryConfig):
         # Chat loop
         while True:
             try:
-                user_input = console.input("[bold green]Vous:[/bold green] ")
+                user_input = input("\033[1;32mVous:\033[0m ")
 
                 if not user_input.strip():
                     continue
