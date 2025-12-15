@@ -1,4 +1,4 @@
-.aider*
+aider*
 __pycache__
 *.egg-info
 
@@ -12,3 +12,5 @@ logs/
 AGENTS.md
 data/*
 PROJECT_PLAN.md
+
+!data/.gitignore
