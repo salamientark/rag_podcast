@@ -100,13 +100,39 @@ ls -la data/podcast.db
 ```
 
 ### 4. Start Qdrant (Vector Database)
+
+#### Option 1: Docker Compose (Recommended)
 ```bash
-# Option 1: Docker (recommended)
+# Start Qdrant with persistent storage
+docker-compose up -d qdrant
+
+# Check status
+docker-compose ps
+docker-compose logs qdrant
+
+# Stop when done
+docker-compose down
+```
+
+#### Option 2: Standalone Docker
+```bash
+# Basic Qdrant container
 docker run -p 6333:6333 qdrant/qdrant
 
-# Option 2: Local installation
+# With persistent storage
+docker run -p 6333:6333 -v $(pwd)/qdrant_storage:/qdrant/storage qdrant/qdrant
+```
+
+#### Option 3: Local Installation
+```bash
 # Follow instructions at https://qdrant.tech/documentation/quick-start/
 ```
+
+**Docker Compose Features:**
+- 🔄 Automatic restarts and health checks
+- 💾 Persistent data storage in `./qdrant_storage/`
+- 🌐 Accessible at `http://localhost:6333`
+- 📊 Optional web UI at `http://localhost:6333/dashboard`
 
 ## 🎯 Quick Start
 
