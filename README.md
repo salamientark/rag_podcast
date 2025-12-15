@@ -102,7 +102,7 @@ ls -la data/podcast.db
 ### 4. Start Qdrant (Vector Database)
 ```bash
 # Option 1: Docker (recommended)
-docker run -p 6333:6333 qdrant/qdrant
+docker compose up -d qdrant
 
 # Option 2: Local installation
 # Follow instructions at https://qdrant.tech/documentation/quick-start/
