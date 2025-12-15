@@ -2,7 +2,7 @@ import logging
 
 from typing import Optional
 
-from src.logger import log_function, setup_logging
+from src.logger import log_function
 from src.db import get_db_session, Episode, ProcessingStage
 from .stages import (
     run_sync_stage,
@@ -171,5 +171,5 @@ def run_pipeline(
 
         logger.info("=== PIPELINE COMPLETED SUCCESSFULLY ===")
 
-    except Exception as e:
+    except Exception:
         raise

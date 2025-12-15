@@ -12,7 +12,6 @@ Usage:
 import argparse
 import asyncio
 import sys
-from typing import Optional
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text

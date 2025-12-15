@@ -220,9 +220,7 @@ def get_mapped_transcript(raw_transcript_path: Path) -> str:
 
 
 # ========= TESTING BEGIN ==========
-ABSOLUTE_TRANSCRIPT_PATH = Path(
-    "./data/transcript/episode_672_universal.json"
-)
+ABSOLUTE_TRANSCRIPT_PATH = Path("./data/transcript/episode_672_universal.json")
 
 if __name__ == "__main__":
     # Setup logging

@@ -6,9 +6,9 @@ This module provides:
 - get_reranker: Creates BGE-M3 multilingual reranker for better French results
 """
 
-from typing import List, Optional
+from typing import List
 from llama_index.core.postprocessor import SentenceTransformerRerank
-from llama_index.core.schema import NodeWithScore, QueryBundle
+from llama_index.core.schema import NodeWithScore
 
 
 def get_reranker(model_name: str, top_n: int) -> SentenceTransformerRerank:
@@ -74,7 +74,7 @@ def process_nodes_with_metadata(nodes: List[NodeWithScore]) -> List[NodeWithScor
                     id_=node.node.node_id,
                 )
                 node.node = updated_node
-        except Exception as e:
+        except Exception:
             # If we can't modify the node, just continue
             pass
 
