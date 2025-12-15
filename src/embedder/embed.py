@@ -1,6 +1,7 @@
 import logging
 import numpy as np
 from typing import Any, Optional, Dict
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 from pathlib import Path
 import voyageai
@@ -19,6 +20,23 @@ import tiktoken
 
 
 DEFAULT_EMBEDDING_OUTPUT_DIR = Path("data/embeddings")
+
+
+def format_publication_date(dt: datetime) -> str:
+    """
+    Convert datetime to ISO 8601 format with UTC timezone.
+
+    Treats naive datetimes as UTC (assumes podcast times are in UTC).
+
+    Args:
+        dt: datetime object (naive or timezone-aware)
+
+    Returns:
+        str: ISO 8601 formatted string with timezone (e.g., "2009-01-25T19:19:22+00:00")
+    """
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
 
 
 @log_function(logger_name="embedder", log_args=False, log_execution_time=True)
@@ -288,6 +306,7 @@ def embed_file_to_db(
             "episode_id": episode_id,
             "title": episode.title,
             "db_guid": str(episode.guid),
+            "publication_date": format_publication_date(episode.published_date),
         }
 
         logger.info(
@@ -362,6 +381,7 @@ def process_episode_embedding(
             "title": episode.title,
             "db_guid": str(episode.guid),
             "dimensions": dimensions,
+            "publication_date": format_publication_date(episode.published_date),
         }
 
         # TIER 1: Check if vectors exist in Qdrant

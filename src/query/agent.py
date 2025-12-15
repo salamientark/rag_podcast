@@ -9,8 +9,6 @@ This module provides the PodcastQueryAgent class that integrates:
 """
 
 import logging
-from typing import Optional
-from dotenv import load_dotenv
 from llama_index.core import VectorStoreIndex, Settings
 from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.core.chat_engine import CondensePlusContextChatEngine
@@ -20,7 +18,7 @@ from llama_index.embeddings.voyageai import VoyageEmbedding
 from qdrant_client import QdrantClient, AsyncQdrantClient
 
 from .config import QueryConfig, SYSTEM_PROMPT_FR
-from .postprocessors import process_nodes_with_metadata, get_reranker
+from .postprocessors import get_reranker
 
 
 class PodcastQueryAgent:

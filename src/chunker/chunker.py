@@ -18,9 +18,7 @@ def chunk_text(text: str, chunk_size: int = 8192) -> list[Chunk]:
     return chunks
 
 
-ABSOLUTE_EPISODE_PATH = Path(
-    "./data/transcript/episode_672_universal.json"
-)
+ABSOLUTE_EPISODE_PATH = Path("./data/transcript/episode_672_universal.json")
 
 
 if __name__ == "__main__":

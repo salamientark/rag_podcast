@@ -32,7 +32,7 @@ Examples:
 import sys
 import argparse
 from pathlib import Path
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Any
 import logging
 
 from src.transcription.transcript import (
@@ -133,13 +133,13 @@ def dry_run_analysis(
         # Determine action
         if formatted_exists and not force:
             print(
-                f"  Action: SKIP (formatted transcript exists, use --force to re-process)"
+                "  Action: SKIP (formatted transcript exists, use --force to re-process)"
             )
         else:
             if formatted_exists:
-                print(f"  Action: RE-TRANSCRIBE (--force flag set)")
+                print("  Action: RE-TRANSCRIBE (--force flag set)")
             else:
-                print(f"  Action: TRANSCRIBE")
+                print("  Action: TRANSCRIBE")
 
         # Check database status
         if not no_db_update:
@@ -155,7 +155,7 @@ def dry_run_analysis(
             else:
                 print(f"  Database: {db_status['reason']}")
         else:
-            print(f"  Database update: DISABLED (--no-db-update flag)")
+            print("  Database update: DISABLED (--no-db-update flag)")
 
     print("\n" + "=" * 80)
     print("End of dry run")
@@ -203,15 +203,15 @@ def process_files(
             formatted_exists = check_formatted_transcript_exists(output_dir, episode_id)
 
             if formatted_exists and not force:
-                print(f"  ⊘ Skipped - formatted transcript already exists")
-                print(f"    Use --force to re-transcribe")
+                print("  ⊘ Skipped - formatted transcript already exists")
+                print("    Use --force to re-transcribe")
                 results["skipped"].append(file_path.name)
 
                 # Still update DB if needed
                 if not no_db_update:
                     db_status = check_db_needs_update(episode_id, output_dir)
                     if db_status["exists"] and db_status["needs_update"]:
-                        print(f"  ↻ Updating database stage...")
+                        print("  ↻ Updating database stage...")
                         try:
                             # Import here to avoid circular imports
                             from src.transcription.transcript import (
@@ -234,7 +234,7 @@ def process_files(
                                 str(mapping_path),
                                 str(formatted_path),
                             )
-                            print(f"  ✓ Database updated")
+                            print("  ✓ Database updated")
                         except Exception as db_err:
                             print(f"  ✗ Database update failed: {db_err}")
                             logger.error(
@@ -246,9 +246,9 @@ def process_files(
 
             # Transcribe the file
             if formatted_exists:
-                print(f"  ⟳ Re-transcribing (--force flag set)...")
+                print("  ⟳ Re-transcribing (--force flag set)...")
             else:
-                print(f"  ⟳ Transcribing...")
+                print("  ⟳ Transcribing...")
 
             # Temporarily modify transcribe_local_file to respect no_db_update
             # by catching the exception or checking the flag
@@ -259,7 +259,7 @@ def process_files(
                 episode_id=episode_id,
             )
 
-            print(f"  ✓ Transcription completed successfully")
+            print("  ✓ Transcription completed successfully")
             results["success"].append(file_path.name)
 
         except FileNotFoundError as e:
@@ -287,7 +287,7 @@ def print_summary(results: Dict[str, List[str]]) -> None:
     print(f"✗ Failed: {len(results['failed'])}")
 
     if results["failed"]:
-        print(f"\nFailed files:")
+        print("\nFailed files:")
         for filename in results["failed"]:
             print(f"  - {filename}")
 

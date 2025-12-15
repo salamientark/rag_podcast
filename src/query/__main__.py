@@ -12,7 +12,6 @@ Usage:
 import argparse
 import asyncio
 import sys
-from typing import Optional
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
@@ -147,7 +146,7 @@ async def main():
         epilog="""
 Exemples:
   uv run -m src.query
-  uv run -m src.query --no-rerank
+  uv run -m src.query --enable-reranking
   
 Variables d'environnement requises:
   OPENAI_API_KEY     - Clé API OpenAI
@@ -159,9 +158,9 @@ Variables d'environnement requises:
     )
 
     parser.add_argument(
-        "--no-rerank",
+        "--enable-reranking",
         action="store_true",
-        help="Désactiver le reranking pour des réponses plus rapides",
+        help="Activer le reranking pour une meilleure qualité des réponses (plus lent)",
     )
 
     args = parser.parse_args()
@@ -170,9 +169,9 @@ Variables d'environnement requises:
     config = QueryConfig()
 
     # Apply CLI overrides
-    if args.no_rerank:
-        config.use_reranking = False
-        console.print("[dim]⚡ Mode rapide: reranking désactivé[/dim]")
+    if args.enable_reranking:
+        config.use_reranking = True
+        console.print("[dim]🔍 Mode qualité: reranking activé[/dim]")
 
     # Start interactive chat
     await interactive_chat(config)

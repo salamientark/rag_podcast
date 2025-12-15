@@ -17,7 +17,7 @@ class QueryConfig:
 
     # Models
     llm_model: str = "gpt-4o"
-    embedding_model: str = "voyage-3"  # VoyageAI model
+    embedding_model: str = "voyage-3.5"  # VoyageAI model
     embedding_dimensions: int = 1024
 
     # Retrieval settings (balanced performance)
@@ -33,8 +33,8 @@ class QueryConfig:
 
     load_dotenv()
     # Qdrant connection
-    collection_name: str = os.getenv("QDRANT_COLLECTION_NAME")
-    qdrant_url: str = os.getenv("QDRANT_URL")
+    collection_name: Optional[str] = os.getenv("QDRANT_COLLECTION_NAME", "podcasts")
+    qdrant_url: Optional[str] = os.getenv("QDRANT_URL", "http://localhost:6333")
 
     # API keys
     openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY")

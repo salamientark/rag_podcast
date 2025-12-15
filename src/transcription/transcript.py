@@ -21,8 +21,6 @@ from src.db.models import Episode, ProcessingStage
 from src.logger import log_function
 
 
-
-
 @log_function(logger_name="transcript", log_args=True, log_execution_time=True)
 def transcribe_with_diarization(file_path: Path, language: str = "fr") -> Dict:
     """
@@ -353,5 +351,5 @@ def transcribe_local_file(
         # Return path to formatted transcript
         return formatted_transcript_path
 
-    except Exception as e:
+    except Exception:
         raise
