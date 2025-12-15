@@ -14,3 +14,4 @@ data/*
 PROJECT_PLAN.md
 
 !data/.gitignore
+qdrant_storage/
