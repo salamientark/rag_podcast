@@ -101,6 +101,6 @@ curl http://localhost:6333/collections
 - Check logs for embedding or retrieval errors
 
 **Performance Issues:**
-- Enable reranking for better relevance: `--enable-rerank`
+- Disable reranking for better performance: `--no-rerank`
 - Reduce conversation history by restarting the session
 - Verify adequate system memory for BGE-M3 model
