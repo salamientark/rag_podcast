@@ -65,8 +65,6 @@ class CloudStorage:
         Returns:
             str: The prefix path for the episode workspace.
         """
-        # if episode_id is not None:
-        #     return f"transcripts/episode_{episode_id}/"
         return "transcripts/"
 
     def save_file(self, workspace: str, filename: str, content) -> str:
@@ -117,13 +115,6 @@ class CloudStorage:
 class LocalStorage:
     """A client for interacting with cloud storage services. (DigitalOcean)"""
 
-
-    # def __init__(self):
-        # try:
-        #
-        # except ValueError as e:
-        #     raise RuntimeError(f"Error loading environment variables: {e}")
-        
 
     def _get_absolute_filename(self, workspace: str, filename: str) -> str:
         """Constructs the absolute filename in cloud storage.
@@ -185,3 +176,4 @@ class LocalStorage:
 
         except Exception as e:
             raise e
+
