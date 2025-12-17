@@ -5,7 +5,7 @@ class LocalStorage:
     """A client for interacting with cloud storage services. (DigitalOcean)"""
 
 
-    def check_file_existance(self, workspace: str, filename: str) -> bool:
+    def file_exist(self, workspace: str, filename: str) -> bool:
         """
         Check if a file exists in local storage
 
