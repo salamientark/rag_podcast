@@ -129,6 +129,27 @@ class LocalStorage:
         protocol, _, path = self.endpoint.partition("://")
         absolute_filename = f"{protocol}://{self.bucket_name}.{path}/{workspace}{filename}"
         return absolute_filename
+
+    def check_file_existance(self, workspace: str, filename: str) -> bool:
+        """
+        Check if a file exists in cloud storage.
+
+        Args:
+            workspace (str): The workspace (prefix) path.
+            filename (str): The name of the file.
+
+        Returns:
+            bool: True if the file exists, False otherwise.
+        """
+        if not workspace.endswith("/"):
+            workspace += "/"
+        try:
+            self.client.head_object(Bucket=self.bucket_name, Key=f"{workspace}{filename}")
+            return True
+        except self.client.exceptions.NoSuchKey:
+            return False
+        except Exception as e:
+            raise RuntimeError(f"Error checking file existence in cloud storage: {e}")
         
 
     def create_episode_workspace(self, episode_id: Optional[int]) -> str:
