@@ -140,7 +140,7 @@ def run_pipeline(
 
         # Run download audio stage
         if stages is None or "download" in stages:
-            audio_path = run_download_stage(episodes_to_process)
+            audio_path = run_download_stage(episodes_to_process, use_cloud_storage)
         else:
             audio_path = [ep.audio_file_path for ep in episodes_to_process]
 
