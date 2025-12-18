@@ -83,7 +83,10 @@ class PodcastQueryAgent:
         """Initialize Qdrant vector store connection"""
         try:
             # Use sync client for initial connection test
-            sync_client = QdrantClient(url=self.config.qdrant_url)
+            sync_client = QdrantClient(
+                url=self.config.qdrant_url,
+                api_key=self.config.qdrant_api_key
+            )
 
             # Test connection by checking if collection exists
             collections = sync_client.get_collections()
@@ -96,7 +99,10 @@ class PodcastQueryAgent:
                 )
 
             # Create async client for vector store
-            async_client = AsyncQdrantClient(url=self.config.qdrant_url)
+            async_client = AsyncQdrantClient(
+                url=self.config.qdrant_url,
+                api_key=self.config.qdrant_api_key
+            )
 
             # Create vector store
             self.vector_store = QdrantVectorStore(
