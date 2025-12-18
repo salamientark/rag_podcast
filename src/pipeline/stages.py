@@ -375,7 +375,7 @@ def run_speaker_mapping_stage(raw_transcript_path: list[str]) -> list[str]:
                 logger.info(
                     f"Generating speaker mapping for episode ID {episode_id} from file {path}..."
                 )
-                raw_formatted_text = format_transcript(path, max_tokens=10000)
+                raw_formatted_text = format_transcript(Path(path), max_tokens=10000)
                 mapping_result = map_speakers_with_llm(raw_formatted_text)
                 try:
                     with open(mapping_file_path, "w", encoding="utf-8") as f:
@@ -437,8 +437,24 @@ def run_formatted_transcript_stage(
                 f"transcribing episode id {episode_id} from file {transcript_path}..."
             )
             print(f"DEBUG: speaker_map_path = {speaker_map_path}")
+
+            # Load speaker mapping from JSON file
+            speaker_mapping_dict = {}
+            if os.path.exists(speaker_map_path):
+                try:
+                    with open(speaker_map_path, "r", encoding="utf-8") as f:
+                        speaker_mapping_dict = json.load(f)
+                    logger.info(f"Loaded speaker mapping: {speaker_mapping_dict}")
+                except (FileNotFoundError, json.JSONDecodeError) as e:
+                    logger.warning(
+                        f"Could not load speaker mapping from {speaker_map_path}: {e}"
+                    )
+                    speaker_mapping_dict = {}
+            else:
+                logger.warning(f"Speaker mapping file not found: {speaker_map_path}")
+
             formatted_transcript = format_transcript(
-                transcript_path, speaker_mapping=speaker_map_path
+                Path(transcript_path), speaker_mapping=speaker_mapping_dict
             )
             # print(f"DEBUG: formatted_transcript = {formatted_transcript}")
             formatted_file_path = local_storage.save_file(

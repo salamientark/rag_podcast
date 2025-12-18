@@ -444,13 +444,38 @@ def process_episode_embedding(
                 f"Episode {episode_id} found in local file ({len(embeddings_list)} chunk(s)), uploading to Qdrant"
             )
 
-            # Upload all chunks to Qdrant
+            # We need to get the original text to include in metadata
+            # Load transcript text to re-chunk for text metadata
+            with input_path.open("r", encoding="utf-8") as f:
+                transcript_text = f.read()
+
+            # Re-chunk the text to get chunk texts for metadata
+            chunk_texts = chunk_long_text(
+                transcript_text, max_tokens=30000, overlap_percent=0.1
+            )
+
+            # Ensure we have the same number of chunks as embeddings
+            if len(chunk_texts) != len(embeddings_list):
+                logger.warning(
+                    f"Mismatch: {len(chunk_texts)} text chunks vs {len(embeddings_list)} embeddings. "
+                    "Using available chunks."
+                )
+                # Use the minimum to avoid index errors
+                min_chunks = min(len(chunk_texts), len(embeddings_list))
+                chunk_texts = chunk_texts[:min_chunks]
+                embeddings_list = embeddings_list[:min_chunks]
+
+            # Upload all chunks to Qdrant with text metadata
             with get_qdrant_client() as client:
-                for i, embedding in enumerate(embeddings_list):
+                for i, (embedding, chunk_text) in enumerate(
+                    zip(embeddings_list, chunk_texts)
+                ):
                     chunk_payload = {
                         **base_payload,
                         "chunk_index": i,
                         "total_chunks": len(embeddings_list),
+                        "token_count": count_tokens(chunk_text),
+                        "text": chunk_text,  # ✅ NOW INCLUDES TEXT!
                     }
                     insert_one_point(
                         client=client,
