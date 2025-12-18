@@ -77,10 +77,7 @@ def get_qdrant_client() -> Generator[QdrantClient, None, None]:
     try:
         qdrant_logger.debug(f"Connecting to Qdrant at {QDRANT_URL}")
         if QDRANT_API_KEY:
-            client = QdrantClient(
-                url=QDRANT_URL,
-                api_key=QDRANT_API_KEY
-            )
+            client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
         else:
             client = QdrantClient(url=QDRANT_URL)
         qdrant_logger.debug("Qdrant client connection established")
@@ -377,6 +374,7 @@ if __name__ == "__main__":
             "  docker run -p 6333:6333 -v $(pwd)/qdrant_storage:/qdrant/storage qdrant/qdrant"
         )
 
+
 @log_function(logger_name="qdrant_client", log_execution_time=True)
 def ensure_payload_indexes(
     client: QdrantClient,
@@ -384,10 +382,10 @@ def ensure_payload_indexes(
 ) -> None:
     """
     Ensure required payload indexes exist for the collection.
-    
+
     Creates indexes for:
     - episode_id: INTEGER (required for filtering episodes)
-    
+
     Args:
         client (QdrantClient): Active Qdrant client instance
         collection_name (str): Name of the collection to index
@@ -395,27 +393,35 @@ def ensure_payload_indexes(
     try:
         # Check if collection exists
         if not client.collection_exists(collection_name=collection_name):
-            qdrant_logger.warning(f"Collection '{collection_name}' does not exist, cannot create indexes")
+            qdrant_logger.warning(
+                f"Collection '{collection_name}' does not exist, cannot create indexes"
+            )
             return
-            
+
         # Get current payload schema
         collection_info = client.get_collection(collection_name)
         existing_indexes = collection_info.payload_schema
-        
+
         # Create episode_id index if it doesn't exist
         if "episode_id" not in existing_indexes:
-            qdrant_logger.info(f"Creating episode_id index for collection '{collection_name}'")
+            qdrant_logger.info(
+                f"Creating episode_id index for collection '{collection_name}'"
+            )
             client.create_payload_index(
                 collection_name=collection_name,
                 field_name="episode_id",
-                field_schema=PayloadSchemaType.INTEGER
+                field_schema=PayloadSchemaType.INTEGER,
             )
-            qdrant_logger.info(f"Created episode_id index for collection '{collection_name}'")
+            qdrant_logger.info(
+                f"Created episode_id index for collection '{collection_name}'"
+            )
         else:
-            qdrant_logger.debug(f"episode_id index already exists for collection '{collection_name}'")
-            
+            qdrant_logger.debug(
+                f"episode_id index already exists for collection '{collection_name}'"
+            )
+
     except Exception as e:
-        qdrant_logger.error(f"Error ensuring payload indexes for '{collection_name}': {e}")
+        qdrant_logger.error(
+            f"Error ensuring payload indexes for '{collection_name}': {e}"
+        )
         raise
-
-

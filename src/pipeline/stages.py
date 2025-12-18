@@ -160,9 +160,9 @@ def run_sync_stage():
 
 @log_function(logger_name="pipeline", log_execution_time=True)
 def run_download_stage(
-        episodes: list[Episode],
-        cloud_save: bool = False,
-    ) -> list[str]:
+    episodes: list[Episode],
+    cloud_save: bool = False,
+) -> list[str]:
     """
     Download episode audio files.
 
@@ -207,13 +207,17 @@ def run_download_stage(
                             f"Episode {episode.id} already exists in cloud storage, skipping upload."
                         )
                     else:
-                        storage.client.upload_file(episodes_path_list[i], storage.bucket_name, f"{workspace}{filename}")
-                        logger.info(
-                            f"Uploaded episode {episode.id} to cloud storage."
+                        storage.client.upload_file(
+                            episodes_path_list[i],
+                            storage.bucket_name,
+                            f"{workspace}{filename}",
                         )
+                        logger.info(f"Uploaded episode {episode.id} to cloud storage.")
                     update_episode_in_db(
                         episode_id=episode.id,
-                        audio_file_path=storage._get_absolute_filename(workspace, filename),
+                        audio_file_path=storage._get_absolute_filename(
+                            workspace, filename
+                        ),
                         processing_stage=ProcessingStage.AUDIO_DOWNLOADED,
                     )
             return episodes_path_list
@@ -236,9 +240,7 @@ def run_download_stage(
                         )
                     else:
                         storage.save_file(workspace, filename, filename)
-                        logger.info(
-                            f"Uploaded episode {episode.id} to cloud storage."
-                        )
+                        logger.info(f"Uploaded episode {episode.id} to cloud storage.")
             else:
                 logger.warning(
                     f"Failed to download episode {episode.id}: {episode['title']}"
@@ -437,9 +439,10 @@ def run_formatted_trancript_stage(
             formatted_trancript = format_transcript(
                 transcript_path, speaker_mapping=speaker_map_path
             )
-            formatted_file_path = local_storage.save_file(local_workspace, filename, formatted_trancript)
+            formatted_file_path = local_storage.save_file(
+                local_workspace, filename, formatted_trancript
+            )
             local_formatted_path.append(str(formatted_file_path))
-
 
             # Cloud save
             if cloud_storage:
@@ -449,9 +452,13 @@ def run_formatted_trancript_stage(
                     logger.info(
                         f"Formatted transcript already exists for episode ID {episode_id}, skipping transcription."
                     )
-                    formatted_file_path = storage._get_absolute_filename(workspace, filename)
+                    formatted_file_path = storage._get_absolute_filename(
+                        workspace, filename
+                    )
                 else:
-                    formatted_file_path = storage.save_file(workspace, filename, formatted_trancript)
+                    formatted_file_path = storage.save_file(
+                        workspace, filename, formatted_trancript
+                    )
 
             print(f"DEBUG: formatted_file_path = {formatted_file_path}")
 

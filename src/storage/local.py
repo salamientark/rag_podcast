@@ -1,9 +1,9 @@
 import os
 from typing import Optional
 
+
 class LocalStorage:
     """A client for interacting with cloud storage services. (DigitalOcean)"""
-
 
     def file_exist(self, workspace: str, filename: str) -> bool:
         """
@@ -34,9 +34,10 @@ class LocalStorage:
             str: The absolute filename in cloud storage.
         """
         protocol, _, path = self.endpoint.partition("://")
-        absolute_filename = f"{protocol}://{self.bucket_name}.{path}/{workspace}{filename}"
+        absolute_filename = (
+            f"{protocol}://{self.bucket_name}.{path}/{workspace}{filename}"
+        )
         return absolute_filename
-        
 
     def create_episode_workspace(self, episode_id: Optional[int]) -> str:
         """Creates a workspace (prefix) for an episode on the local filesystem.
@@ -83,4 +84,3 @@ class LocalStorage:
 
         except Exception as e:
             raise e
-
