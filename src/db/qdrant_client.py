@@ -32,6 +32,7 @@ from qdrant_client.models import (
     Filter,
     FieldCondition,
     MatchValue,
+    PayloadSchemaType,
 )
 
 from src.logger import setup_logging, log_function
@@ -41,6 +42,7 @@ from src.logger import setup_logging, log_function
 load_dotenv()
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 QDRANT_COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_NAME")
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 EMBEDDING_DIMENSION = 1024  # VoyageAI voyage-3.5 embedding dimension
 
 
@@ -74,7 +76,10 @@ def get_qdrant_client() -> Generator[QdrantClient, None, None]:
     client = None
     try:
         qdrant_logger.debug(f"Connecting to Qdrant at {QDRANT_URL}")
-        client = QdrantClient(url=QDRANT_URL)
+        if QDRANT_API_KEY:
+            client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+        else:
+            client = QdrantClient(url=QDRANT_URL)
         qdrant_logger.debug("Qdrant client connection established")
         yield client
 
@@ -222,6 +227,9 @@ def check_episode_exists_in_qdrant(
             )
             return False
 
+        # Ensure required indexes exist
+        ensure_payload_indexes(client, collection_name)
+
         # Build filter for episode_id
         scroll_filter = Filter(
             must=[FieldCondition(key="episode_id", match=MatchValue(value=episode_id))]
@@ -282,6 +290,9 @@ def get_episode_vectors(
                 f"Collection '{collection_name}' does not exist, cannot retrieve vector"
             )
             return None
+
+        # Ensure required indexes exist
+        ensure_payload_indexes(client, collection_name)
 
         # Build filter for episode_id
         scroll_filter = Filter(
@@ -362,3 +373,55 @@ if __name__ == "__main__":
         print(
             "  docker run -p 6333:6333 -v $(pwd)/qdrant_storage:/qdrant/storage qdrant/qdrant"
         )
+
+
+@log_function(logger_name="qdrant_client", log_execution_time=True)
+def ensure_payload_indexes(
+    client: QdrantClient,
+    collection_name: str,
+) -> None:
+    """
+    Ensure required payload indexes exist for the collection.
+
+    Creates indexes for:
+    - episode_id: INTEGER (required for filtering episodes)
+
+    Args:
+        client (QdrantClient): Active Qdrant client instance
+        collection_name (str): Name of the collection to index
+    """
+    try:
+        # Check if collection exists
+        if not client.collection_exists(collection_name=collection_name):
+            qdrant_logger.warning(
+                f"Collection '{collection_name}' does not exist, cannot create indexes"
+            )
+            return
+
+        # Get current payload schema
+        collection_info = client.get_collection(collection_name)
+        existing_indexes = collection_info.payload_schema
+
+        # Create episode_id index if it doesn't exist
+        if "episode_id" not in existing_indexes:
+            qdrant_logger.info(
+                f"Creating episode_id index for collection '{collection_name}'"
+            )
+            client.create_payload_index(
+                collection_name=collection_name,
+                field_name="episode_id",
+                field_schema=PayloadSchemaType.INTEGER,
+            )
+            qdrant_logger.info(
+                f"Created episode_id index for collection '{collection_name}'"
+            )
+        else:
+            qdrant_logger.debug(
+                f"episode_id index already exists for collection '{collection_name}'"
+            )
+
+    except Exception as e:
+        qdrant_logger.error(
+            f"Error ensuring payload indexes for '{collection_name}': {e}"
+        )
+        raise

@@ -159,8 +159,7 @@ def run_pipeline(
                 for rt, sm in zip(raw_transcript_path, speaker_mapping_paths)
             ]
             formatted_transcript_paths = run_formatted_trancript_stage(
-                transcript_with_mapping,
-                use_cloud_storage
+                transcript_with_mapping, use_cloud_storage
             )
         else:
             formatted_transcript_paths = [

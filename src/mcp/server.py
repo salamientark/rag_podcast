@@ -17,6 +17,4 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    mcp.run(transport="http",
-            host=args.host,
-            port=args.port)
+    mcp.run(transport="http", host=args.host, port=args.port)

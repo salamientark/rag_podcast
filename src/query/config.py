@@ -35,6 +35,7 @@ class QueryConfig:
     # Qdrant connection
     collection_name: Optional[str] = os.getenv("QDRANT_COLLECTION_NAME", "podcasts")
     qdrant_url: Optional[str] = os.getenv("QDRANT_URL", "http://localhost:6333")
+    qdrant_api_key: Optional[str] = os.getenv("QDRANT_API_KEY", None)
 
     # API keys
     openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY")
