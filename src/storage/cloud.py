@@ -9,19 +9,20 @@ from botocore.exceptions import ClientError
 class CloudStorage:
     """A client for interacting with cloud storage services. (DigitalOcean)"""
 
-
     def __init__(self):
         try:
             # Get credentials from environment variables
             load_dotenv()
-            origin_endpoint = os.getenv("ORIGIN_ENDPOINT")
-            key_id = os.getenv("SPACE_KEY_ID")
-            access_key = os.getenv("SPACE_ACCESS_KEY")
+            origin_endpoint = os.getenv("BUCKET_ENDPOINT")
+            key_id = os.getenv("BUCKET_KEY_ID")
+            access_key = os.getenv("BUCKET_ACCESS_KEY")
             bucket_name = os.getenv("BUCKET_NAME")
 
             if not origin_endpoint or not key_id or not access_key:
-                raise ValueError("Missing required environment variables for cloud storage client."
-                                " Please ensure ORIGIN_ENDPOINT, SPACE_KEY_ID, and SPACE_ACCESS_KEY are set.")
+                raise ValueError(
+                    "Missing required environment variables for cloud storage client."
+                    " Please ensure BUCKET_ENDPOINT, BUCKET_KEY_ID, and BUCKET_ACCESS_KEY are set."
+                )
 
             # Store bucket name
             self.bucket_name = bucket_name
@@ -30,11 +31,11 @@ class CloudStorage:
             # Initialize the S3 client for DigitalOcean Spaces
             session = boto3.session.Session()
             self.client = session.client(
-                's3',
-                region_name='ams3',
+                "s3",
+                region_name="ams3",
                 endpoint_url=origin_endpoint,
                 aws_access_key_id=key_id,
-                aws_secret_access_key=access_key
+                aws_secret_access_key=access_key,
             )
 
         except ValueError as e:
@@ -58,9 +59,11 @@ class CloudStorage:
         if not workspace.endswith("/"):
             workspace += "/"
         try:
-            self.client.head_object(Bucket=self.bucket_name, Key=f"{workspace}{filename}")
+            self.client.head_object(
+                Bucket=self.bucket_name, Key=f"{workspace}{filename}"
+            )
         except ClientError as e:
-                return int(e.response['Error']['Code']) != 404
+            return int(e.response["Error"]["Code"]) != 404
         return True
 
     def _get_absolute_filename(self, workspace: str, filename: str) -> str:
@@ -74,9 +77,10 @@ class CloudStorage:
             str: The absolute filename in cloud storage.
         """
         protocol, _, path = self.endpoint.partition("://")
-        absolute_filename = f"{protocol}://{self.bucket_name}.{path}/{workspace}{filename}"
+        absolute_filename = (
+            f"{protocol}://{self.bucket_name}.{path}/{workspace}{filename}"
+        )
         return absolute_filename
-        
 
     def create_episode_workspace(self, episode_id: Optional[int]) -> str:
         """Creates a workspace (prefix) for an episode in the cloud storage.
@@ -98,6 +102,7 @@ class CloudStorage:
         Returns:
             str: The full path of the saved file in cloud storage.
         """
+        temp_filename = None
         try:
             # Check if worspace name ends with /
             if not workspace.endswith("/"):
@@ -113,7 +118,9 @@ class CloudStorage:
                 raise RuntimeError(f"Error creating temporary file: {e}")
 
             # Upload the file to cloud storage
-            self.client.upload_file(temp_filename, self.bucket_name, f"{workspace}{filename}")
+            self.client.upload_file(
+                temp_filename, self.bucket_name, f"{workspace}{filename}"
+            )
 
             # Remove temporary file and dir
             try:
@@ -126,7 +133,10 @@ class CloudStorage:
             return self._get_absolute_filename(workspace, filename)
 
         except Exception as e:
-            if os.path.exists(temp_filename):
+            if temp_filename and os.path.exists(temp_filename):
                 os.remove(temp_filename)
-                os.rmdir("proc")
+                try:
+                    os.rmdir("proc")
+                except OSError:
+                    pass  # Directory not empty or doesn't exist
             raise RuntimeError(f"Error saving file to cloud storage: {e}")
