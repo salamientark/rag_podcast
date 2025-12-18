@@ -11,6 +11,19 @@ class BaseStorage(ABC):
     """
 
     @abstractmethod
+    def file_exist(self, workspace: str, filename: str) -> bool:
+        """
+        Check if a file exists.
+
+        Args:
+            workspace (str): The workspace (prefix) path.
+            filename (str): The name of the file.
+
+        Returns:
+            bool: True if the file exists, False otherwise.
+        """
+
+    @abstractmethod
     def create_episode_workspace(self, episode_id: Optional[int]) -> str:
         """Creates a workspace (prefix) for an episode.
 

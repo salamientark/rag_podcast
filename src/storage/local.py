@@ -5,6 +5,24 @@ class LocalStorage:
     """A client for interacting with cloud storage services. (DigitalOcean)"""
 
 
+    def file_exist(self, workspace: str, filename: str) -> bool:
+        """
+        Check if a file exists in local storage
+
+        Args:
+            workspace (str): The workspace (prefix) path.
+            filename (str): The name of the file.
+
+        Returns:
+            bool: True if the file exists, False otherwise.
+        """
+        if not workspace.endswith("/"):
+            workspace += "/"
+        filepath = f"{workspace}{filename}"
+        if os.path.isfile(filepath):
+            return True
+        return False
+
     def _get_absolute_filename(self, workspace: str, filename: str) -> str:
         """Constructs the absolute filename in cloud storage.
 

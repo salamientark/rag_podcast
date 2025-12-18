@@ -4,6 +4,7 @@ from typing import Any, Optional, Dict
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 from pathlib import Path
+from urllib.parse import urlparse
 import voyageai
 
 from src.logger import log_function
@@ -20,6 +21,14 @@ import tiktoken
 
 
 DEFAULT_EMBEDDING_OUTPUT_DIR = Path("data/embeddings")
+
+
+def is_url(string):
+    try:
+        result = urlparse(string)
+        return all([result.scheme, result.netloc])
+    except:
+        return False
 
 
 def format_publication_date(dt: datetime) -> str:

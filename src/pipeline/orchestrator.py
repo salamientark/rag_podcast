@@ -115,6 +115,7 @@ def run_pipeline(
     stages: Optional[list[str]] = None,
     dry_run: bool = False,
     verbose: bool = False,
+    use_cloud_storage: bool = False,
 ):
     logger = logging.getLogger("pipeline")
 
@@ -139,7 +140,7 @@ def run_pipeline(
 
         # Run download audio stage
         if stages is None or "download" in stages:
-            audio_path = run_download_stage(episodes_to_process)
+            audio_path = run_download_stage(episodes_to_process, use_cloud_storage)
         else:
             audio_path = [ep.audio_file_path for ep in episodes_to_process]
 
@@ -158,7 +159,8 @@ def run_pipeline(
                 for rt, sm in zip(raw_transcript_path, speaker_mapping_paths)
             ]
             formatted_transcript_paths = run_formatted_trancript_stage(
-                transcript_with_mapping
+                transcript_with_mapping,
+                use_cloud_storage
             )
         else:
             formatted_transcript_paths = [

@@ -21,18 +21,35 @@ Usage:
 
 __version__ = "0.1.0"
 
-# TODO: Import and export main pipeline functions once implemented
-# from .orchestrator import run_pipeline, get_episode_stage
-# from .stages import (
-#     run_sync_stage,
-#     run_download_stage,
-#     run_transcription_stage,
-#     run_chunking_stage,
-#     run_embedding_stage,
-# )
+# Main pipeline functions
+from .orchestrator import (
+    run_pipeline,
+    fetch_db_episodes,
+    get_last_requested_stage,
+    filter_episode,
+)
+from .stages import (
+    run_sync_stage,
+    run_download_stage,
+    run_raw_trancript_stage,
+    run_speaker_mapping_stage,
+    run_formatted_trancript_stage,
+    run_embedding_stage,
+    update_episode_in_db,
+)
 
 __all__ = [
-    # Main exports will be added here
-    # "run_pipeline",
-    # "get_episode_stage",
+    # Main pipeline orchestration
+    "run_pipeline",
+    "fetch_db_episodes",
+    "get_last_requested_stage",
+    "filter_episode",
+    # Stage functions
+    "run_sync_stage",
+    "run_download_stage",
+    "run_raw_trancript_stage",
+    "run_speaker_mapping_stage",
+    "run_formatted_trancript_stage",
+    "run_embedding_stage",
+    "update_episode_in_db",
 ]

@@ -153,6 +153,19 @@ def validate_mutually_exclusive_args(args: argparse.Namespace) -> Optional[str]:
     return None
 
 
+def validate_storage_args(args: argparse.Namespace) -> None:
+    """
+    Validate and set default storage arguments.
+    Sets --local as default when neither --local nor --cloud is specified.
+
+    Args:
+        args: Parsed command-line arguments
+    """
+    # If neither storage flag is specified, default to local
+    if not args.local and not args.cloud:
+        args.local = True
+
+
 def print_dry_run_summary(args: argparse.Namespace, logger) -> None:
     """
     Print dry-run summary showing what would be processed.
@@ -196,6 +209,8 @@ def print_dry_run_summary(args: argparse.Namespace, logger) -> None:
     print("Options:")
     print(f"  Force reprocessing: {args.force}")
     print(f"  Verbose logging: {args.verbose}")
+    storage_type = "Cloud Storage" if args.cloud else "Local Filesystem"
+    print(f"  Storage backend: {storage_type}")
 
     print()
 
@@ -257,6 +272,10 @@ Available Stages:
   format_transcript       Speaker-identified transcript ready
   embed                   Chunks embedded in Qdrant
 
+Storage Options:
+  --local                  Save files to local filesystem (default)
+  --cloud                  Save files to cloud storage (DigitalOcean Spaces)
+
 Examples:
   # Process all episodes end-to-end
   uv run -m src.pipeline --full
@@ -278,6 +297,12 @@ Examples:
 
   # Dry run to preview
   uv run -m src.pipeline --dry-run --limit 10 --verbose
+
+  # Use cloud storage instead of local
+  uv run -m src.pipeline --cloud --limit 5
+
+  # Explicitly use local storage (default)
+  uv run -m src.pipeline --local --episode-id 672
 
 Notes:
   - Pipeline automatically skips completed stages (unless --force)
@@ -339,6 +364,20 @@ Notes:
         help="Enable verbose logging output",
     )
 
+    # Storage options
+    storage_group = parser.add_argument_group("storage options")
+    storage_exclusive = storage_group.add_mutually_exclusive_group()
+    storage_exclusive.add_argument(
+        "--local",
+        action="store_true",
+        help="Save audio and transcripts to local filesystem (default)",
+    )
+    storage_exclusive.add_argument(
+        "--cloud",
+        action="store_true",
+        help="Save audio and transcripts to cloud storage",
+    )
+
     return parser.parse_args()
 
 
@@ -359,6 +398,9 @@ def main():
         print(f"✗ Error: {validation_error}", file=sys.stderr)
         print("Run with --help for usage information", file=sys.stderr)
         sys.exit(1)
+
+    # Validate and set default storage arguments
+    validate_storage_args(args)
 
     # Parse and validate stages if provided
     if args.stages:
@@ -416,6 +458,8 @@ def main():
     else:
         logger.info("Stages: All (complete pipeline)")
 
+    storage_type = "cloud" if args.cloud else "local"
+    logger.info(f"Storage: {storage_type}")
     logger.info(f"Options: force={args.force}")
     logger.info("=" * 80)
 
@@ -438,6 +482,7 @@ def main():
             stages=args.stages,
             dry_run=args.dry_run,
             verbose=args.verbose,
+            use_cloud_storage=args.cloud,
         )
 
         logger.info("Pipeline execution completed successfully")
