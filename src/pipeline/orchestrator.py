@@ -7,9 +7,9 @@ from src.db import get_db_session, Episode, ProcessingStage
 from .stages import (
     run_sync_stage,
     run_download_stage,
-    run_raw_trancript_stage,
+    run_raw_transcript_stage,
     run_speaker_mapping_stage,
-    run_formatted_trancript_stage,
+    run_formatted_transcript_stage,
     run_embedding_stage,
 )
 
@@ -146,7 +146,7 @@ def run_pipeline(
 
         # Run raw transcript stage
         if stages is None or "raw_transcript" in stages:
-            raw_transcript_path = run_raw_trancript_stage(audio_path)
+            raw_transcript_path = run_raw_transcript_stage(audio_path)
         else:
             raw_transcript_path = [ep.raw_transcript_path for ep in episodes_to_process]
 
@@ -158,7 +158,7 @@ def run_pipeline(
                 {"transcript": rt, "speaker_mapping": sm}
                 for rt, sm in zip(raw_transcript_path, speaker_mapping_paths)
             ]
-            formatted_transcript_paths = run_formatted_trancript_stage(
+            formatted_transcript_paths = run_formatted_transcript_stage(
                 transcript_with_mapping, use_cloud_storage
             )
         else:

@@ -255,7 +255,7 @@ def run_download_stage(
 
 
 @log_function(logger_name="pipeline", log_execution_time=True)
-def run_raw_trancript_stage(audio_path: list[str]) -> list[str]:
+def run_raw_transcript_stage(audio_path: list[str]) -> list[str]:
     """
     Generate raw transcript from audio files.
 
@@ -295,13 +295,13 @@ def run_raw_trancript_stage(audio_path: list[str]) -> list[str]:
             else:
                 # Call transcription function here
                 logger.info(f"Transcribing episode ID {episode_id} from file {path}...")
-                raw_trancript = transcribe_with_diarization(Path(path), language="fr")
+                raw_transcript = transcribe_with_diarization(Path(path), language="fr")
 
                 # Extract metadata from new transcription
-                transcript_duration = raw_trancript.get("transcript", {}).get(
+                transcript_duration = raw_transcript.get("transcript", {}).get(
                     "audio_duration"
                 )
-                transcript_confidence = raw_trancript.get("transcript", {}).get(
+                transcript_confidence = raw_transcript.get("transcript", {}).get(
                     "confidence"
                 )
 
@@ -315,7 +315,7 @@ def run_raw_trancript_stage(audio_path: list[str]) -> list[str]:
 
                 try:
                     with open(raw_file_path, "w", encoding="utf-8") as f:
-                        json.dump(raw_trancript, f, indent=4)
+                        json.dump(raw_transcript, f, indent=4)
                     logger.info(f"Saved raw transcription to {raw_file_path}")
                 except OSError as e:
                     logger.error(
@@ -391,7 +391,7 @@ def run_speaker_mapping_stage(raw_transcript_path: list[str]) -> list[str]:
             # Save to db
             update_episode_in_db(
                 episode_id=episode_id,
-                speaker_mapping_path=str(path),
+                speaker_mapping_path=str(mapping_file_path),
                 processing_stage=ProcessingStage.RAW_TRANSCRIPT,
             )
         logger.info("Speaker mapping stage completed successfully.")
@@ -403,7 +403,7 @@ def run_speaker_mapping_stage(raw_transcript_path: list[str]) -> list[str]:
 
 
 @log_function(logger_name="pipeline", log_execution_time=True)
-def run_formatted_trancript_stage(
+def run_formatted_transcript_stage(
     transcript_with_mapping: list[Dict[str, str]],
     cloud_storage: bool = False,
 ) -> list[str]:
@@ -436,11 +436,13 @@ def run_formatted_trancript_stage(
             logger.info(
                 f"transcribing episode id {episode_id} from file {transcript_path}..."
             )
-            formatted_trancript = format_transcript(
+            print(f"DEBUG: speaker_map_path = {speaker_map_path}")
+            formatted_transcript = format_transcript(
                 transcript_path, speaker_mapping=speaker_map_path
             )
+            # print(f"DEBUG: formatted_transcript = {formatted_transcript}")
             formatted_file_path = local_storage.save_file(
-                local_workspace, filename, formatted_trancript
+                local_workspace, filename, formatted_transcript
             )
             local_formatted_path.append(str(formatted_file_path))
 
@@ -457,7 +459,7 @@ def run_formatted_trancript_stage(
                     )
                 else:
                     formatted_file_path = storage.save_file(
-                        workspace, filename, formatted_trancript
+                        workspace, filename, formatted_transcript
                     )
 
             print(f"DEBUG: formatted_file_path = {formatted_file_path}")
