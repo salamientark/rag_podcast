@@ -228,21 +228,20 @@ def run_download_stage(
                 episodes_path_list.append(filepath)
                 if cloud_save:
                     storage = CloudStorage()
-                    episode_id = episode.id
                     filename = os.path.basename(filepath)
                     workspace = "audio/"
                     if storage.file_exist(workspace, filename):
                         logger.info(
-                            f"Episode {episode['id']} already exists in cloud storage, skipping upload."
+                            f"Episode {episode.id} already exists in cloud storage, skipping upload."
                         )
                     else:
                         storage.save_file(workspace, filename, filename)
                         logger.info(
-                            f"Uploaded episode {episode['id']} to cloud storage."
+                            f"Uploaded episode {episode.id} to cloud storage."
                         )
             else:
                 logger.warning(
-                    f"Failed to download episode {episode['id']}: {episode['title']}"
+                    f"Failed to download episode {episode.id}: {episode['title']}"
                 )
 
         logger.info("Download stage completed successfully.")

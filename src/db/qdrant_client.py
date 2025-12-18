@@ -41,6 +41,7 @@ from src.logger import setup_logging, log_function
 load_dotenv()
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 QDRANT_COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_NAME")
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 EMBEDDING_DIMENSION = 1024  # VoyageAI voyage-3.5 embedding dimension
 
 
@@ -74,7 +75,13 @@ def get_qdrant_client() -> Generator[QdrantClient, None, None]:
     client = None
     try:
         qdrant_logger.debug(f"Connecting to Qdrant at {QDRANT_URL}")
-        client = QdrantClient(url=QDRANT_URL)
+        if QDRANT_API_KEY:
+            client = QdrantClient(
+                url=QDRANT_URL,
+                api_key=QDRANT_API_KEY
+            )
+        else:
+            client = QdrantClient(url=QDRANT_URL)
         qdrant_logger.debug("Qdrant client connection established")
         yield client
 
