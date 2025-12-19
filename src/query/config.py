@@ -16,16 +16,16 @@ class QueryConfig:
     """Configuration for the podcast query agent"""
 
     # Models
-    llm_model: str = "gpt-4o"
+    llm_model: str = "claude-sonnet-4-20250514"  # Anthropic Claude Sonnet 4
     embedding_model: str = "voyage-3.5"  # VoyageAI model
     embedding_dimensions: int = 1024
 
-    # Retrieval settings (balanced performance)
-    similarity_top_k: int = 10  # Initial retrieval from Qdrant
-    rerank_top_n: int = 5  # After reranking
+    # Retrieval settings (optimized for Claude's 200k context window)
+    similarity_top_k: int = 5  # Initial retrieval from Qdrant (reduced from 10)
+    rerank_top_n: int = 3  # After reranking (use top 3 for large chunks)
 
-    # Reranking (disabled by default for simplicity)
-    use_reranking: bool = False  # Start simple, enable for better quality
+    # Reranking (enabled for better quality with fewer chunks)
+    use_reranking: bool = True  # Enable to get best chunks and reduce token count
     rerank_model: str = "BAAI/bge-reranker-v2-m3"  # Free multilingual reranker
 
     # Chat memory (3000 tokens = ~8-12 exchanges)
@@ -38,7 +38,7 @@ class QueryConfig:
     qdrant_api_key: Optional[str] = os.getenv("QDRANT_API_KEY", None)
 
     # API keys
-    openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY")
+    anthropic_api_key: Optional[str] = os.getenv("ANTHROPIC_API_KEY")
     voyage_api_key: Optional[str] = os.getenv("VOYAGE_API_KEY")
 
 

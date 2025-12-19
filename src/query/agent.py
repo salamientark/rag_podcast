@@ -15,7 +15,7 @@ from llama_index.core.chat_engine import CondensePlusContextChatEngine
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.query_engine import RetrieverQueryEngine
-from llama_index.llms.openai import OpenAI
+from llama_index.llms.anthropic import Anthropic
 from llama_index.embeddings.voyageai import VoyageEmbedding
 from qdrant_client import QdrantClient, AsyncQdrantClient
 
@@ -65,8 +65,8 @@ class PodcastQueryAgent:
 
     def _validate_config(self):
         """Validate required configuration and API keys"""
-        if not self.config.openai_api_key:
-            raise ValueError("OPENAI_API_KEY is required")
+        if not self.config.anthropic_api_key:
+            raise ValueError("ANTHROPIC_API_KEY is required")
 
         if not self.config.voyage_api_key:
             raise ValueError("VOYAGE_API_KEY is required")
@@ -80,9 +80,9 @@ class PodcastQueryAgent:
             output_dimension=self.config.embedding_dimensions,
         )
 
-        # OpenAI LLM
-        Settings.llm = OpenAI(
-            model=self.config.llm_model, api_key=self.config.openai_api_key
+        # Anthropic Claude LLM
+        Settings.llm = Anthropic(
+            model=self.config.llm_model, api_key=self.config.anthropic_api_key
         )
 
         self.logger.info(
@@ -245,8 +245,8 @@ class QueryEngine:
 
     def _validate_config(self):
         """Validate required configuration and API keys"""
-        if not self.config.openai_api_key:
-            raise ValueError("OPENAI_API_KEY is required")
+        if not self.config.anthropic_api_key:
+            raise ValueError("ANTHROPIC_API_KEY is required")
 
         if not self.config.voyage_api_key:
             raise ValueError("VOYAGE_API_KEY is required")
@@ -260,9 +260,9 @@ class QueryEngine:
             output_dimension=self.config.embedding_dimensions,
         )
 
-        # OpenAI LLM
-        Settings.llm = OpenAI(
-            model=self.config.llm_model, api_key=self.config.openai_api_key
+        # Anthropic Claude LLM
+        Settings.llm = Anthropic(
+            model=self.config.llm_model, api_key=self.config.anthropic_api_key
         )
 
         self.logger.info(
