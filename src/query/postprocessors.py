@@ -22,9 +22,14 @@ def get_reranker(model_name: str, top_n: int) -> SentenceTransformerRerank:
     Returns:
         Configured SentenceTransformerRerank postprocessor
     """
+    # Suppress progress bars from sentence-transformers
+    import os
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
     return SentenceTransformerRerank(
         model=model_name,
         top_n=top_n,
+        show_progress=False,  # Disable progress bar
     )
 
 

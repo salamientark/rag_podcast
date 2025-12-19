@@ -19,7 +19,7 @@ from llama_index.embeddings.voyageai import VoyageEmbedding
 from qdrant_client import QdrantClient, AsyncQdrantClient
 
 from .config import QueryConfig
-from .postprocessors import get_reranker
+from .postprocessors import get_reranker, sort_nodes_temporally
 
 
 class PodcastQueryService:
@@ -188,11 +188,16 @@ class PodcastQueryService:
             # Apply temporal sorting if needed
             sorted_nodes = sort_nodes_temporally(retrieved_nodes, enhanced_question)
 
-            # Apply postprocessors
+            # Apply postprocessors (reranking)
             if hasattr(self, "postprocessors") and self.postprocessors:
+                from llama_index.core.schema import QueryBundle
+                query_bundle = QueryBundle(query_str=enhanced_question)
+
                 for postprocessor in self.postprocessors:
                     if hasattr(postprocessor, "postprocess_nodes"):
-                        sorted_nodes = postprocessor.postprocess_nodes(sorted_nodes)
+                        sorted_nodes = postprocessor.postprocess_nodes(
+                            sorted_nodes, query_bundle=query_bundle
+                        )
 
             # Generate response using sorted nodes with the LLM from Settings
             from llama_index.core.response_synthesizers import ResponseMode
