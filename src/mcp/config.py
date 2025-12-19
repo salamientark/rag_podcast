@@ -24,3 +24,6 @@ def get_agent() -> PodcastQueryAgent:
         _agent_instance = PodcastQueryAgent(config=config)
         logger.info("PodcastQueryAgent initialized successfully")
     return _agent_instance
+
+
+from .tools import query_db  #noqa
