@@ -2,9 +2,11 @@ import asyncio
 from fastmcp import Client
 
 
-SERVER_URL = "http://localhost:9001/mcp"
+# Testing: Use HTTP/MCP endpoint to confirm SSE is necessary
+SERVER_URL = "http://localhost:9000/mcp"
 
-client = Client(SERVER_URL)
+# Create client with longer timeout for LLM operations (in seconds)
+client = Client(SERVER_URL, timeout=120.0)
 
 
 async def main():
