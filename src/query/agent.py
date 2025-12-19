@@ -25,12 +25,9 @@ from .postprocessors import get_reranker
 
 # import logging
 logging.basicConfig(
-   level=logging.INFO,
-   format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-   handlers=[
-       logging.FileHandler('logs/query.log'),
-       logging.StreamHandler()
-   ]
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("logs/query.log"), logging.StreamHandler()],
 )
 
 
@@ -320,8 +317,7 @@ class QueryEngine:
         """Setup query engine"""
         try:
             self.retriever = VectorIndexRetriever(
-                index = self.index,
-                similarity_top_k = self.config.similarity_top_k
+                index=self.index, similarity_top_k=self.config.similarity_top_k
             )
 
             self.query_engine = RetrieverQueryEngine(
@@ -333,4 +329,3 @@ class QueryEngine:
         except Exception as e:
             self.logger.error(f"Failed to setup query engine: {e}")
             raise
-

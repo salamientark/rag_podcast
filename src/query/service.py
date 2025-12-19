@@ -18,7 +18,7 @@ from llama_index.llms.openai import OpenAI
 from llama_index.embeddings.voyageai import VoyageEmbedding
 from qdrant_client import QdrantClient, AsyncQdrantClient
 
-from .config import QueryConfig, SYSTEM_PROMPT_FR
+from .config import QueryConfig
 from .postprocessors import get_reranker
 
 

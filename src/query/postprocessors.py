@@ -81,36 +81,45 @@ def process_nodes_with_metadata(nodes: List[NodeWithScore]) -> List[NodeWithScor
     return nodes
 
 
-def sort_nodes_temporally(nodes: List[NodeWithScore], query: str) -> List[NodeWithScore]:
+def sort_nodes_temporally(
+    nodes: List[NodeWithScore], query: str
+) -> List[NodeWithScore]:
     """
     Sort retrieved nodes by episode chronological order.
-    
+
     For temporal queries (like "derniers episodes"), sorts by episode_id descending.
     For other queries, maintains original relevance-based order.
-    
+
     Args:
         nodes: List of retrieved nodes with scores
         query: The original query string
-        
+
     Returns:
         List of nodes sorted temporally if query suggests temporal intent
     """
     # Check if query suggests temporal intent (latest episodes)
-    temporal_keywords = ["derniers", "dernier", "récent", "recent", "nouveau", "nouvelles"]
+    temporal_keywords = [
+        "derniers",
+        "dernier",
+        "récent",
+        "recent",
+        "nouveau",
+        "nouvelles",
+    ]
     is_temporal_query = any(keyword in query.lower() for keyword in temporal_keywords)
-    
+
     if is_temporal_query and nodes:
         # Sort by episode_id descending (assuming higher id = more recent)
         try:
             sorted_nodes = sorted(
-                nodes, 
+                nodes,
                 key=lambda node: node.node.metadata.get("episode_id", 0),
-                reverse=True
+                reverse=True,
             )
             return sorted_nodes
         except Exception:
             # If sorting fails, return original order
             pass
-    
+
     # Return original relevance-based order for non-temporal queries
     return nodes

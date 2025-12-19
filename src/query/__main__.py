@@ -12,7 +12,6 @@ Usage:
 import argparse
 import asyncio
 import sys
-from typing import Optional
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
@@ -105,9 +104,9 @@ async def interactive_chat_mcp(mcp_server_url: str):
     except ConnectionError as e:
         console.print(f"❌ Erreur MCP: {e}", style="red")
         console.print("\n💡 Vérifications:")
-        console.print(f"  • Le serveur MCP est-il démarré ?")
+        console.print("  • Le serveur MCP est-il démarré ?")
         console.print(
-            f"  • Commande: uv run -m src.mcp.server --host 127.0.0.1 --port 9000"
+            "  • Commande: uv run -m src.mcp.server --host 127.0.0.1 --port 9000"
         )
         console.print(f"  • Le serveur répond-il sur {mcp_server_url} ?")
         sys.exit(1)

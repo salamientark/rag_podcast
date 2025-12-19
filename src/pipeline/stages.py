@@ -239,7 +239,9 @@ def run_download_stage(
                             f"Episode {episode.id} already exists in cloud storage, skipping upload."
                         )
                     else:
-                        storage.client.upload_file(filepath, storage.bucket_name, f"{workspace}{filename}")
+                        storage.client.upload_file(
+                            filepath, storage.bucket_name, f"{workspace}{filename}"
+                        )
                         logger.info(f"Uploaded episode {episode.id} to cloud storage.")
             else:
                 logger.warning(
