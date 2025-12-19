@@ -12,6 +12,7 @@ Usage:
 import argparse
 import asyncio
 import sys
+from typing import Optional
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
@@ -20,6 +21,100 @@ from .agent import PodcastQueryAgent
 from .config import QueryConfig
 
 console = Console()
+
+
+async def interactive_chat_mcp(mcp_server_url: str):
+    """
+    Main interactive chat loop using MCP client.
+
+    Args:
+        mcp_server_url: URL of the MCP server
+    """
+    try:
+        # Dynamic import to avoid import errors at module level
+        import importlib.util
+        import os
+
+        # Get the path to the MCP client module
+        mcp_client_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "mcp", "client.py"
+        )
+
+        # Load the module dynamically
+        spec = importlib.util.spec_from_file_location("mcp_client", mcp_client_path)
+        if spec is None or spec.loader is None:
+            raise ImportError("Impossible de charger le module MCP client")
+        mcp_client_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mcp_client_module)
+
+        PodcastMCPClient = mcp_client_module.PodcastMCPClient
+
+        # Initialize MCP client
+        console.print("[dim]🔧 Initialisation du client MCP...[/dim]")
+        agent = PodcastMCPClient(mcp_server_url)
+        await agent.initialize()
+
+        # Display status
+        status = agent.get_status()
+        status_text = f"📊 Connecté au serveur MCP: {status['server_url']}"
+        console.print(f"[dim]{status_text}[/dim]")
+        console.print()
+
+        # Welcome message
+        print_welcome()
+
+        # Chat loop
+        while True:
+            try:
+                user_input = input("\033[1;32mVous:\033[0m ")
+
+                if not user_input.strip():
+                    continue
+
+                if user_input.lower() in ["/quit", "/q", "exit", "quit"]:
+                    break
+
+                if user_input.lower() in ["/help", "/h", "help"]:
+                    show_help()
+                    continue
+
+                # Process query via MCP
+                console.print("[dim]🤔 L'agent réfléchit...[/dim]")
+
+                try:
+                    response = await agent.query(user_input)
+                    console.print(f"[bold blue]Agent:[/bold blue] {response}")
+                    console.print()
+
+                except Exception as e:
+                    console.print(f"❌ Erreur lors du traitement: {e}", style="red")
+                    console.print("[dim]Veuillez réessayer ou taper /help[/dim]")
+                    console.print()
+
+            except (KeyboardInterrupt, EOFError):
+                break
+            except Exception as e:
+                console.print(f"❌ Erreur inattendue: {e}", style="red")
+                console.print("[dim]Tapez /quit pour quitter[/dim]")
+
+        console.print("\n👋 À bientôt!")
+
+        # Close MCP client
+        await agent.close()
+
+    except ConnectionError as e:
+        console.print(f"❌ Erreur MCP: {e}", style="red")
+        console.print("\n💡 Vérifications:")
+        console.print(f"  • Le serveur MCP est-il démarré ?")
+        console.print(
+            f"  • Commande: uv run -m src.mcp.server --host 127.0.0.1 --port 9000"
+        )
+        console.print(f"  • Le serveur répond-il sur {mcp_server_url} ?")
+        sys.exit(1)
+
+    except Exception as e:
+        console.print(f"❌ Erreur fatale MCP: {e}", style="red")
+        sys.exit(1)
 
 
 def print_welcome():
@@ -147,12 +242,17 @@ async def main():
 Exemples:
   uv run -m src.query
   uv run -m src.query --enable-reranking
+  uv run -m src.query --mcp-server-url http://localhost:9000
   
-Variables d'environnement requises:
+Variables d'environnement requises (mode direct):
   OPENAI_API_KEY     - Clé API OpenAI
   VOYAGE_API_KEY     - Clé API VoyageAI
   QDRANT_URL         - URL du serveur Qdrant (défaut: http://localhost:6333)
   QDRANT_COLLECTION_NAME - Nom de la collection (défaut: podcasts)
+  
+Mode MCP:
+  Pour utiliser le mode MCP, démarrez d'abord le serveur MCP:
+  uv run -m src.mcp.server --host 127.0.0.1 --port 9000
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -163,18 +263,30 @@ Variables d'environnement requises:
         help="Activer le reranking pour une meilleure qualité des réponses (plus lent)",
     )
 
+    parser.add_argument(
+        "--mcp-server-url",
+        type=str,
+        help="URL du serveur MCP (utilise le client MCP au lieu de l'agent direct)",
+    )
+
     args = parser.parse_args()
 
-    # Create configuration
-    config = QueryConfig()
+    # Check if MCP mode is requested
+    if args.mcp_server_url:
+        # Start MCP client mode
+        console.print(f"[dim]🌐 Mode MCP activé: {args.mcp_server_url}[/dim]")
+        await interactive_chat_mcp(args.mcp_server_url)
+    else:
+        # Create configuration for direct agent mode
+        config = QueryConfig()
 
-    # Apply CLI overrides
-    if args.enable_reranking:
-        config.use_reranking = True
-        console.print("[dim]🔍 Mode qualité: reranking activé[/dim]")
+        # Apply CLI overrides
+        if args.enable_reranking:
+            config.use_reranking = True
+            console.print("[dim]🔍 Mode qualité: reranking activé[/dim]")
 
-    # Start interactive chat
-    await interactive_chat(config)
+        # Start interactive chat with direct agent
+        await interactive_chat(config)
 
 
 if __name__ == "__main__":

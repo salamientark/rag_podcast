@@ -116,10 +116,8 @@ class PodcastQueryAgent:
             )
 
             # Create vector store
-            # Create vector store with both sync and async clients
             self.vector_store = QdrantVectorStore(
-                client=sync_client,  # Sync client for query operations
-                aclient=async_client,  # Async client for async operations
+                aclient=async_client,
                 collection_name=self.config.collection_name,
             )
 
@@ -296,10 +294,8 @@ class QueryEngine:
             )
 
             # Create vector store
-            # Create vector store with both sync and async clients
             self.vector_store = QdrantVectorStore(
-                client=sync_client,  # Sync client for query operations
-                aclient=async_client,  # Async client for async operations
+                aclient=async_client,
                 collection_name=self.config.collection_name,
             )
 
