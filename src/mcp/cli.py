@@ -100,7 +100,7 @@ class MCPChatCLI:
     def _show_welcome(self):
         """Display welcome message."""
         self.console.print("\n" + "=" * 60)
-        self.console.print(f"[bold blue]🎧 Chat Podcast via MCP Server[/bold blue]")
+        self.console.print("[bold blue]🎧 Chat Podcast via MCP Server[/bold blue]")
         self.console.print(f"[dim]Connecté à: {self.mcp_url}[/dim]")
         self.console.print("=" * 60)
         self.console.print(

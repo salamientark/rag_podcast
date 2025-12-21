@@ -11,8 +11,6 @@ Usage:
     await client.close()
 """
 
-import asyncio
-import json
 import logging
 from typing import Dict, Optional
 from urllib.parse import urlparse
@@ -163,7 +161,7 @@ class PodcastMCPClient:
                     error_data = response.json()
                     if "error" in error_data:
                         error_detail = f": {error_data['error']}"
-                except:
+                except Exception:
                     pass
                 raise ConnectionError(
                     f"Erreur serveur MCP: HTTP {response.status_code}{error_detail}"

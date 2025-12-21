@@ -12,13 +12,13 @@ client = Client(SERVER_URL, timeout=120.0)
 async def main():
     try:
         async with client:
-            print(f"Starrrting client ping")
+            print("Starrrting client ping")
             await client.ping()
 
             tools = await client.list_tools()
             print(f"Available tools: {tools}")
 
-            print(f"Calling tool")
+            print("Calling tool")
             result = await client.call_tool(
                 "query_db", {"question": "Resume moi les 2 derniers episodes"}
             )
@@ -32,7 +32,6 @@ async def main():
         # response = engine.query_engine.query("Resume moi les 2 derniers episodes")
 
         # print(f"response: {response}")
-
 
         print("Success")
     except Exception as e:
