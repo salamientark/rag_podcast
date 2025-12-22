@@ -15,3 +15,6 @@ PROJECT_PLAN.md
 
 !data/.gitignore
 qdrant_storage/
+
+# Ease of use scripts
+scripts/utils/

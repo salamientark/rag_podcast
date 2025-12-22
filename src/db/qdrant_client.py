@@ -40,7 +40,7 @@ from src.logger import setup_logging, log_function
 
 # Configuration
 load_dotenv()
-QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
+QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_NAME")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 EMBEDDING_DIMENSION = 1024  # VoyageAI voyage-3.5 embedding dimension

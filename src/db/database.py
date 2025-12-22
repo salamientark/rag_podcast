@@ -34,7 +34,7 @@ db_logger = setup_logging(
 
 # Database configuration
 env = load_dotenv()
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///data/podcast.db")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 
 @log_function(

@@ -1,54 +1,63 @@
-from pathlib import Path
-from chonkie import SemanticChunker, Chunk
-from src.transcription import get_mapped_transcript
+import logging
+import tiktoken
+
+from typing import Any
+from .token_counter import count_tokens
+from chonkie.chunker.token import TokenChunker
 
 
-def chunk_text(text: str, chunk_size: int = 8192) -> list[Chunk]:
-    """Chunk text using SemanticChunker from chonkie.
+def chunks_to_text(chunks: list[Any]) -> list[str]:
+    """Convert list of Chunks to list of text strings.
+
     Args:
-        text: Text to chunk
-        chunk_size: Maximum chunk size in tokens
+        chunks (list[Chunks]): List of Chunks objects.
     Returns:
-        List of text chunks
+        list[str]: List of text strings extracted from chunks.
     """
-    chunker = SemanticChunker(
-        chunk_size=chunk_size,
+    text_list = [chunk.text.strip() for chunk in chunks]
+    return text_list
+
+def chunk_long_text(
+    text: str, max_tokens: int = 30000, overlap_percent: float = 0.1
+) -> list[str]:
+    """
+    Chunk text if it exceeds token limit, with overlap between chunks.
+
+    Args:
+        text: Input text to chunk
+        max_tokens: Maximum tokens per chunk (default 30000)
+        overlap_percent: Overlap between chunks as percentage (default 0.1 = 10%)
+
+    Returns:
+        List of text chunks (single item if text fits within limit)
+    """
+    logger = logging.getLogger("embedder")
+
+    # Check total token count
+    token_count = count_tokens(text)
+
+    if token_count <= max_tokens:
+        logger.info(
+            f"Text fits within limit ({token_count} tokens), no chunking needed"
+        )
+        return [text]
+
+    # Calculate overlap in tokens
+    overlap_tokens = int(max_tokens * overlap_percent)
+
+    logger.info(
+        f"Text has {token_count} tokens, chunking with "
+        f"{max_tokens} tokens per chunk and {overlap_tokens} token overlap"
     )
+
+    # Use TokenChunker from chonkie with tiktoken encoder
+    encoding = tiktoken.get_encoding("cl100k_base")
+    chunker = TokenChunker(
+        tokenizer=encoding, chunk_size=max_tokens, chunk_overlap=overlap_tokens
+    )
+
     chunks = chunker.chunk(text)
-    return chunks
+    chunk_texts = [chunk.text for chunk in chunks]
 
-
-ABSOLUTE_EPISODE_PATH = Path("./data/transcript/episode_672_universal.json")
-
-
-if __name__ == "__main__":
-    # Format transcript with speaker names
-    print("Formatting full transcript with speaker names... ", end="", flush=True)
-    text = get_mapped_transcript(ABSOLUTE_EPISODE_PATH)
-    print("Done")
-
-    # Chunk the text
-    print("Chunking text... ", end="", flush=True)
-    chunks = chunk_text(text)
-    print("Done")
-    print(f"Number of chunks: {len(chunks)}")
-    print(f"First chunk preview:\n{chunks[0][:5000]}")
-
-    print("========== ANALYSIS ==========")
-    word_count = 0
-    word_count_squared = 0
-    for chunk in chunks:
-        wc = len(chunk.text.split())
-        word_count += wc
-        word_count_squared += wc * wc
-
-    # Compute statistics
-    input_wc = len(text.split())
-    average_wc = word_count / len(chunks)
-    variance_wc = (word_count_squared / len(chunks)) - (average_wc * average_wc)
-    total_wc = word_count
-
-    print(f"Total input word count: {input_wc}")
-    print(f"Total output word count: {total_wc}")
-    print(f"Average word count per chunk: {average_wc:.2f}")
-    print(f"Variance of word count per chunk: {variance_wc:.2f}")
+    logger.info(f"Created {len(chunk_texts)} chunks from text")
+    return chunk_texts

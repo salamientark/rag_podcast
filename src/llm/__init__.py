@@ -3,7 +3,7 @@ base.py : Contain instruction prompts
 openai.py : Contain OpenAI LLM initialization and utilities
 """
 
-from .base import _speaker_identification_prompt
+from .prompts import _speaker_identification_prompt
 from .openai import init_llm_openai
 
 

@@ -6,7 +6,6 @@ from src.transcription.transcript import (
     check_formatted_transcript_exists,
     get_episode_id_from_path,
     transcribe_with_diarization,
-    transcribe_local_file,
 )
 from src.transcription.speaker_mapper import (
     map_speakers_with_llm,
@@ -19,7 +18,6 @@ __all__ = [
     "check_formatted_transcript_exists",
     "get_episode_id_from_path",
     "transcribe_with_diarization",
-    "transcribe_local_file",
     "get_mapped_transcript",
     "map_speakers_with_llm",
     "format_transcript",

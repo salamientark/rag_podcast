@@ -11,6 +11,19 @@ class BaseStorage(ABC):
     """
 
     @abstractmethod
+    def _get_absolute_filename(self, workspace: str, filename: str) -> str:
+        """Constructs the absolute filename/path.
+
+        Args:
+            workspace (str): The workspace (prefix) path.
+            filename (str): The name of the file.
+
+        Returns:
+            str: The absolute filename/path.
+        """
+        pass
+
+    @abstractmethod
     def file_exist(self, workspace: str, filename: str) -> bool:
         """
         Check if a file exists.
@@ -52,18 +65,5 @@ class BaseStorage(ABC):
 
         Raises:
             RuntimeError: If file saving fails.
-        """
-        pass
-
-    @abstractmethod
-    def _get_absolute_filename(self, workspace: str, filename: str) -> str:
-        """Constructs the absolute filename/path.
-
-        Args:
-            workspace (str): The workspace (prefix) path.
-            filename (str): The name of the file.
-
-        Returns:
-            str: The absolute filename/path.
         """
         pass

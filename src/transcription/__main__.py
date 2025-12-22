@@ -32,15 +32,14 @@ Examples:
 import sys
 import argparse
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Union, Optional
 import logging
 
 from src.transcription.transcript import (
     check_formatted_transcript_exists,
-    transcribe_local_file,
     get_episode_id_from_path,
 )
-from src.logger import setup_logging
+from src.logger import setup_logging, log_function
 from src.db.database import get_db_session
 from src.db.models import Episode, ProcessingStage
 
@@ -292,6 +291,182 @@ def print_summary(results: Dict[str, List[str]]) -> None:
             print(f"  - {filename}")
 
     print(f"{'=' * 80}\n")
+
+
+@log_function(logger_name="transcript", log_execution_time=True)
+def update_episode_transcription_paths(
+    episode_id: int,
+    raw_transcript_path: str,
+    speaker_mapping_path: str,
+    formatted_transcript_path: str,
+    transcript_duration: Optional[int] = None,
+    transcript_confidence: Optional[float] = None,
+) -> bool:
+    """
+    Update episode database record with transcription file paths.
+
+    Args:
+        episode_id: Database ID of the episode
+        raw_transcript_path: Path to raw transcription JSON
+        speaker_mapping_path: Path to speaker mapping JSON
+        formatted_transcript_path: Path to formatted transcript text
+        transcript_duration: Duration of the transcript audio in seconds
+        transcript_confidence: Confidence score of the transcription
+
+    Returns:
+        bool: True if update successful, False otherwise
+    """
+    logger = logging.getLogger("audio_scraper")
+    try:
+        with get_db_session() as session:
+            episode = session.query(Episode).filter_by(id=episode_id).first()
+
+            if not episode:
+                logger.error(f"Episode {episode_id} not found in database")
+                return False
+
+            # Update db fields
+            stage_order = list(ProcessingStage)
+            current_stage_index = stage_order.index(episode.processing_stage)
+            target_stage_index = stage_order.index(ProcessingStage.FORMATTED_TRANSCRIPT)
+            if current_stage_index < target_stage_index:
+                episode.processing_stage = ProcessingStage.FORMATTED_TRANSCRIPT
+            episode.raw_transcript_path = raw_transcript_path
+            episode.speaker_mapping_path = speaker_mapping_path
+            episode.formatted_transcript_path = formatted_transcript_path
+            episode.transcript_duration = transcript_duration
+            episode.transcript_confidence = transcript_confidence
+
+            session.commit()
+            logger.info(f"Updated episode ID {episode_id} with audio file path")
+            return True
+    except Exception as e:
+        logger.error(f"Failed to update episode ID {episode_id}: {e}")
+        return False
+
+
+@log_function(logger_name="transcript", log_execution_time=True)
+def transcribe_local_file(
+    input_file: Union[str, Path],
+    language: str = "fr",
+    output_dir: Optional[Union[str, Path]] = "data/transcripts/",
+    episode_id: Optional[int] = None,
+):
+    """High level function to transcribe a local audio file.
+
+    Transcribe a local audio file and save the following files:
+        - The raw transcription JSON with diarization
+        - The speaker mapping JSON
+        - The formatted transcript text file
+
+    BEWARE: The files will be saved in a subdirectory of output_dir
+
+    Transcribe using AssemblyAI Universal-2 with diarization.
+
+    Args:
+        input_path: Path to local audio file
+        language: Language code for transcription (default: fr)
+        output_dir: Directory to save output files (default: data/transcripts/)
+        episode_id: Optional episode ID for naming else try to found it file name
+
+    Raises:
+        FileNotFoundError: If local file doesn't exist
+        ValueError: If API key is missing
+        Exception: If transcription or download fails
+    """
+    logger = logging.getLogger("transcript")
+
+    try:
+        # Find episode id for naming if not provided
+        input_path = Path(input_file)
+        episode_nbr = int(
+            episode_id
+            if episode_id is not None
+            else get_episode_id_from_path(input_path)
+        )
+
+        # Create output directory if not exists
+        out_dir_path = Path(output_dir / f"episode_{episode_nbr:03d}/")
+        try:
+            out_dir_path.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            logger.error(f"Failed to create output directory {out_dir_path}: {e}")
+            raise
+
+        # Raw transcription
+        raw_file_path = Path(out_dir_path / f"raw_episode_{episode_nbr:03d}.json")
+        # Take transcription from cache if exists
+        if raw_file_path.exists():
+            raw_result = json.loads(raw_file_path.read_text(encoding="utf-8"))
+        else:
+            raw_result = transcribe_with_diarization(input_path, language)
+            try:
+                with open(raw_file_path, "w", encoding="utf-8") as f:
+                    json.dump(raw_result, f, indent=4)
+                    logger.info(f"Saved raw transcription to {raw_file_path}")
+            except OSError as e:
+                logger.error(f"Failed to write raw transcript to {raw_file_path}: {e}")
+                raise
+
+        # Speaker mapping
+        mapping_file_path = Path(
+            out_dir_path / f"speakers_episode_{episode_nbr:03d}.json"
+        )
+        # Take mapping from cache if exists
+        mapping_result = {}
+        if mapping_file_path.exists():
+            raw_formatted_text = format_transcript(raw_file_path, max_tokens=10000)
+        else:
+            raw_formatted_text = format_transcript(raw_file_path, max_tokens=10000)
+            mapping_result = map_speakers_with_llm(raw_formatted_text)
+            try:
+                with open(mapping_file_path, "w", encoding="utf-8") as f:
+                    json.dump(mapping_result, f, indent=4)
+                    logger.info(f"Saved mapping result to {mapping_file_path}")
+            except OSError as e:
+                logger.error(
+                    f"Failed to write mapping result to {mapping_file_path}: {e}"
+                )
+                raise
+
+        # Formatted transcript
+        formatted_transcript_path = Path(
+            out_dir_path / f"formatted_episode_{episode_nbr:03d}.txt"
+        )
+        formatted_text = format_transcript(
+            raw_file_path, speaker_mapping=mapping_result
+        )
+        try:
+            with open(formatted_transcript_path, "w", encoding="utf-8") as f:
+                f.write(formatted_text)
+                logger.info(f"Saved mapping result to {formatted_transcript_path}")
+        except OSError as e:
+            logger.error(
+                f"Failed to write mapping result to {formatted_transcript_path}: {e}"
+            )
+            raise
+
+        # Update database record
+        try:
+            transcript_duration = raw_result["transcript"].get("audio_duration")
+            transcript_confidence = raw_result["transcript"].get("confidence")
+            update_episode_transcription_paths(
+                episode_nbr,
+                str(raw_file_path),
+                str(mapping_file_path),
+                str(formatted_transcript_path),
+                transcript_duration=transcript_duration,
+                transcript_confidence=transcript_confidence,
+            )
+            logger.info("Database updated successfully")
+        except Exception as db_error:
+            logger.error(f"DB update failed but files saved: {db_error}")
+            # Files exist but DB not updated - manual intervention needed
+        # Return path to formatted transcript
+        return formatted_transcript_path
+
+    except Exception:
+        raise
 
 
 def main():
