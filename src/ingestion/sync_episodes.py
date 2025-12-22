@@ -35,7 +35,6 @@ sys.path.insert(0, str(project_root))
 logger = setup_logging(logger_name="sync_episodes", log_file="logs/sync_episodes.log")
 
 
-# ============ RSS SYNC FUNCTIONS ============
 @log_function(logger_name="sync_episodes", log_execution_time=True)
 def fetch_podcast_episodes() -> list[dict[str, Any]]:
     """
@@ -275,6 +274,3 @@ def sync_to_database(
                 stats["errors"] += 1
 
     return stats
-
-
-# ============ SHARED ENTRY POINT ============
