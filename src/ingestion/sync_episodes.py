@@ -11,7 +11,7 @@ Usage:
     uv run -m src.ingestion.sync_episodes --dry-run        # Test mode (very fast)
 """
 
-import hashlib
+import uuid_utils as uuid
 import logging
 import os
 import sys
@@ -75,9 +75,21 @@ def fetch_podcast_episodes() -> list[dict[str, Any]]:
     # Parse XML
     soup = BeautifulSoup(response.content, "xml")
     episodes = []
+    podcast_name = soup.find("channel").find("title").get_text(strip=True)
 
-    for item in soup.find_all("item"):
+    for i, item in enumerate(reversed(soup.find_all("item"))):
         episode_data = {}
+
+        # UUID/GUID
+        episode_data["uuid"] = str(uuid.uuid7())
+
+        # Podcast name
+        if not podcast_name:
+            continue
+        episode_data["podcast"] = podcast_name
+
+        # Episode ID (sequential)
+        episode_data["episode_id"] = i + 1
 
         # Title
         title_tag = item.find("title")
@@ -115,18 +127,8 @@ def fetch_podcast_episodes() -> list[dict[str, Any]]:
             clean_desc = BeautifulSoup(description, "html.parser").get_text()
             episode_data["description"] = clean_desc[:1000]  # Limit length
 
-        # GUID
-        guid_tag = item.find("guid")
-        if guid_tag:
-            episode_data["guid"] = guid_tag.get_text(strip=True)
-        else:
-            # Generate simple GUID from title + date
-            content = f"{episode_data['title']}|{episode_data['date'].isoformat()}"
-            hash_value = hashlib.md5(content.encode("utf-8")).hexdigest()[:12]
-            episode_data["guid"] = f"generated-{hash_value}"
-
         # Only add if we have required fields
-        if all(key in episode_data for key in ["title", "date", "audio_url", "guid"]):
+        if all(key in episode_data for key in ["title", "date", "audio_url", "uuid", "episode_id", "podcast"]):
             episodes.append(episode_data)
 
     print(f"Found {len(episodes)} episodes.")
@@ -237,7 +239,7 @@ def sync_to_database(
             try:
                 # Check if exists
                 existing = (
-                    session.query(Episode).filter_by(guid=episode_data["guid"]).first()
+                    session.query(Episode).filter_by(title=episode_data["title"]).first()
                 )
                 if existing:
                     print(
@@ -247,7 +249,9 @@ def sync_to_database(
                 else:
                     # Create new episode
                     episode = Episode(
-                        guid=episode_data["guid"],
+                        uuid=episode_data["uuid"],
+                        podcast=episode_data["podcast"],
+                        episode_id=episode_data["episode_id"],
                         title=episode_data["title"],
                         published_date=episode_data["date"],
                         audio_url=episode_data["audio_url"],
@@ -259,11 +263,11 @@ def sync_to_database(
                     # Get the ID that was just assigned
                     session.refresh(episode)
                     print(
-                        f'  ✓ Added as ID {episode.id}: "{episode_data["title"][:50]}..." ({episode_data["date"].strftime("%Y-%m-%d")})'
+                        f'  ✓ Added as ID {episode.episode_id}: "{episode_data["title"][:50]}..." ({episode_data["date"].strftime("%Y-%m-%d")})'
                     )
                     stats["added"] += 1
                     logger.info(
-                        f"Added episode ID {episode.id}: {episode_data['title']}"
+                        f"Added episode ID {episode.episode_id}: {episode_data['title']}"
                     )
 
                 stats["processed"] += 1

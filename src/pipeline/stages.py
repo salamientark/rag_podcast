@@ -53,8 +53,9 @@ EMBEDDING_DIR = "data/embeddings"
 
 @log_function(logger_name="pipeline", log_execution_time=True)
 def update_episode_in_db(
-    episode_id: int,
-    guid: Optional[str] = None,
+    uuid: str,
+    podcast: Optional[str] = None,
+    episode_id: Optional[int] = None,
     title: Optional[str] = None,
     description: Optional[str] = None,
     published_date: Optional[datetime] = None,
@@ -74,8 +75,9 @@ def update_episode_in_db(
     Only update field with an argument. None argument = No update
 
     Args:
-        episode_id (int): ID of the episode to update.
-        guid (Optional[str]): New GUID.
+        uuid (str): UUID of the episode to update.
+        podcast (Optional[str]): New podcast name.
+        episode_id (Optional[int]): New episode id.
         title (Optional[str]): New title.
         description (Optional[str]): New description.
         published_date (Optional[datetime]): New published date.
@@ -91,11 +93,13 @@ def update_episode_in_db(
     logger = logging.getLogger("pipeline")
 
     try:
-        logger.info(f"Updating episode ID {episode_id} in database...")
+        logger.info(f"Updating episode ID {uuid} in database...")
         # Create update dictionary
         update_data: dict[str, Any] = {}
-        if guid is not None:
-            update_data["guid"] = guid
+        if podcast is not None:
+            update_data["podcast"] = podcast
+        if episode_id is not None:
+            update_data["episode_id"] = episode_id
         if title is not None:
             update_data["title"] = title
         if description is not None:
@@ -121,7 +125,7 @@ def update_episode_in_db(
 
         # Update the episode in the database
         with get_db_session() as session:
-            session.query(Episode).filter(Episode.id == episode_id).update(
+            session.query(Episode).filter(Episode.id == uuid).update(
                 update_data,
             )
             session.commit()
