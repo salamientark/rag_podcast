@@ -46,12 +46,17 @@ async function main() {
   
   // Creating MCP Client
   console.log("Init MCP Client...");
-  const mcpClient = await createMCPClient({
-  	transport: {
-  		type: 'http',
-  		url: 'http://localhost:8080/mcp',
-  	},
-  });
+  try {
+	const mcpClient = await createMCPClient({
+	transport: {
+		type: 'http',
+		url: 'http://localhost:8080/mcp',
+	},
+	});
+  } catch (error) {
+	console.error("Failed to initialize MCP Client:", error);
+	process.exit(1);
+  }
   console.log("MCP Client initialized successfully!");
   
   try {
