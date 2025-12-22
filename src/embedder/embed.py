@@ -4,7 +4,6 @@ from typing import Any, Optional, Dict
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 from pathlib import Path
-from urllib.parse import urlparse
 import voyageai
 
 from src.logger import log_function
@@ -15,20 +14,11 @@ from src.db.qdrant_client import (
     get_episode_vectors,
 )
 from src.db.models import Episode, ProcessingStage
-from src.embedder.token_counter import check_voyage_limits, count_tokens
-from chonkie.chunker.token import TokenChunker
-import tiktoken
+from src.chunker.token_counter import check_voyage_limits, count_tokens
+from src.chunker import chunk_long_text
 
 
 DEFAULT_EMBEDDING_OUTPUT_DIR = Path("data/embeddings")
-
-
-def is_url(string):
-    try:
-        result = urlparse(string)
-        return all([result.scheme, result.netloc])
-    except Exception:
-        return False
 
 
 def format_publication_date(dt: datetime) -> str:
@@ -111,18 +101,6 @@ def embed_text(text: str | list[str], dimensions: int = 1024) -> Any:
     except Exception as e:
         logger.error(f"Error generating embeddings: {e}")
         raise
-
-
-def chunks_to_text(chunks: list[Any]) -> list[str]:
-    """Convert list of Chunks to list of text strings.
-
-    Args:
-        chunks (list[Chunks]): List of Chunks objects.
-    Returns:
-        list[str]: List of text strings extracted from chunks.
-    """
-    text_list = [chunk.text.strip() for chunk in chunks]
-    return text_list
 
 
 @log_function(logger_name="embedder", log_args=True, log_execution_time=True)
@@ -218,53 +196,6 @@ def load_embedding_from_file(file_path: Path) -> Optional[np.ndarray]:
         logger = logging.getLogger("embedder")
         logger.error(f"Failed to load embedding from {file_path}: {e}")
         raise
-
-
-def chunk_long_text(
-    text: str, max_tokens: int = 30000, overlap_percent: float = 0.1
-) -> list[str]:
-    """
-    Chunk text if it exceeds token limit, with overlap between chunks.
-
-    Args:
-        text: Input text to chunk
-        max_tokens: Maximum tokens per chunk (default 30000)
-        overlap_percent: Overlap between chunks as percentage (default 0.1 = 10%)
-
-    Returns:
-        List of text chunks (single item if text fits within limit)
-    """
-    logger = logging.getLogger("embedder")
-
-    # Check total token count
-    token_count = count_tokens(text)
-
-    if token_count <= max_tokens:
-        logger.info(
-            f"Text fits within limit ({token_count} tokens), no chunking needed"
-        )
-        return [text]
-
-    # Calculate overlap in tokens
-    overlap_tokens = int(max_tokens * overlap_percent)
-
-    logger.info(
-        f"Text has {token_count} tokens, chunking with "
-        f"{max_tokens} tokens per chunk and {overlap_tokens} token overlap"
-    )
-
-    # Use TokenChunker from chonkie with tiktoken encoder
-    encoding = tiktoken.get_encoding("cl100k_base")
-    chunker = TokenChunker(
-        tokenizer=encoding, chunk_size=max_tokens, chunk_overlap=overlap_tokens
-    )
-
-    chunks = chunker.chunk(text)
-    chunk_texts = [chunk.text for chunk in chunks]
-
-    logger.info(f"Created {len(chunk_texts)} chunks from text")
-    return chunk_texts
-
 
 @log_function(logger_name="embedder", log_args=True, log_execution_time=True)
 def embed_file_to_db(
