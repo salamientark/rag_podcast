@@ -77,8 +77,9 @@ class Episode(Base, TimestampMixin):
     embedding).
 
     Attributes:
-        id: Primary key, auto-incremented
-        guid: Unique identifier from RSS feed (or generated)
+        uuid: Primary key, unique identifier from RSS feed (or generated UUID)
+        episode_id: Episode number (not unique across different podcasts, was id)
+        podcast: Podcast name/identifier
         title: Episode title from RSS feed
         description: Episode description/show notes (truncated to 1000 chars)
         published_date: Publication date from RSS feed
@@ -94,17 +95,19 @@ class Episode(Base, TimestampMixin):
         updated_at: Timestamp of last update (from TimestampMixin)
 
     File Path Conventions:
-        audio_file_path: data/audio/episode_{id:03d}_{sanitized_title}.mp3
-        raw_transcript_path: data/transcript/episode_{id}_universal.json
-        formatted_transcript_path: data/transcript/episode_{id}_formatted.txt
+        audio_file_path: data/audio/episode_{episode_id:03d}_{sanitized_title}.mp3
+        raw_transcript_path: data/transcript/episode_{episode_id}_universal.json
+        formatted_transcript_path: data/transcript/episode_{episode_id}_formatted.txt
     """
 
     __tablename__ = "episodes"
 
     # Primary metadata
-    id = Column(Integer, primary_key=True)
-    guid = Column(String, nullable=False)
-    podcast = Column(String, nullable=False, default="unknown")
+    uuid = Column(String, primary_key=True)  # Primary key (was guid)
+    podcast = Column(String, nullable=False)
+    episode_id = Column(
+        Integer, nullable=False
+    )  # Episode number, not unique across podcasts (was id)
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     published_date = Column(DateTime, nullable=False)
@@ -128,11 +131,8 @@ class Episode(Base, TimestampMixin):
     transcript_duration = Column(Integer, nullable=True)  # in seconds
     transcript_confidence = Column(Float, nullable=True)  # percentage 0.0-1.0
 
-    # Constraints
-    __table_args__ = (UniqueConstraint("guid", name="uq_guid"),)
-
     def __repr__(self):
         return (
-            f"<Episode(id={self.id}, title='{self.title}', published_date='{self.published_date})', "
-            f"stage={self.processing_stage.value})>"
+            f"<Episode(uuid={self.uuid}, episode_id={self.episode_id}, title='{self.title}', "
+            f"published_date='{self.published_date})', stage={self.processing_stage.value})>"
         )
