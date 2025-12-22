@@ -31,6 +31,7 @@ Examples:
 
 import sys
 import argparse
+import json
 from pathlib import Path
 from typing import List, Dict, Any, Union, Optional
 import logging
@@ -38,6 +39,9 @@ import logging
 from src.transcription.transcript import (
     check_formatted_transcript_exists,
     get_episode_id_from_path,
+    transcribe_with_diarization,
+    format_transcript,
+    map_speakers_with_llm,
 )
 from src.logger import setup_logging, log_function
 from src.db.database import get_db_session
