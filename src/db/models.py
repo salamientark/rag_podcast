@@ -103,7 +103,8 @@ class Episode(Base, TimestampMixin):
 
     # Primary metadata
     id = Column(Integer, primary_key=True)
-    guid = Column(String, nullable=False, unique=True)
+    guid = Column(String, nullable=False)
+    podcast = Column(String, nullable=False, default="unknown")
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     published_date = Column(DateTime, nullable=False)
