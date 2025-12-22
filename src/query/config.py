@@ -33,7 +33,7 @@ class QueryConfig:
 
     load_dotenv()
     # Qdrant connection
-    collection_name: Optional[str] = os.getenv("QDRANT_COLLECTION_NAME", "podcasts")
+    collection_name: Optional[str] = os.getenv("QDRANT_COLLECTION_NAME")
     qdrant_url: Optional[str] = os.getenv("QDRANT_URL")
     qdrant_api_key: Optional[str] = os.getenv("QDRANT_API_KEY", None)
 
