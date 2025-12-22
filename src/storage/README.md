@@ -183,11 +183,9 @@ data/
 ```
 bucket-name/
 └── transcripts/
-    ├── raw_transcript_671.txt
     ├── formatted_episode_671.txt
     ├── formatted_episode_672.txt
-    ├── chunks_671.json
-    └── chunks_672.json
+    └── formatted_episode_673.txt
 ```
 
 ## Provider Support
@@ -195,8 +193,6 @@ bucket-name/
 ### Supported Cloud Providers
 - **DigitalOcean Spaces** (default configuration)
 - **Amazon S3** (change endpoint and region)
-- **MinIO** (self-hosted S3-compatible)
-- **Wasabi** (S3-compatible cloud storage)
 
 ### Provider Configuration Examples
 
@@ -206,14 +202,6 @@ BUCKET_ENDPOINT=https://s3.us-west-2.amazonaws.com
 BUCKET_KEY_ID=AKIA...
 BUCKET_ACCESS_KEY=...
 BUCKET_NAME=my-podcast-bucket
-```
-
-#### MinIO (Self-hosted)
-```bash
-BUCKET_ENDPOINT=http://localhost:9000
-BUCKET_KEY_ID=minioadmin
-BUCKET_ACCESS_KEY=minioadmin
-BUCKET_NAME=podcasts
 ```
 
 ## Error Handling
@@ -234,26 +222,6 @@ Common error scenarios:
 - **Network issues** - Cloud operations timeout
 - **Permission errors** - Local filesystem access denied
 - **Disk space** - Local storage full
-
-## Testing
-
-### Unit Tests
-```python
-import unittest
-from src.storage import LocalStorage, CloudStorage
-
-class TestStorage(unittest.TestCase):
-    def test_local_storage(self):
-        storage = LocalStorage()
-        workspace = storage.create_episode_workspace(999)
-        
-        # Test save and exist
-        result = storage.save_file(workspace, "test.txt", "content")
-        self.assertTrue(storage.file_exist(workspace, "test.txt"))
-```
-
-### Integration Tests
-See `upload_test_file.py` and `download_file_test.py` for cloud storage integration examples.
 
 ## Performance Considerations
 
