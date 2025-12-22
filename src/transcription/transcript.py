@@ -5,19 +5,15 @@ This module provides the core functions for transcribing audio files and URLs.
 """
 
 import re
-import json
 import logging
 import os
 import time
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Dict
 
 from dotenv import load_dotenv
 import assemblyai as aai
 
-from src.transcription.speaker_mapper import format_transcript, map_speakers_with_llm
-from src.db.database import get_db_session
-from src.db.models import Episode, ProcessingStage
 from src.logger import log_function
 
 

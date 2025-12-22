@@ -83,7 +83,6 @@ class CloudStorage(BaseStorage):
             return int(e.response["Error"]["Code"]) != 404
         return True
 
-
     def create_episode_workspace(self, episode_id: Optional[int]) -> str:
         """Creates a workspace (prefix) for an episode in the cloud storage.
         Args:

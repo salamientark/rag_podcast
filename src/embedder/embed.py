@@ -197,6 +197,7 @@ def load_embedding_from_file(file_path: Path) -> Optional[np.ndarray]:
         logger.error(f"Failed to load embedding from {file_path}: {e}")
         raise
 
+
 @log_function(logger_name="embedder", log_args=True, log_execution_time=True)
 def embed_file_to_db(
     input_file: str | Path,
