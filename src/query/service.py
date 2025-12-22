@@ -19,7 +19,7 @@ from llama_index.embeddings.voyageai import VoyageEmbedding
 from qdrant_client import QdrantClient, AsyncQdrantClient
 
 from .config import QueryConfig
-from .postprocessors import get_reranker
+from .postprocessors import get_reranker, sort_nodes_temporally
 
 
 class PodcastQueryService:
@@ -216,7 +216,7 @@ class PodcastQueryService:
                     enhanced_question = question
                 response = await self.query_engine.aquery(enhanced_question)
                 return str(response)
-            except:
+            except Exception:
                 raise e
 
     def get_status(self) -> dict:

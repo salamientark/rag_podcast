@@ -1,6 +1,6 @@
 from fastmcp import FastMCP
 from src.query.config import QueryConfig
-from src.query.agent import PodcastQueryAgent
+from src.query.service import PodcastQueryService
 from .prompts import SERVER_PROMPT
 import logging
 
@@ -12,18 +12,18 @@ mcp = FastMCP(name="Rag Podcast Server", instructions=SERVER_PROMPT)
 # Global configuration
 config = QueryConfig()
 
-# Lazy-initialized agent (prevents startup blocking)
-_agent_instance = None
+# Lazy-initialized service (stateless RAG, no conversation memory)
+_service_instance = None
 
 
-def get_agent() -> PodcastQueryAgent:
-    """Get or create the global PodcastQueryAgent instance."""
-    global _agent_instance
-    if _agent_instance is None:
-        logger.info("Initializing PodcastQueryAgent...")
-        _agent_instance = PodcastQueryAgent(config=config)
-        logger.info("PodcastQueryAgent initialized successfully")
-    return _agent_instance
+def get_query_service() -> PodcastQueryService:
+    """Get or create the global stateless PodcastQueryService instance."""
+    global _service_instance
+    if _service_instance is None:
+        logger.info("Initializing stateless PodcastQueryService...")
+        _service_instance = PodcastQueryService(config=config)
+        logger.info("PodcastQueryService initialized successfully")
+    return _service_instance
 
 
-from .tools import query_db  #noqa
+from .tools import query_db  # noqa
