@@ -1,8 +1,10 @@
 import os
 from typing import Optional
 
+from .base import BaseStorage
 
-class LocalStorage:
+
+class LocalStorage(BaseStorage):
     """A client for interacting with cloud storage services. (DigitalOcean)"""
 
     def file_exist(self, workspace: str, filename: str) -> bool:

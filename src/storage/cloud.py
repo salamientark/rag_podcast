@@ -4,9 +4,10 @@ from dotenv import load_dotenv
 
 import boto3
 from botocore.exceptions import ClientError
+from .base import BaseStorage
 
 
-class CloudStorage:
+class CloudStorage(BaseStorage):
     """A client for interacting with cloud storage services. (DigitalOcean)"""
 
     def __init__(self):
@@ -45,6 +46,22 @@ class CloudStorage:
         """Returns the initialized cloud storage client."""
         return self.client
 
+    def _get_absolute_filename(self, workspace: str, filename: str) -> str:
+        """Constructs the absolute filename in cloud storage.
+
+        Args:
+            workspace (str): The workspace (prefix) path.
+            filename (str): The name of the file.
+
+        Return:
+            str: The absolute filename in cloud storage.
+        """
+        protocol, _, path = self.endpoint.partition("://")
+        absolute_filename = (
+            f"{protocol}://{self.bucket_name}.{path}/{workspace}{filename}"
+        )
+        return absolute_filename
+
     def file_exist(self, workspace: str, filename: str) -> bool:
         """
         Check if a file exists in cloud storage.
@@ -66,21 +83,6 @@ class CloudStorage:
             return int(e.response["Error"]["Code"]) != 404
         return True
 
-    def _get_absolute_filename(self, workspace: str, filename: str) -> str:
-        """Constructs the absolute filename in cloud storage.
-
-        Args:
-            workspace (str): The workspace (prefix) path.
-            filename (str): The name of the file.
-
-        Return:
-            str: The absolute filename in cloud storage.
-        """
-        protocol, _, path = self.endpoint.partition("://")
-        absolute_filename = (
-            f"{protocol}://{self.bucket_name}.{path}/{workspace}{filename}"
-        )
-        return absolute_filename
 
     def create_episode_workspace(self, episode_id: Optional[int]) -> str:
         """Creates a workspace (prefix) for an episode in the cloud storage.
