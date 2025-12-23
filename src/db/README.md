@@ -33,11 +33,12 @@ with get_db_session() as session:
 ```python
 # Key fields
 class Episode:
-    id: int                          # Primary key
+    uuid: str                        # Primary key (UUID7 format)
+    podcast: str                     # Podcast name/identifier
+    episode_id: int                  # Episode number within podcast (not globally unique)
     title: str                       # Episode title
     published_date: datetime         # Publication date
     audio_url: str                   # Original audio URL
-    guid: str                        # RSS GUID (unique)
     
     # File paths
     audio_file_path: str             # Local audio file
@@ -78,29 +79,30 @@ with get_db_session() as session:
         Episode.processing_stage == ProcessingStage.AUDIO_DOWNLOADED
     ).all()
     
-    # Completed episodes
-    completed = session.query(Episode).filter(
-        Episode.processing_stage == ProcessingStage.EMBEDDED
-    ).limit(10).all()
+    # Episodes by podcast
+    podcast_episodes = session.query(Episode).filter(
+        Episode.podcast == "Le rendez-vous Tech"
+    ).all()
 ```
 
 ### Update Episode Status
 ```python
 with get_db_session() as session:
-    episode = session.query(Episode).filter(Episode.id == 672).first()
+    episode = session.query(Episode).filter(
+        Episode.podcast == "Le rendez-vous Tech",
+        Episode.episode_id == 672
+    ).first()
     episode.processing_stage = ProcessingStage.RAW_TRANSCRIPT
     episode.raw_transcript_path = "/path/to/transcript.json"
     # Session automatically commits on context exit
 ```
 
-### Search by Date Range
+### Get Available Podcasts
 ```python
-from datetime import datetime, timedelta
+from src.db import get_podcasts
 
-with get_db_session() as session:
-    recent = session.query(Episode).filter(
-        Episode.published_date >= datetime.now() - timedelta(days=30)
-    ).order_by(Episode.published_date.desc()).all()
+podcasts = get_podcasts()
+print(f"Available podcasts: {podcasts}")
 ```
 
 ## Database Migrations

@@ -77,9 +77,9 @@ class Episode(Base, TimestampMixin):
     embedding).
 
     Attributes:
-        uuid: Primary key, unique identifier from RSS feed (or generated UUID)
-        episode_id: Episode number (not unique across different podcasts, was id)
+        uuid: Primary key, unique identifier (UUID7 format)
         podcast: Podcast name/identifier
+        episode_id: Episode number within podcast (not unique across different podcasts)
         title: Episode title from RSS feed
         description: Episode description/show notes (truncated to 1000 chars)
         published_date: Publication date from RSS feed

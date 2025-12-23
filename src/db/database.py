@@ -280,6 +280,7 @@ def get_podcasts() -> list[str]:
         db_logger.error(f"Failed to retrieve podcasts: {e}")
         return []
 
+
 @log_function(logger_name="database", log_execution_time=True)
 def update_episode_in_db(
     uuid: str,
@@ -300,8 +301,7 @@ def update_episode_in_db(
     """
     Update episode record in the database.
 
-    Update episode by episode ID.
-    Only update field with an argument. None argument = No update
+    Update episode by UUID. Only updates fields provided (non-None arguments).
 
     Args:
         uuid (str): UUID of the episode to update.
@@ -359,7 +359,6 @@ def update_episode_in_db(
             session.commit()
     except Exception as e:
         raise e
-
 
 
 # Log database configuration on module load

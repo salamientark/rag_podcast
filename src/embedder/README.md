@@ -6,13 +6,13 @@ Generate text embeddings from podcast transcripts using VoyageAI and store them 
 
 ```bash
 # Embed single transcript file
-uv run -m src.embedder data/transcripts/episode_672/formatted_episode_672.txt
+uv run -m src.embedder data/transcripts/formatted_episode.txt
 
 # Batch process multiple files
 uv run -m src.embedder "data/transcripts/*/formatted_*.txt"
 
-# Batch with custom dimensions and local backup
-uv run -m src.embedder *.txt --dimensions 512 --save-local
+# With custom dimensions
+uv run -m src.embedder *.txt --dimensions 512
 ```
 
 ## CLI Tools
@@ -33,7 +33,7 @@ uv run -m src.embedder "**/*.txt" --dry-run --verbose
 - `--dimensions` (`-d`) - Vector dimensions: 256, 512, 1024, 2048 (default: 1024)
 - `--collection` - Qdrant collection name (default: from environment)
 - `--save-local` - Save embeddings as .npy files locally
-- `--episode-id` - Override auto-extracted episode ID
+- `--episode-id` - Override episode UUID for database lookup
 - `--dry-run` - Validate files without processing
 - `--verbose` (`-v`) - Detailed logging output
 
@@ -137,10 +137,7 @@ The embedder integrates with the main pipeline system:
 
 ```bash
 # Embed through pipeline (recommended)
-uv run -m src.pipeline --stages embedded --limit 5
-
-# Direct embedding (advanced)
-uv run -m src.embedder "data/transcripts/*/formatted_*.txt"
+uv run -m src.pipeline --podcast "Le rendez-vous Tech" --stages embed --limit 5
 ```
 
 ## Troubleshooting

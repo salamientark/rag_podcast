@@ -41,18 +41,20 @@ def fetch_podcast_episodes(feed_url: Optional[str] = None) -> list[dict[str, Any
     """
     Fetch episodes from RSS feed and parse episode metadata.
 
-    Retrieves the RSS feed URL from environment variables, parses the XML feed,
-    and extracts episode information including title, date, audio URL, and description.
+    Retrieves the RSS feed URL, parses the XML feed, and extracts episode information.
+    Auto-generates UUID7 identifiers and sequential episode_id for each episode.
 
     Args:
         feed_url: RSS feed URL. If None, reads from FEED_URL environment variable.
 
     Returns:
         List of dictionaries containing episode data with keys:
+        - uuid (str): Unique episode identifier (UUID7 format)
+        - podcast (str): Podcast name extracted from feed
+        - episode_id (int): Sequential episode number within podcast
         - title (str): Episode title
         - date (datetime): Publication date
         - audio_url (str): URL to audio file
-        - guid (str): Unique episode identifier
         - description (str, optional): Episode description (max 1000 chars)
 
     Raises:

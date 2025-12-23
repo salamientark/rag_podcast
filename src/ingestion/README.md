@@ -38,6 +38,9 @@ uv run -m src.ingestion.sync_episodes --feed-url https://feeds.example.com/podca
 
 **What it does:**
 - Fetches episode metadata from RSS feed
+- Auto-extracts podcast name from feed
+- Generates UUID7 identifiers for new episodes
+- Assigns sequential episode_id within each podcast
 - Stores title, date, audio URL, description in database
 - Skips duplicates automatically
 - Log: `logs/sync_episodes.log`
@@ -113,7 +116,7 @@ uv run -m src.ingestion.audio_scrap --dry-run
 
 **What it does:**
 - Downloads MP3 files for episodes in database
-- Saves as `episode_001_Title.mp3` (zero-padded ID)
+- Saves as `episode_001_Title.mp3` (uses episode_id, not UUID)
 - Skips existing files automatically
 - Retries failed downloads (3 attempts)
 - Log: `logs/audio_download.log`

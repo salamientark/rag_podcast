@@ -128,6 +128,22 @@ def run_pipeline(
     podcast: Optional[str] = None,
     feed_url: Optional[str] = None,
 ):
+    """
+    Run the complete podcast processing pipeline.
+
+    Orchestrates all stages from RSS sync to embedding generation.
+    Requires either podcast name or feed URL.
+
+    Args:
+        episodes_id: List of episode_id values to process (within the podcast)
+        limit: Maximum number of episodes to process
+        stages: List of stage names to run (None = all stages)
+        dry_run: Preview mode without making changes
+        verbose: Enable detailed logging
+        use_cloud_storage: Use cloud storage instead of local
+        podcast: Podcast name to filter episodes (mutually exclusive with feed_url)
+        feed_url: Custom RSS feed URL (auto-extracts podcast name, mutually exclusive with podcast)
+    """
     logger = logging.getLogger("pipeline")
 
     try:
@@ -166,17 +182,20 @@ def run_pipeline(
 
         # Run download audio stage
         if stages is None or "download" in stages:
-            episodes_to_process = run_download_stage(episodes_to_process, use_cloud_storage)
+            episodes_to_process = run_download_stage(
+                episodes_to_process, use_cloud_storage
+            )
         else:
             episodes_to_process = [
-                    {
-                        'uuid': ep.uuid,
-                        'podcast': ep.podcast,
-                        'episode_id': ep.episode_id,
-                        'title': ep.title,
-                        'audio_file_path': ep.audio_file_path,
-                    } for ep in episodes_to_process]
-
+                {
+                    "uuid": ep.uuid,
+                    "podcast": ep.podcast,
+                    "episode_id": ep.episode_id,
+                    "title": ep.title,
+                    "audio_file_path": ep.audio_file_path,
+                }
+                for ep in episodes_to_process
+            ]
 
         # Run raw transcript stage
         if stages is None or "raw_transcript" in stages:
@@ -184,33 +203,36 @@ def run_pipeline(
         else:
             episodes_to_process = [
                 {
-                    'uuid': ep.uuid,
-                    'podcast': ep.podcast,
-                    'episode_id': ep.episode_id,
-                    'title': ep.title,
-                    'audio_file_path': ep.audio_file_path,
-                    'raw_transcript_path': ep.raw_transcript_path,
-                } for ep in episodes_to_process]
-
-
+                    "uuid": ep.uuid,
+                    "podcast": ep.podcast,
+                    "episode_id": ep.episode_id,
+                    "title": ep.title,
+                    "audio_file_path": ep.audio_file_path,
+                    "raw_transcript_path": ep.raw_transcript_path,
+                }
+                for ep in episodes_to_process
+            ]
 
         # Run formatted transcript stage (Speaker mapping included)
         if stages is None or "format_transcript" in stages:
             episodes_to_process = run_speaker_mapping_stage(episodes_to_process)
-            episodes_to_process = run_formatted_transcript_stage(episodes_to_process, use_cloud_storage)
+            episodes_to_process = run_formatted_transcript_stage(
+                episodes_to_process, use_cloud_storage
+            )
         else:
             episodes_to_process = [
                 {
-                    'uuid': ep.uuid,
-                    'podcast': ep.podcast,
-                    'episode_id': ep.episode_id,
-                    'title': ep.title,
-                    'audio_file_path': ep.audio_file_path,
-                    'raw_transcript_path': ep.raw_transcript_path,
-                    'mapping_path': ep.speaker_mapping_path,
-                    'formatted_transcript_path': ep.formatted_transcript_path,
-                } for ep in episodes_to_process]
-
+                    "uuid": ep.uuid,
+                    "podcast": ep.podcast,
+                    "episode_id": ep.episode_id,
+                    "title": ep.title,
+                    "audio_file_path": ep.audio_file_path,
+                    "raw_transcript_path": ep.raw_transcript_path,
+                    "mapping_path": ep.speaker_mapping_path,
+                    "formatted_transcript_path": ep.formatted_transcript_path,
+                }
+                for ep in episodes_to_process
+            ]
 
         # Run embedding stage
         if stages is None or "embed" in stages:
