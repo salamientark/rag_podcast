@@ -89,7 +89,7 @@ def filter_episode(
 
     # Select by IDs
     if episodes_id is not None:
-        filetered_episodes = [ep for ep in episodes if ep.id in episodes_id]
+        filetered_episodes = [ep for ep in episodes if ep.episode_id in episodes_id]
     # Select by limit
     elif limit is not None:
         episode_left = limit

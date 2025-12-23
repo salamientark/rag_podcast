@@ -18,6 +18,7 @@ import re
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 
 import requests
 
@@ -69,7 +70,9 @@ def sanitize_filename(title, max_length=100):
     return safe if safe else "unknown_episode"
 
 
-def generate_filename(episode_number, title):
+def generate_filename(
+        episode_number: int,
+        title: str):
     """Generate filename: episode_{number:03d}_{title}.mp3"""
     safe_title = sanitize_filename(title)
     return f"episode_{episode_number:03d}_{safe_title}.mp3"
@@ -131,11 +134,12 @@ def get_episodes_from_db(limit=None):
                     # Use database ID as episode number for filenames
                     episode_list.append(
                         {
-                            "id": ep.id,
+                            "uuid": ep.uuid,
+                            "podcast": ep.podcast,
                             "title": ep.title,
                             "audio_url": ep.audio_url,
                             "published_date": ep.published_date,
-                            "episode_number": ep.id,  # Use database ID as episode number
+                            "episode_id": ep.episode_id,  # Use database ID as episode number
                         }
                     )
 
@@ -162,19 +166,19 @@ def get_existing_files(audio_dir):
 
 @log_function(logger_name="audio_scraper", log_execution_time=True)
 def download_episode(
-    episode_number, title, url, audio_dir, max_retries=3
+    episode_number, title, url, workspace, max_retries=3
 ) -> tuple[bool, str]:
     """Download single episode with browser headers for feedpress.me URLs"""
     logger = logging.getLogger("audio_scraper")
 
-    os.makedirs(audio_dir, exist_ok=True)
+    os.makedirs(workspace, exist_ok=True)
     filename = generate_filename(episode_number, title)
-    filepath = os.path.join(audio_dir, filename)
+    filepath = os.path.join(workspace, filename)
 
     # Check if already exists
     if os.path.exists(filepath):
         logger.info(f"Audio for '{title[:40]}...' already downloaded")
-        return True
+        return True, filepath
 
     # Browser headers to handle feedpress.me redirects properly
     headers = {
@@ -269,7 +273,7 @@ def download_missing_episodes(audio_dir="data/audio", limit=None, dry_run=False)
         missing_episodes = []
         for episode in all_episodes:
             expected_filename = generate_filename(
-                episode["episode_number"], episode["title"]
+                episode["episode_id"], episode["title"]
             )
             if expected_filename not in existing_files:
                 missing_episodes.append(episode)
@@ -327,7 +331,7 @@ def download_missing_episodes(audio_dir="data/audio", limit=None, dry_run=False)
 
             if success:
                 stats["downloaded"] += 1
-                if update_episode_status(episode["id"], filepath):
+                if update_episode_status(episode["episode_id"], filepath):
                     stats["db_updated"] += 1
                 else:
                     logger.warning(

@@ -66,7 +66,7 @@ def validate_episode_ids(episode_ids: List[int]) -> tuple[List[int], List[int]]:
     try:
         with get_db_session() as session:
             for episode_id in episode_ids:
-                episode = session.query(Episode).filter_by(id=episode_id).first()
+                episode = session.query(Episode).filter_by(episode_id=episode_id).first()
                 if episode:
                     valid_ids.append(episode_id)
                 else:
