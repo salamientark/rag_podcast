@@ -21,7 +21,6 @@ from sqlalchemy import (
     String,
     Text,
     DateTime,
-    UniqueConstraint,
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
@@ -77,8 +76,9 @@ class Episode(Base, TimestampMixin):
     embedding).
 
     Attributes:
-        id: Primary key, auto-incremented
-        guid: Unique identifier from RSS feed (or generated)
+        uuid: Primary key, unique identifier (UUID7 format)
+        podcast: Podcast name/identifier
+        episode_id: Episode number within podcast (not unique across different podcasts)
         title: Episode title from RSS feed
         description: Episode description/show notes (truncated to 1000 chars)
         published_date: Publication date from RSS feed
@@ -94,16 +94,19 @@ class Episode(Base, TimestampMixin):
         updated_at: Timestamp of last update (from TimestampMixin)
 
     File Path Conventions:
-        audio_file_path: data/audio/episode_{id:03d}_{sanitized_title}.mp3
-        raw_transcript_path: data/transcript/episode_{id}_universal.json
-        formatted_transcript_path: data/transcript/episode_{id}_formatted.txt
+        audio_file_path: data/audio/episode_{episode_id:03d}_{sanitized_title}.mp3
+        raw_transcript_path: data/transcript/episode_{episode_id}_universal.json
+        formatted_transcript_path: data/transcript/episode_{episode_id}_formatted.txt
     """
 
     __tablename__ = "episodes"
 
     # Primary metadata
-    id = Column(Integer, primary_key=True)
-    guid = Column(String, nullable=False, unique=True)
+    uuid = Column(String, primary_key=True)  # Primary key (was guid)
+    podcast = Column(String, nullable=False)
+    episode_id = Column(
+        Integer, nullable=False
+    )  # Episode number, not unique across podcasts (was id)
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     published_date = Column(DateTime, nullable=False)
@@ -127,11 +130,29 @@ class Episode(Base, TimestampMixin):
     transcript_duration = Column(Integer, nullable=True)  # in seconds
     transcript_confidence = Column(Float, nullable=True)  # percentage 0.0-1.0
 
-    # Constraints
-    __table_args__ = (UniqueConstraint("guid", name="uq_guid"),)
-
     def __repr__(self):
         return (
-            f"<Episode(id={self.id}, title='{self.title}', published_date='{self.published_date})', "
-            f"stage={self.processing_stage.value})>"
+            f"<Episode(uuid={self.uuid}, episode_id={self.episode_id}, title='{self.title}', "
+            f"published_date='{self.published_date})', stage={self.processing_stage.value})>"
         )
+
+    def to_dict(self):
+        """Convert Episode instance to dictionary representation."""
+        return {
+            "uuid": self.uuid,
+            "podcast": self.podcast,
+            "episode_id": self.episode_id,
+            "title": self.title,
+            "description": self.description,
+            "published_date": self.published_date.isoformat() if self.published_date else None,
+            "audio_url": self.audio_url,
+            "processing_stage": self.processing_stage.value,
+            "audio_file_path": self.audio_file_path,
+            "raw_transcript_path": self.raw_transcript_path,
+            "speaker_mapping_path": self.speaker_mapping_path,
+            "formatted_transcript_path": self.formatted_transcript_path,
+            "transcript_duration": self.transcript_duration,
+            "transcript_confidence": self.transcript_confidence,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None, 
+        }

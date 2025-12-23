@@ -7,11 +7,12 @@ Based on successful simple testing. Fast and reliable.
 Usage:
     uv run -m src.ingestion.sync_episodes                  # Sync last 30 days
     uv run -m src.ingestion.sync_episodes --full-sync      # Sync all episodes
+    uv run -m src.ingestion.sync_episodes --feed-url https://feeds.example.com/podcast.xml  # Custom feed
     uv run -m src.ingestion.sync_episodes --limit 5        # Sync 5 episodes
     uv run -m src.ingestion.sync_episodes --dry-run        # Test mode (very fast)
 """
 
-import hashlib
+import uuid_utils as uuid
 import logging
 import os
 import sys
@@ -36,33 +37,40 @@ logger = setup_logging(logger_name="sync_episodes", log_file="logs/sync_episodes
 
 
 @log_function(logger_name="sync_episodes", log_execution_time=True)
-def fetch_podcast_episodes() -> list[dict[str, Any]]:
+def fetch_podcast_episodes(feed_url: Optional[str] = None) -> list[dict[str, Any]]:
     """
     Fetch episodes from RSS feed and parse episode metadata.
 
-    Retrieves the RSS feed URL from environment variables, parses the XML feed,
-    and extracts episode information including title, date, audio URL, and description.
+    Retrieves the RSS feed URL, parses the XML feed, and extracts episode information.
+    Auto-generates UUID7 identifiers and sequential episode_id for each episode.
+
+    Args:
+        feed_url: RSS feed URL. If None, reads from FEED_URL environment variable.
 
     Returns:
         List of dictionaries containing episode data with keys:
+        - uuid (str): Unique episode identifier (UUID7 format)
+        - podcast (str): Podcast name extracted from feed
+        - episode_id (int): Sequential episode number within podcast
         - title (str): Episode title
         - date (datetime): Publication date
         - audio_url (str): URL to audio file
-        - guid (str): Unique episode identifier
         - description (str, optional): Episode description (max 1000 chars)
 
     Raises:
         EnvironmentError: If .env file cannot be loaded or FEED_URL is missing
         requests.RequestException: If feed fetch fails
     """
-    # Get feed URL from .env
-    env = load_dotenv()
-    if not env:
-        raise EnvironmentError("Could not load .env file")
-    FEED_URL = os.getenv("FEED_URL")
-
-    if not FEED_URL:
-        raise EnvironmentError("FEED_URL not found in .env file")
+    # Get feed URL from parameter or .env
+    if not feed_url:
+        env = load_dotenv()
+        if not env:
+            raise EnvironmentError("Could not load .env file")
+        FEED_URL = os.getenv("FEED_URL")
+        if not FEED_URL:
+            raise EnvironmentError("FEED_URL not found in .env file")
+    else:
+        FEED_URL = feed_url
 
     logger.info(f"Fetching feed from {FEED_URL}...")
     try:
@@ -75,9 +83,21 @@ def fetch_podcast_episodes() -> list[dict[str, Any]]:
     # Parse XML
     soup = BeautifulSoup(response.content, "xml")
     episodes = []
+    podcast_name = soup.find("channel").find("title").get_text(strip=True)
 
-    for item in soup.find_all("item"):
+    for i, item in enumerate(reversed(soup.find_all("item"))):
         episode_data = {}
+
+        # UUID/GUID
+        episode_data["uuid"] = str(uuid.uuid7())
+
+        # Podcast name
+        if not podcast_name:
+            continue
+        episode_data["podcast"] = podcast_name
+
+        # Episode ID (sequential)
+        episode_data["episode_id"] = i + 1
 
         # Title
         title_tag = item.find("title")
@@ -115,18 +135,11 @@ def fetch_podcast_episodes() -> list[dict[str, Any]]:
             clean_desc = BeautifulSoup(description, "html.parser").get_text()
             episode_data["description"] = clean_desc[:1000]  # Limit length
 
-        # GUID
-        guid_tag = item.find("guid")
-        if guid_tag:
-            episode_data["guid"] = guid_tag.get_text(strip=True)
-        else:
-            # Generate simple GUID from title + date
-            content = f"{episode_data['title']}|{episode_data['date'].isoformat()}"
-            hash_value = hashlib.md5(content.encode("utf-8")).hexdigest()[:12]
-            episode_data["guid"] = f"generated-{hash_value}"
-
         # Only add if we have required fields
-        if all(key in episode_data for key in ["title", "date", "audio_url", "guid"]):
+        if all(
+            key in episode_data
+            for key in ["title", "date", "audio_url", "uuid", "episode_id", "podcast"]
+        ):
             episodes.append(episode_data)
 
     print(f"Found {len(episodes)} episodes.")
@@ -237,7 +250,11 @@ def sync_to_database(
             try:
                 # Check if exists
                 existing = (
-                    session.query(Episode).filter_by(guid=episode_data["guid"]).first()
+                    session.query(Episode)
+                    .filter_by(
+                        podcast=episode_data["podcast"],
+                        audio_url=episode_data["audio_url"])
+                    .first()
                 )
                 if existing:
                     print(
@@ -247,7 +264,9 @@ def sync_to_database(
                 else:
                     # Create new episode
                     episode = Episode(
-                        guid=episode_data["guid"],
+                        uuid=episode_data["uuid"],
+                        podcast=episode_data["podcast"],
+                        episode_id=episode_data["episode_id"],
                         title=episode_data["title"],
                         published_date=episode_data["date"],
                         audio_url=episode_data["audio_url"],
@@ -259,11 +278,11 @@ def sync_to_database(
                     # Get the ID that was just assigned
                     session.refresh(episode)
                     print(
-                        f'  ✓ Added as ID {episode.id}: "{episode_data["title"][:50]}..." ({episode_data["date"].strftime("%Y-%m-%d")})'
+                        f'  ✓ Added as ID {episode.episode_id}: "{episode_data["title"][:50]}..." ({episode_data["date"].strftime("%Y-%m-%d")})'
                     )
                     stats["added"] += 1
                     logger.info(
-                        f"Added episode ID {episode.id}: {episode_data['title']}"
+                        f"Added episode ID {episode.episode_id}: {episode_data['title']}"
                     )
 
                 stats["processed"] += 1

@@ -17,6 +17,7 @@ def chunks_to_text(chunks: list[Any]) -> list[str]:
     text_list = [chunk.text.strip() for chunk in chunks]
     return text_list
 
+
 def chunk_long_text(
     text: str, max_tokens: int = 30000, overlap_percent: float = 0.1
 ) -> list[str]:

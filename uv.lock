@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.13"
 
 [[package]]
@@ -2849,6 +2849,7 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "tiktoken" },
     { name = "urllib3" },
+    { name = "uuid-utils" },
     { name = "voyageai" },
 ]
 
@@ -2878,6 +2879,7 @@ requires-dist = [
     { name = "sqlalchemy", specifier = ">=2.0.44" },
     { name = "tiktoken", specifier = ">=0.12.0" },
     { name = "urllib3", specifier = ">=2.5.0" },
+    { name = "uuid-utils", specifier = ">=0.12.0" },
     { name = "voyageai", specifier = ">=0.3.5" },
 ]
 

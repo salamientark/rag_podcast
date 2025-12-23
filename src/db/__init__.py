@@ -27,8 +27,10 @@ from .database import (
     check_database_connection,
     init_database,
     get_database_info,
+    get_podcasts,
     engine,
     SessionLocal,
+    update_episode_in_db,
 )
 from .qdrant_client import (
     get_qdrant_client,
@@ -56,8 +58,10 @@ __all__ = [
     "check_database_connection",
     "init_database",
     "get_database_info",
+    "get_podcasts",
     "engine",
     "SessionLocal",
+    "update_episode_in_db",
     # Qdrant Vector Database utilities
     "get_qdrant_client",
     "check_qdrant_connection",

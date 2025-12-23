@@ -71,25 +71,34 @@ def filter_episode(
     episodes_id: Optional[list[int]] = None,
     limit: Optional[int] = None,
     stage: Optional[ProcessingStage] = ProcessingStage.EMBEDDED,
+    podcast: Optional[str] = None,
 ) -> list[Episode]:
     """
-    Filter episodes based on provided IDs and limit.
+    Filter episodes based on provided IDs, limit, stage, and podcast.
 
     Args:
         episodes (list[Episode]): List of Episode objects to filter.
         episodes_id (Optional[list[int]]): List of episode IDs to include. If None, include all.
         limit (Optional[int]): Maximum number of episodes to return. If None, no limit.
         stage (Optional[ProcessingStage]): Processing stage to filter by. If None, defaults to EMBEDDED.
+        podcast (Optional[str]): Podcast name to filter by (case-insensitive). If None, include all podcasts.
 
     Returns:
         list[Episode]: Filtered list of Episode objects.
     """
+    logger = logging.getLogger("pipeline")
+
+    # Filter by podcast first (case-insensitive)
+    if podcast is not None:
+        episodes = [ep for ep in episodes if ep.podcast.lower() == podcast.lower()]
+        logger.info(f"Filtered to {len(episodes)} episodes from podcast: {podcast}")
+
     filetered_episodes = []
     stage_order = list(ProcessingStage)
 
     # Select by IDs
     if episodes_id is not None:
-        filetered_episodes = [ep for ep in episodes if ep.id in episodes_id]
+        filetered_episodes = [ep for ep in episodes if ep.episode_id in episodes_id]
     # Select by limit
     elif limit is not None:
         episode_left = limit
@@ -116,7 +125,25 @@ def run_pipeline(
     dry_run: bool = False,
     verbose: bool = False,
     use_cloud_storage: bool = False,
+    podcast: Optional[str] = None,
+    feed_url: Optional[str] = None,
 ):
+    """
+    Run the complete podcast processing pipeline.
+
+    Orchestrates all stages from RSS sync to embedding generation.
+    Requires either podcast name or feed URL.
+
+    Args:
+        episodes_id: List of episode_id values to process (within the podcast)
+        limit: Maximum number of episodes to process
+        stages: List of stage names to run (None = all stages)
+        dry_run: Preview mode without making changes
+        verbose: Enable detailed logging
+        use_cloud_storage: Use cloud storage instead of local
+        podcast: Podcast name to filter episodes (mutually exclusive with feed_url)
+        feed_url: Custom RSS feed URL (auto-extracts podcast name, mutually exclusive with podcast)
+    """
     logger = logging.getLogger("pipeline")
 
     try:
@@ -127,8 +154,22 @@ def run_pipeline(
 
         # Run sync Stage
         logger.info("=== PIPELINE STARTED ===")
-        if stages is None or "sync" in stages:
-            run_sync_stage()
+
+        # Handle feed_url vs podcast
+        if feed_url:
+            # Always run sync stage when feed_url is provided
+            logger.info(f"Using custom feed URL: {feed_url}")
+            extracted_podcast = run_sync_stage(feed_url=feed_url)
+            logger.info(f"Extracted podcast name from feed: {extracted_podcast}")
+            podcast = extracted_podcast
+        elif podcast:
+            logger.info(f"Filtering by podcast: {podcast}")
+            # Only run sync if stage is requested
+            if stages is None or "sync" in stages:
+                run_sync_stage()
+        else:
+            logger.error("Either feed_url or podcast must be provided")
+            raise ValueError("Either feed_url or podcast must be provided")
 
         # Filter episodes to process
         episodes_to_process = filter_episode(
@@ -136,39 +177,31 @@ def run_pipeline(
             episodes_id=episodes_id,
             limit=limit,
             stage=last_stage,
+            podcast=podcast,
         )
+
+        episodes_to_process = [ep.to_dict() for ep in episodes_to_process]
 
         # Run download audio stage
         if stages is None or "download" in stages:
-            audio_path = run_download_stage(episodes_to_process, use_cloud_storage)
-        else:
-            audio_path = [ep.audio_file_path for ep in episodes_to_process]
+            episodes_to_process = run_download_stage(
+                episodes_to_process, use_cloud_storage
+            )
 
         # Run raw transcript stage
         if stages is None or "raw_transcript" in stages:
-            raw_transcript_path = run_raw_transcript_stage(audio_path)
-        else:
-            raw_transcript_path = [ep.raw_transcript_path for ep in episodes_to_process]
+            episodes_to_process = run_raw_transcript_stage(episodes_to_process)
 
         # Run formatted transcript stage (Speaker mapping included)
         if stages is None or "format_transcript" in stages:
-            speaker_mapping_paths = run_speaker_mapping_stage(raw_transcript_path)
-
-            transcript_with_mapping = [
-                {"transcript": rt, "speaker_mapping": sm}
-                for rt, sm in zip(raw_transcript_path, speaker_mapping_paths)
-            ]
-            formatted_transcript_paths = run_formatted_transcript_stage(
-                transcript_with_mapping, use_cloud_storage
+            episodes_to_process = run_speaker_mapping_stage(episodes_to_process)
+            episodes_to_process = run_formatted_transcript_stage(
+                episodes_to_process, use_cloud_storage
             )
-        else:
-            formatted_transcript_paths = [
-                ep.formatted_transcript_path for ep in episodes_to_process
-            ]
 
         # Run embedding stage
         if stages is None or "embed" in stages:
-            run_embedding_stage(formatted_transcript_paths)
+            run_embedding_stage(episodes_to_process)
 
         logger.info("=== PIPELINE COMPLETED SUCCESSFULLY ===")
 

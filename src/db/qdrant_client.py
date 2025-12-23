@@ -268,7 +268,7 @@ def check_episode_exists_in_qdrant(
 def get_episode_vectors(
     client: QdrantClient,
     collection_name: str,
-    episode_id: int,
+    episode_uuid: str,
 ) -> Optional[list[list[float]]]:
     """
     Retrieve all embedding vectors for an episode from Qdrant.
@@ -278,7 +278,7 @@ def get_episode_vectors(
     Args:
         client (QdrantClient): Active Qdrant client instance
         collection_name (str): Name of the collection to search
-        episode_id (int): Episode ID to retrieve
+        episode_uuid (str): Episode UUID to retrieve
 
     Returns:
         List of embedding vectors (sorted by chunk_index), or None if not found
@@ -296,7 +296,7 @@ def get_episode_vectors(
 
         # Build filter for episode_id
         scroll_filter = Filter(
-            must=[FieldCondition(key="episode_id", match=MatchValue(value=episode_id))]
+            must=[FieldCondition(key="db_uuid", match=MatchValue(value=episode_uuid))]
         )
 
         # Query for ALL matching points (not just limit=1)
@@ -310,7 +310,7 @@ def get_episode_vectors(
 
         if len(records) == 0:
             qdrant_logger.debug(
-                f"Episode {episode_id} not found in collection '{collection_name}'"
+                f"Episode {episode_uuid} not found in collection '{collection_name}'"
             )
             return None
 
@@ -328,13 +328,13 @@ def get_episode_vectors(
             vectors.append(vector)
 
         qdrant_logger.info(
-            f"Retrieved {len(vectors)} chunk vector(s) for episode {episode_id}"
+            f"Retrieved {len(vectors)} chunk vector(s) for episode {episode_uuid}"
         )
         return vectors
 
     except Exception as e:
         qdrant_logger.error(
-            f"Error retrieving vectors for episode {episode_id} from '{collection_name}': {e}"
+            f"Error retrieving vectors for episode {episode_uuid} from '{collection_name}': {e}"
         )
         return None
 
@@ -384,7 +384,8 @@ def ensure_payload_indexes(
     Ensure required payload indexes exist for the collection.
 
     Creates indexes for:
-    - episode_id: INTEGER (required for filtering episodes)
+    - episode_id: INTEGER (required for filtering episodes by ID)
+    - db_uuid: KEYWORD (required for filtering episodes by UUID)
 
     Args:
         client (QdrantClient): Active Qdrant client instance
@@ -418,6 +419,24 @@ def ensure_payload_indexes(
         else:
             qdrant_logger.debug(
                 f"episode_id index already exists for collection '{collection_name}'"
+            )
+
+        # Create db_uuid index if it doesn't exist
+        if "db_uuid" not in existing_indexes:
+            qdrant_logger.info(
+                f"Creating db_uuid index for collection '{collection_name}'"
+            )
+            client.create_payload_index(
+                collection_name=collection_name,
+                field_name="db_uuid",
+                field_schema=PayloadSchemaType.KEYWORD,
+            )
+            qdrant_logger.info(
+                f"Created db_uuid index for collection '{collection_name}'"
+            )
+        else:
+            qdrant_logger.debug(
+                f"db_uuid index already exists for collection '{collection_name}'"
             )
 
     except Exception as e:

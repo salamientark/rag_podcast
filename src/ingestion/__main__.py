@@ -18,7 +18,6 @@ from datetime import datetime, timedelta
 from src.db import get_db_session, Episode
 from src.logger import setup_logging
 from src.ingestion.sync_episodes import (
-    reconcile_episode_status,
     fetch_podcast_episodes,
     filter_episodes,
     sync_to_database,
@@ -34,6 +33,7 @@ def main():
 Examples:
   uv run -m src.ingestion.sync_episodes                  # Sync last 30 days
   uv run -m src.ingestion.sync_episodes --full-sync      # Sync all episodes
+  uv run -m src.ingestion.sync_episodes --feed-url https://feeds.example.com/podcast.xml  # Custom feed URL
   uv run -m src.ingestion.sync_episodes --days 60        # Sync last 60 days  
   uv run -m src.ingestion.sync_episodes --limit 5        # Sync 5 most recent
   uv run -m src.ingestion.sync_episodes --limit 5 --dry-run  # Test mode (fast)
@@ -51,6 +51,12 @@ Examples:
         "--dry-run",
         action="store_true",
         help="Show what would be synced without saving",
+    )
+    parser.add_argument(
+        "--feed-url",
+        type=str,
+        default=None,
+        help="RSS feed URL (overrides FEED_URL from .env)",
     )
     parser.add_argument(
         "--reconcile",
@@ -96,18 +102,13 @@ Examples:
                 episodes = query.all()
 
             # Run reconciliation
-            stats = reconcile_episode_status(episodes, dry_run=args.dry_run)
+            # TODO: Fix broken import - reconcile_episode_status not found
+            raise NotImplementedError("Reconcile functionality is currently broken")
 
-            # Print summary
-            print(
-                f"\nReconciliation completed: {stats['processed']} processed, "
-                f"{stats['updated']} updated, {stats['unchanged']} unchanged, "
-                f"{stats['errors']} errors"
-            )
         else:
             # EXISTING RSS SYNC WORKFLOW
             # Fetch episodes
-            episodes = fetch_podcast_episodes()
+            episodes = fetch_podcast_episodes(feed_url=args.feed_url)
             if not episodes:
                 print("No episodes found")
                 return

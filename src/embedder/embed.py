@@ -7,7 +7,7 @@ from pathlib import Path
 import voyageai
 
 from src.logger import log_function
-from src.db.database import get_db_session
+from src.db.database import get_db_session, update_episode_in_db
 from src.db.qdrant_client import (
     get_qdrant_client,
     insert_one_point,
@@ -105,7 +105,7 @@ def embed_text(text: str | list[str], dimensions: int = 1024) -> Any:
 
 @log_function(logger_name="embedder", log_args=True, log_execution_time=True)
 def update_episode_processing_stage(
-    episode_id: str,
+    uuid: str,
 ) -> bool:
     """
     Update episode database record with EMBEDDED processing stage.
@@ -120,10 +120,10 @@ def update_episode_processing_stage(
     logger = logging.getLogger("embedder")
     try:
         with get_db_session() as session:
-            episode = session.query(Episode).filter_by(id=episode_id).first()
+            episode = session.query(Episode).filter_by(uuid=uuid).first()
 
             if not episode:
-                logger.error(f"Episode {episode_id} not found in database")
+                logger.error(f"Episode {uuid} not found in database")
                 return False
 
             # Update db fields
@@ -135,11 +135,11 @@ def update_episode_processing_stage(
 
             session.commit()
             logger.info(
-                f"Updated episode ID {episode_id} with EMBEDDED processing stage"
+                f"Updated episode ID {uuid} with EMBEDDED processing stage"
             )
             return True
     except Exception as e:
-        logger.error(f"Failed to update episode ID {episode_id}: {e}")
+        logger.error(f"Failed to update episode ID {uuid}: {e}")
         return False
 
 
@@ -197,9 +197,11 @@ def load_embedding_from_file(file_path: Path) -> Optional[np.ndarray]:
         logger.error(f"Failed to load embedding from {file_path}: {e}")
         raise
 
+
 @log_function(logger_name="embedder", log_args=True, log_execution_time=True)
 def embed_file_to_db(
     input_file: str | Path,
+    episode_uuid: str,
     episode_id: int,
     collection_name: str,
     dimensions: int = 1024,
@@ -210,7 +212,7 @@ def embed_file_to_db(
 
     Args:
         input_file (str | Path): Path to the input transcript file.
-        episode_id (int): Database ID of the episode.
+        episode_uuid (str): Episode UUID in Database
         collection_name (str): Name of the collection to store embeddings.
         dimensions (int): Output vector dimensions (default: 1024).
         output_path (Optional[str | Path]): Optional path to save embeddings as .npy file.
@@ -237,7 +239,7 @@ def embed_file_to_db(
 
         # Get episode info from database
         with get_db_session() as session:
-            episode = session.query(Episode).filter_by(id=episode_id).first()
+            episode = session.query(Episode).filter_by(uuid=episode_uuid).first()
             if not episode:
                 raise ValueError(f"Episode ID {episode_id} not found in database")
 
@@ -245,7 +247,7 @@ def embed_file_to_db(
         payload = {
             "episode_id": episode_id,
             "title": episode.title,
-            "db_guid": str(episode.guid),
+            "db_guid": str(episode.uuid),
             "publication_date": format_publication_date(episode.published_date),
         }
 
@@ -263,7 +265,7 @@ def embed_file_to_db(
         logger.info(f"Embeddings stored in database for episode ID {episode_id}")
 
         # Update episode processing stage
-        update_episode_processing_stage(str(episode_id))
+        update_episode_processing_stage(episode_uuid)
     except Exception as e:
         logger.error(f"Failed to embed file {input_file}: {e}")
         raise
@@ -272,7 +274,7 @@ def embed_file_to_db(
 @log_function(logger_name="embedder", log_args=True, log_execution_time=True)
 def process_episode_embedding(
     input_file: str | Path,
-    episode_id: int,
+    episode_uuid: str,
     collection_name: str,
     dimensions: int = 1024,
 ) -> Dict[str, Any]:
@@ -284,7 +286,7 @@ def process_episode_embedding(
 
     Args:
         input_file (str | Path): Path to the input transcript file.
-        episode_id (int): Database ID of the episode.
+        episode_uuid (str): Database UUID of the episode.
         collection_name (str): Name of the collection to store embeddings.
         dimensions (int): Output vector dimensions (default: 1024).
 
@@ -297,9 +299,6 @@ def process_episode_embedding(
     """
     logger = logging.getLogger("embedder")
     input_path = Path(input_file)
-    local_file_path = (
-        DEFAULT_EMBEDDING_OUTPUT_DIR / f"episode_{episode_id:03d}_d{dimensions}.npy"
-    )
 
     result = {
         "action": None,
@@ -311,34 +310,41 @@ def process_episode_embedding(
     try:
         # Get episode info from database
         with get_db_session() as session:
-            episode = session.query(Episode).filter_by(id=episode_id).first()
+            episode = session.query(Episode).filter_by(uuid=episode_uuid).first()
             if not episode:
-                raise ValueError(f"Episode ID {episode_id} not found in database")
+                raise ValueError(f"Episode UUID {episode_uuid} not found in database")
+
+        # Get paths
+        workspace = f"data/{episode.podcast}/embeddings/"
+        local_file_path = Path(
+            f"{workspace}/episode_{episode.episode_id:03d}_d{dimensions}.npy"
+        )
 
         # Create base payload metadata
         base_payload = {
-            "episode_id": episode_id,
+            "podcast": episode.podcast,
+            "episode_id": episode.episode_id,
             "title": episode.title,
-            "db_guid": str(episode.guid),
+            "db_uuid": str(episode_uuid),
             "dimensions": dimensions,
             "publication_date": format_publication_date(episode.published_date),
         }
 
         # TIER 1: Check if vectors exist in Qdrant
         logger.info(
-            f"Checking if episode {episode_id} exists in Qdrant collection '{collection_name}'"
+            f"Checking if episode {episode_uuid} exists in Qdrant collection '{collection_name}'"
         )
         with get_qdrant_client() as client:
             vectors = get_episode_vectors(
                 client=client,
                 collection_name=collection_name,
-                episode_id=episode_id,
+                episode_uuid=episode_uuid,
             )
 
         if vectors is not None:
             num_chunks = len(vectors)
             logger.info(
-                f"Episode {episode_id} found in Qdrant ({num_chunks} chunk(s)), saving to local cache"
+                f"Episode {episode_uuid} found in Qdrant ({num_chunks} chunk(s)), saving to local cache"
             )
             # Save to local file if it doesn't exist
             if not local_file_path.exists():
@@ -349,7 +355,9 @@ def process_episode_embedding(
                 )
 
             # Update SQL database
-            update_episode_processing_stage(str(episode_id))
+            update_episode_in_db(
+                episode_uuid, processing_stage=ProcessingStage.EMBEDDED
+            )
 
             result["action"] = "retrieved_from_qdrant"
             result["embedding_path"] = str(local_file_path)
@@ -357,7 +365,7 @@ def process_episode_embedding(
             return result
 
         # TIER 2: Check if local file exists
-        logger.info(f"Episode {episode_id} not in Qdrant, checking local file")
+        logger.info(f"Episode {episode_uuid} not in Qdrant, checking local file")
         local_embedding = load_embedding_from_file(local_file_path)
 
         if local_embedding is not None:
@@ -372,7 +380,7 @@ def process_episode_embedding(
                 ]
 
             logger.info(
-                f"Episode {episode_id} found in local file ({len(embeddings_list)} chunk(s)), uploading to Qdrant"
+                f"Episode {episode_uuid} found in local file ({len(embeddings_list)} chunk(s)), uploading to Qdrant"
             )
 
             # We need to get the original text to include in metadata
@@ -419,7 +427,10 @@ def process_episode_embedding(
             logger.info(f"Uploaded {len(embeddings_list)} chunk embedding(s) to Qdrant")
 
             # Update SQL database
-            update_episode_processing_stage(str(episode_id))
+            update_episode_in_db(
+                episode_uuid, processing_stage=ProcessingStage.EMBEDDED
+            )
+            # update_episode_processing_stage(str(episode_id))
 
             result["action"] = "loaded_from_file"
             result["embedding_path"] = str(local_file_path)
@@ -428,7 +439,7 @@ def process_episode_embedding(
 
         # TIER 3: Embed fresh from transcript with chunking
         logger.info(
-            f"Episode {episode_id} not found locally, generating fresh embedding"
+            f"Episode {episode_uuid} not found locally, generating fresh embedding"
         )
 
         # Load transcript text
@@ -474,7 +485,8 @@ def process_episode_embedding(
         )
 
         # Update SQL database
-        update_episode_processing_stage(str(episode_id))
+        # update_episode_processing_stage(str(episode_id))
+        update_episode_in_db(episode_uuid, processing_stage=ProcessingStage.EMBEDDED)
 
         result["action"] = "embedded_fresh"
         result["embedding_path"] = str(saved_path)
@@ -482,6 +494,6 @@ def process_episode_embedding(
         return result
 
     except Exception as e:
-        logger.error(f"Failed to process embedding for episode {episode_id}: {e}")
+        logger.error(f"Failed to process embedding for episode {episode_uuid}: {e}")
         result["error"] = str(e)
         return result

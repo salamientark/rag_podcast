@@ -13,43 +13,32 @@ The pipeline module coordinates all stages from RSS feed to vector embeddings:
 
 ## Usage
 
-### Process All Episodes
+### Basic Usage (Required: --podcast or --feed-url)
+
 ```bash
-uv run -m src.pipeline --full
+# Using podcast name (from database)
+uv run -m src.pipeline --podcast "Le rendez-vous Tech" --full
+uv run -m src.pipeline --podcast "Le rendez-vous Tech" --limit 5
+
+# Using custom RSS feed URL (auto-detects podcast name)
+uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --full
+uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --limit 5
+
+# Process specific episodes (by episode_id within podcast)
+uv run -m src.pipeline --podcast "Le rendez-vous Tech" --episode-id 672 680
 ```
 
-### Process Specific Episode(s)
+### Advanced Options
+
 ```bash
-# Single episode
-uv run -m src.pipeline --episode-id 672
+# Run specific stages only
+uv run -m src.pipeline --podcast "Le rendez-vous Tech" --stages transcribe,embed --limit 10
 
-# Multiple episodes
-uv run -m src.pipeline --episode-id 672 680 685 690
-```
+# Force reprocessing
+uv run -m src.pipeline --podcast "Le rendez-vous Tech" --episode-id 672 --force
 
-### Process Limited Episodes
-```bash
-# Process last 5 episodes needing work
-uv run -m src.pipeline --limit 5
-```
-
-### Stage Control
-
-#### Run Specific Stages Only
-```bash
-uv run -m src.pipeline --stages raw_transcript,formatted_transcript,embedded --limit 10
-```
-
-### Options
-
-#### Force Reprocessing
-```bash
-uv run -m src.pipeline --episode-id 672 --force
-```
-
-#### Dry Run (Preview)
-```bash
-uv run -m src.pipeline --dry-run --limit 10 --verbose
+# Dry run (preview)
+uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --dry-run --verbose
 ```
 
 ## Available Stages
@@ -64,15 +53,19 @@ uv run -m src.pipeline --dry-run --limit 10 --verbose
 
 ## CLI Options
 
-### Processing Modes (choose one)
-- `--full` - Process all episodes in database
-- `--episode-id ID [ID ...]` - Process specific episode(s) by ID
-- `--limit N` - Process up to N episodes needing work
+### Required (choose one)
+- `--podcast NAME` - Process episodes from specific podcast (case-insensitive)
+- `--feed-url URL` - Use custom RSS feed (auto-detects podcast name, always syncs)
 
-### Stage Control
-- `--stages STAGE,...` - Run only specific stages (comma-separated)
+Note: --podcast and --feed-url are mutually exclusive
+
+### Processing Modes (choose one)
+- `--full` - Process all episodes from podcast
+- `--episode-id ID [ID ...]` - Process specific episode(s) by episode_id (not UUID)
+- `--limit N` - Process up to N episodes needing work (default: 5)
 
 ### Options
+- `--stages STAGE,...` - Run only specific stages (comma-separated)
 - `--force` - Force reprocessing of already completed stages
 - `--dry-run` - Show what would be processed without executing
 - `-v, --verbose` - Enable verbose logging output
@@ -106,37 +99,13 @@ src/pipeline/
 └── stages.py            # Stage wrappers (TODO)
 ```
 
-## Examples
+## Key Concepts
 
-### Development Workflow
-```bash
-# Test argument parsing
-uv run -m src.pipeline --help
+- **uuid**: Unique identifier for each episode (UUID7 format, primary key)
+- **episode_id**: Sequential episode number within a podcast (not globally unique)
+- **podcast**: Podcast name/identifier (groups episodes together)
 
-# Preview what would be processed
-uv run -m src.pipeline --dry-run --limit 5 --verbose
-
-# Process single episode (when implemented)
-uv run -m src.pipeline --episode-id 672
-
-# Process multiple episodes
-uv run -m src.pipeline --episode-id 672 673 680 --verbose
-
-# Incremental processing
-uv run -m src.pipeline --limit 10
-```
-
-### Production Workflow
-```bash
-# Daily incremental run
-uv run -m src.pipeline --limit 50
-
-# Full reprocessing with force
-uv run -m src.pipeline --full --force
-
-# Only embed new transcripts
-uv run -m src.pipeline --stages embedded --limit 20
-```
+Note: When using --episode-id, you specify the episode_id (e.g., 672), not the UUID.
 
 ## Error Handling
 

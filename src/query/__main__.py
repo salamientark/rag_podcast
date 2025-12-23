@@ -28,9 +28,9 @@ from qdrant_client import QdrantClient, AsyncQdrantClient
 from .config import QueryConfig, SYSTEM_PROMPT_FR
 from .postprocessors import get_reranker
 
-from .config import QueryConfig
 
 console = Console()
+
 
 class PodcastQueryAgent:
     """
