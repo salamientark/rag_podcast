@@ -9,10 +9,12 @@ This module provides SQLite-specific database connectivity with:
 """
 
 import os
+import logging
+import datetime
 from dotenv import load_dotenv
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Generator
+from typing import Generator, Any, Optional
 from urllib.parse import urlparse
 
 from sqlalchemy import create_engine, event, text
@@ -20,7 +22,7 @@ from sqlalchemy.exc import SQLAlchemyError, OperationalError
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import NullPool
 
-from .models import Base, Episode
+from .models import Base, Episode, ProcessingStage
 from src.logger import setup_logging, log_function
 
 
@@ -277,6 +279,87 @@ def get_podcasts() -> list[str]:
     except Exception as e:
         db_logger.error(f"Failed to retrieve podcasts: {e}")
         return []
+
+@log_function(logger_name="database", log_execution_time=True)
+def update_episode_in_db(
+    uuid: str,
+    podcast: Optional[str] = None,
+    episode_id: Optional[int] = None,
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    published_date: Optional[datetime] = None,
+    audio_url: Optional[str] = None,
+    processing_stage: Optional[ProcessingStage] = None,
+    audio_file_path: Optional[str] = None,
+    raw_transcript_path: Optional[str] = None,
+    speaker_mapping_path: Optional[str] = None,
+    formatted_transcript_path: Optional[str] = None,
+    transcript_duration: Optional[int] = None,
+    transcript_confidence: Optional[float] = None,
+):
+    """
+    Update episode record in the database.
+
+    Update episode by episode ID.
+    Only update field with an argument. None argument = No update
+
+    Args:
+        uuid (str): UUID of the episode to update.
+        podcast (Optional[str]): New podcast name.
+        episode_id (Optional[int]): New episode id.
+        title (Optional[str]): New title.
+        description (Optional[str]): New description.
+        published_date (Optional[datetime]): New published date.
+        audio_url (Optional[str]): New audio URL.
+        processing_stage (Optional[ProcessingStage]): New processing stage.
+        audio_file_path (Optional[str]): New audio file
+        raw_transcript_path (Optional[str]): New raw transcript file path.
+        speaker_mapping_path (Optional[str]): New speaker mapping file path.
+        formatted_transcript_path (Optional[str]): New formatted transcript file path.
+        transcript_duration (Optional[int]): New transcript duration in seconds.
+        transcript_confidence (Optional[float]): New transcript confidence score.
+    """
+    logger = logging.getLogger("pipeline")
+
+    try:
+        # Create update dictionary
+        update_data: dict[str, Any] = {}
+        if podcast is not None:
+            update_data["podcast"] = podcast
+        if episode_id is not None:
+            update_data["episode_id"] = episode_id
+        if title is not None:
+            update_data["title"] = title
+        if description is not None:
+            update_data["description"] = description
+        if published_date is not None:
+            update_data["published_date"] = published_date
+        if audio_url is not None:
+            update_data["audio_url"] = audio_url
+        if processing_stage is not None:
+            update_data["processing_stage"] = processing_stage
+        if audio_file_path is not None:
+            update_data["audio_file_path"] = audio_file_path
+        if raw_transcript_path is not None:
+            update_data["raw_transcript_path"] = raw_transcript_path
+        if speaker_mapping_path is not None:
+            update_data["speaker_mapping_path"] = speaker_mapping_path
+        if formatted_transcript_path is not None:
+            update_data["formatted_transcript_path"] = formatted_transcript_path
+        if transcript_duration is not None:
+            update_data["transcript_duration"] = transcript_duration
+        if transcript_confidence is not None:
+            update_data["transcript_confidence"] = transcript_confidence
+
+        # Update the episode in the database
+        with get_db_session() as session:
+            session.query(Episode).filter(Episode.uuid == uuid).update(
+                update_data,
+            )
+            session.commit()
+    except Exception as e:
+        raise e
+
 
 
 # Log database configuration on module load

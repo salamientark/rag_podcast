@@ -197,19 +197,7 @@ def run_pipeline(
         # Run formatted transcript stage (Speaker mapping included)
         if stages is None or "format_transcript" in stages:
             episodes_to_process = run_speaker_mapping_stage(episodes_to_process)
-
-            # speaker_mapping_paths = run_speaker_mapping_stage(raw_transcript_path)
-
-            # transcript_with_mapping = [
-            #     {"transcript": rt, "speaker_mapping": sm}
-            #     for rt, sm in zip(raw_transcript_path, speaker_mapping_paths)
-            # ]
             episodes_to_process = run_formatted_transcript_stage(episodes_to_process, use_cloud_storage)
-            print(f"DEBUG: episodes_to_process = {episodes_to_process}")
-            return
-            # formatted_transcript_paths = run_formatted_transcript_stage(
-            #     transcript_with_mapping, use_cloud_storage
-            # )
         else:
             episodes_to_process = [
                 {
@@ -223,12 +211,13 @@ def run_pipeline(
                     'formatted_transcript_path': ep.formatted_transcript_path,
                 } for ep in episodes_to_process]
 
-        print(f"DEBUG: episodes_to_process = {episodes_to_process}")
-        return
 
         # Run embedding stage
         if stages is None or "embed" in stages:
-            run_embedding_stage(formatted_transcript_paths)
+            run_embedding_stage(episodes_to_process)
+
+        print(f"DEBUG: episodes_to_process = {episodes_to_process}")
+        return
 
         logger.info("=== PIPELINE COMPLETED SUCCESSFULLY ===")
 

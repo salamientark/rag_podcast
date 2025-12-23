@@ -25,6 +25,7 @@ from src.db import (
     ProcessingStage,
     get_qdrant_client,
     create_collection,
+    update_episode_in_db,
 )
 from src.ingestion.sync_episodes import (
     fetch_podcast_episodes,
@@ -49,87 +50,6 @@ from src.storage import CloudStorage, LocalStorage
 AUDIO_DIR = "data/audio"
 TRANSCRIPT_DIR = "data/transcripts"
 EMBEDDING_DIR = "data/embeddings"
-
-
-@log_function(logger_name="pipeline", log_execution_time=True)
-def update_episode_in_db(
-    uuid: str,
-    podcast: Optional[str] = None,
-    episode_id: Optional[int] = None,
-    title: Optional[str] = None,
-    description: Optional[str] = None,
-    published_date: Optional[datetime] = None,
-    audio_url: Optional[str] = None,
-    processing_stage: Optional[ProcessingStage] = None,
-    audio_file_path: Optional[str] = None,
-    raw_transcript_path: Optional[str] = None,
-    speaker_mapping_path: Optional[str] = None,
-    formatted_transcript_path: Optional[str] = None,
-    transcript_duration: Optional[int] = None,
-    transcript_confidence: Optional[float] = None,
-):
-    """
-    Update episode record in the database.
-
-    Update episode by episode ID.
-    Only update field with an argument. None argument = No update
-
-    Args:
-        uuid (str): UUID of the episode to update.
-        podcast (Optional[str]): New podcast name.
-        episode_id (Optional[int]): New episode id.
-        title (Optional[str]): New title.
-        description (Optional[str]): New description.
-        published_date (Optional[datetime]): New published date.
-        audio_url (Optional[str]): New audio URL.
-        processing_stage (Optional[ProcessingStage]): New processing stage.
-        audio_file_path (Optional[str]): New audio file
-        raw_transcript_path (Optional[str]): New raw transcript file path.
-        speaker_mapping_path (Optional[str]): New speaker mapping file path.
-        formatted_transcript_path (Optional[str]): New formatted transcript file path.
-        transcript_duration (Optional[int]): New transcript duration in seconds.
-        transcript_confidence (Optional[float]): New transcript confidence score.
-    """
-    logger = logging.getLogger("pipeline")
-
-    try:
-        # Create update dictionary
-        update_data: dict[str, Any] = {}
-        if podcast is not None:
-            update_data["podcast"] = podcast
-        if episode_id is not None:
-            update_data["episode_id"] = episode_id
-        if title is not None:
-            update_data["title"] = title
-        if description is not None:
-            update_data["description"] = description
-        if published_date is not None:
-            update_data["published_date"] = published_date
-        if audio_url is not None:
-            update_data["audio_url"] = audio_url
-        if processing_stage is not None:
-            update_data["processing_stage"] = processing_stage
-        if audio_file_path is not None:
-            update_data["audio_file_path"] = audio_file_path
-        if raw_transcript_path is not None:
-            update_data["raw_transcript_path"] = raw_transcript_path
-        if speaker_mapping_path is not None:
-            update_data["speaker_mapping_path"] = speaker_mapping_path
-        if formatted_transcript_path is not None:
-            update_data["formatted_transcript_path"] = formatted_transcript_path
-        if transcript_duration is not None:
-            update_data["transcript_duration"] = transcript_duration
-        if transcript_confidence is not None:
-            update_data["transcript_confidence"] = transcript_confidence
-
-        # Update the episode in the database
-        with get_db_session() as session:
-            session.query(Episode).filter(Episode.uuid == uuid).update(
-                update_data,
-            )
-            session.commit()
-    except Exception as e:
-        raise e
 
 
 @log_function(logger_name="pipeline", log_execution_time=True)
@@ -558,7 +478,7 @@ def run_formatted_transcript_stage(
 
 
 @log_function(logger_name="pipeline", log_execution_time=True)
-def run_embedding_stage(transcript_path: list[str]):
+def run_embedding_stage(episodes: list[Dict[str, Any]]) -> list[str]:
     """
     Generate embeddings from formatted transcript files with 3-tier caching:
     1. Check Qdrant DB → save to local file if missing + update SQL
@@ -589,29 +509,30 @@ def run_embedding_stage(transcript_path: list[str]):
             )
 
         # Create output directory if not exists
-        output_dir = Path(EMBEDDING_DIR)
+        workspace = f"data/{episodes[0]['podcast']}/embeddings/"
+        output_dir = Path(workspace)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        embedding_paths = []
+        updated_episodes = []
         # Process each transcript with 3-tier caching
-        for path in transcript_path:
-            episode_id = int(get_episode_id_from_path(path))
+        for episode in episodes:
+            episode_id = episode["episode_id"]
             logger.info(
-                f"Processing embedding for episode ID {episode_id} from file {path}..."
+                f"Processing embedding for episode ID {episode_id} from file {episode['raw_transcript_path']}..."
             )
 
             # Use new 3-tier caching function
             result = process_episode_embedding(
-                input_file=path,
-                episode_id=episode_id,
+                input_file=episode["formatted_transcript_path"],
+                episode_uuid=episode["uuid"],
                 collection_name=collection_name,
                 dimensions=1024,
             )
 
             if result["success"]:
                 action = result["action"]
-                embedding_path = result["embedding_path"]
-                embedding_paths.append(embedding_path)
+                episode['embedding_path'] = result["embedding_path"]
+                updated_episodes.append(episode)
 
                 if action == "retrieved_from_qdrant":
                     logger.info(
@@ -631,9 +552,9 @@ def run_embedding_stage(transcript_path: list[str]):
                 )
 
         logger.info(
-            f"Embedding stage completed successfully. Processed {len(embedding_paths)} episodes."
+            f"Embedding stage completed successfully. Processed {len(episodes)} episodes."
         )
-        return embedding_paths
+        return updated_episodes
 
     except Exception as e:
         logger.error(f"Failed to complete embedding pipeline: {e}")
