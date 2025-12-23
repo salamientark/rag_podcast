@@ -272,20 +272,6 @@ def print_dry_run_summary(args: argparse.Namespace, logger) -> None:
         print("  Unable to retrieve database statistics")
 
     print()
-
-    # Validation check
-    if args.episode_id:
-        print("Validating episode IDs...")
-        valid_ids, invalid_ids = validate_episode_ids(args.episode_id)
-        if valid_ids:
-            print(f"  ✓ Valid IDs ({len(valid_ids)}): {', '.join(map(str, valid_ids))}")
-        if invalid_ids:
-            print(
-                f"  ✗ Invalid IDs ({len(invalid_ids)}): {', '.join(map(str, invalid_ids))}"
-            )
-            print("    These episodes do not exist in the database")
-
-    print()
     print("=" * 80)
     print("End of dry run - no changes made")
     print("=" * 80)

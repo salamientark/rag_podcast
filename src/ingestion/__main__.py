@@ -105,12 +105,6 @@ Examples:
             # TODO: Fix broken import - reconcile_episode_status not found
             raise NotImplementedError("Reconcile functionality is currently broken")
 
-            # Print summary
-            print(
-                f"\nReconciliation completed: {stats['processed']} processed, "
-                f"{stats['updated']} updated, {stats['unchanged']} unchanged, "
-                f"{stats['errors']} errors"
-            )
         else:
             # EXISTING RSS SYNC WORKFLOW
             # Fetch episodes

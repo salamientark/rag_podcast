@@ -18,7 +18,6 @@ import re
 import sys
 import time
 from pathlib import Path
-from typing import Optional
 
 import requests
 
@@ -70,9 +69,7 @@ def sanitize_filename(title, max_length=100):
     return safe if safe else "unknown_episode"
 
 
-def generate_filename(
-        episode_number: int,
-        title: str):
+def generate_filename(episode_number: int, title: str):
     """Generate filename: episode_{number:03d}_{title}.mp3"""
     safe_title = sanitize_filename(title)
     return f"episode_{episode_number:03d}_{safe_title}.mp3"

@@ -14,14 +14,12 @@ import json
 
 from pathlib import Path
 from typing import Any, Optional, Dict
-from datetime import datetime
 
 from dotenv import load_dotenv
 
 from src.logger import log_function
 from src.db import (
     Episode,
-    get_db_session,
     ProcessingStage,
     get_qdrant_client,
     create_collection,
@@ -38,7 +36,6 @@ from src.ingestion.audio_scrap import (
     download_episode,
 )
 from src.transcription import (
-    get_episode_id_from_path,
     format_transcript,
     map_speakers_with_llm,
 )

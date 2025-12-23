@@ -9,7 +9,6 @@ This module provides SQLite-specific database connectivity with:
 """
 
 import os
-import logging
 import datetime
 from dotenv import load_dotenv
 from contextlib import contextmanager
@@ -319,8 +318,6 @@ def update_episode_in_db(
         transcript_duration (Optional[int]): New transcript duration in seconds.
         transcript_confidence (Optional[float]): New transcript confidence score.
     """
-    logger = logging.getLogger("pipeline")
-
     try:
         # Create update dictionary
         update_data: dict[str, Any] = {}

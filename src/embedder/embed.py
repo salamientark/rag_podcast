@@ -355,8 +355,7 @@ def process_episode_embedding(
 
             # Update SQL database
             update_episode_in_db(
-                episode_uuid,
-                processing_stage=ProcessingStage.EMBEDDED
+                episode_uuid, processing_stage=ProcessingStage.EMBEDDED
             )
 
             result["action"] = "retrieved_from_qdrant"
@@ -428,8 +427,7 @@ def process_episode_embedding(
 
             # Update SQL database
             update_episode_in_db(
-                episode_uuid,
-                processing_stage=ProcessingStage.EMBEDDED
+                episode_uuid, processing_stage=ProcessingStage.EMBEDDED
             )
             # update_episode_processing_stage(str(episode_id))
 
@@ -487,10 +485,7 @@ def process_episode_embedding(
 
         # Update SQL database
         # update_episode_processing_stage(str(episode_id))
-        update_episode_in_db(
-            episode_uuid,
-            processing_stage=ProcessingStage.EMBEDDED
-        )
+        update_episode_in_db(episode_uuid, processing_stage=ProcessingStage.EMBEDDED)
 
         result["action"] = "embedded_fresh"
         result["embedding_path"] = str(saved_path)
