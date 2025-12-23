@@ -105,7 +105,7 @@ def embed_text(text: str | list[str], dimensions: int = 1024) -> Any:
 
 @log_function(logger_name="embedder", log_args=True, log_execution_time=True)
 def update_episode_processing_stage(
-    episode_id: str,
+    uuid: str,
 ) -> bool:
     """
     Update episode database record with EMBEDDED processing stage.
@@ -120,10 +120,10 @@ def update_episode_processing_stage(
     logger = logging.getLogger("embedder")
     try:
         with get_db_session() as session:
-            episode = session.query(Episode).filter_by(id=episode_id).first()
+            episode = session.query(Episode).filter_by(uuid=uuid).first()
 
             if not episode:
-                logger.error(f"Episode {episode_id} not found in database")
+                logger.error(f"Episode {uuid} not found in database")
                 return False
 
             # Update db fields
@@ -135,11 +135,11 @@ def update_episode_processing_stage(
 
             session.commit()
             logger.info(
-                f"Updated episode ID {episode_id} with EMBEDDED processing stage"
+                f"Updated episode ID {uuid} with EMBEDDED processing stage"
             )
             return True
     except Exception as e:
-        logger.error(f"Failed to update episode ID {episode_id}: {e}")
+        logger.error(f"Failed to update episode ID {uuid}: {e}")
         return False
 
 
@@ -201,6 +201,7 @@ def load_embedding_from_file(file_path: Path) -> Optional[np.ndarray]:
 @log_function(logger_name="embedder", log_args=True, log_execution_time=True)
 def embed_file_to_db(
     input_file: str | Path,
+    episode_uuid: str,
     episode_id: int,
     collection_name: str,
     dimensions: int = 1024,
@@ -211,7 +212,7 @@ def embed_file_to_db(
 
     Args:
         input_file (str | Path): Path to the input transcript file.
-        episode_id (int): Database ID of the episode.
+        episode_uuid (str): Episode UUID in Database
         collection_name (str): Name of the collection to store embeddings.
         dimensions (int): Output vector dimensions (default: 1024).
         output_path (Optional[str | Path]): Optional path to save embeddings as .npy file.
@@ -238,7 +239,7 @@ def embed_file_to_db(
 
         # Get episode info from database
         with get_db_session() as session:
-            episode = session.query(Episode).filter_by(id=episode_id).first()
+            episode = session.query(Episode).filter_by(uuid=episode_uuid).first()
             if not episode:
                 raise ValueError(f"Episode ID {episode_id} not found in database")
 
@@ -246,7 +247,7 @@ def embed_file_to_db(
         payload = {
             "episode_id": episode_id,
             "title": episode.title,
-            "db_guid": str(episode.guid),
+            "db_guid": str(episode.uuid),
             "publication_date": format_publication_date(episode.published_date),
         }
 
@@ -264,7 +265,7 @@ def embed_file_to_db(
         logger.info(f"Embeddings stored in database for episode ID {episode_id}")
 
         # Update episode processing stage
-        update_episode_processing_stage(str(episode_id))
+        update_episode_processing_stage(episode_uuid)
     except Exception as e:
         logger.error(f"Failed to embed file {input_file}: {e}")
         raise

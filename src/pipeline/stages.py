@@ -324,7 +324,7 @@ def run_raw_transcript_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, A
 
 
 @log_function(logger_name="pipeline", log_execution_time=True)
-def run_speaker_mapping_stage(episodes: list[Dict[str, Any]]) -> list[str]:
+def run_speaker_mapping_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
     """
     Generate speaker mapping from raw transcript files.
 

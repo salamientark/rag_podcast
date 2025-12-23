@@ -76,12 +76,12 @@ def generate_filename(episode_number: int, title: str):
 
 
 @log_function(logger_name="audio_scraper", log_execution_time=True)
-def update_episode_status(episode_id: int, audio_file_path: str) -> bool:
+def update_episode_status(uuid: str, audio_file_path: str) -> bool:
     """
     Update episode database record after successful audio download.
 
     Args:
-        episode_id: Database ID of the episode
+        uuid: Episode UUID in the database
         audio_file_path: Path to the downloaded audio file
 
     Returns:
@@ -90,10 +90,10 @@ def update_episode_status(episode_id: int, audio_file_path: str) -> bool:
     logger = logging.getLogger("audio_scraper")
     try:
         with get_db_session() as session:
-            episode = session.query(Episode).filter_by(id=episode_id).first()
+            episode = session.query(Episode).filter_by(uuid=uuid).first()
 
             if not episode:
-                logger.error(f"Episode {episode_id} not found in database")
+                logger.error(f"Episode UUID {uuid} not found in database")
                 return False
 
             # Update db fields
@@ -105,10 +105,10 @@ def update_episode_status(episode_id: int, audio_file_path: str) -> bool:
             episode.audio_file_path = audio_file_path
 
             session.commit()
-            logger.info(f"Updated episode ID {episode_id} with audio file path")
+            logger.info(f"Updated episode UUID {uuid} with audio file path")
             return True
     except Exception as e:
-        logger.error(f"Failed to update episode ID {episode_id}: {e}")
+        logger.error(f"Failed to update episode UUID {uuid}: {e}")
         return False
 
 
@@ -294,7 +294,7 @@ def download_missing_episodes(audio_dir="data/audio", limit=None, dry_run=False)
         if dry_run:
             print("DRY RUN - Episodes that would be downloaded:")
             for ep in missing_episodes:
-                filename = generate_filename(ep["episode_number"], ep["title"])
+                filename = generate_filename(ep["episode_id"], ep["title"])
                 print(f"  ✓ Would download: {filename}")
             return {
                 "total": len(all_episodes),
@@ -320,7 +320,7 @@ def download_missing_episodes(audio_dir="data/audio", limit=None, dry_run=False)
             print(f"\n[{i}/{len(missing_episodes)}] {episode['title'][:60]}...")
 
             success, filepath = download_episode(
-                episode["episode_number"],
+                episode["episode_id"],
                 episode["title"],
                 episode["audio_url"],
                 audio_dir,
@@ -328,11 +328,11 @@ def download_missing_episodes(audio_dir="data/audio", limit=None, dry_run=False)
 
             if success:
                 stats["downloaded"] += 1
-                if update_episode_status(episode["episode_id"], filepath):
+                if update_episode_status(episode["uuid"], filepath):
                     stats["db_updated"] += 1
                 else:
                     logger.warning(
-                        f"Downloaded episode {episode['id']} but failed to update database"
+                        f"Downloaded episode {episode['uuid']} but failed to update database"
                     )
                     stats["db_failed"] += 1
             else:
