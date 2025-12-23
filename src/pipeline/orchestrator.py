@@ -198,8 +198,6 @@ def run_pipeline(
         if stages is None or "format_transcript" in stages:
             episodes_to_process = run_speaker_mapping_stage(episodes_to_process)
 
-            print(f"DEBUG: episodes_to_process = {episodes_to_process}")
-            return
             # speaker_mapping_paths = run_speaker_mapping_stage(raw_transcript_path)
 
             # transcript_with_mapping = [
@@ -207,13 +205,23 @@ def run_pipeline(
             #     for rt, sm in zip(raw_transcript_path, speaker_mapping_paths)
             # ]
             episodes_to_process = run_formatted_transcript_stage(episodes_to_process, use_cloud_storage)
+            print(f"DEBUG: episodes_to_process = {episodes_to_process}")
+            return
             # formatted_transcript_paths = run_formatted_transcript_stage(
             #     transcript_with_mapping, use_cloud_storage
             # )
         else:
-            formatted_transcript_paths = [
-                ep.formatted_transcript_path for ep in episodes_to_process
-            ]
+            episodes_to_process = [
+                {
+                    'uuid': ep.uuid,
+                    'podcast': ep.podcast,
+                    'episode_id': ep.episode_id,
+                    'title': ep.title,
+                    'audio_file_path': ep.audio_file_path,
+                    'raw_transcript_path': ep.raw_transcript_path,
+                    'mapping_path': ep.speaker_mapping_path,
+                    'formatted_transcript_path': ep.formatted_transcript_path,
+                } for ep in episodes_to_process]
 
         print(f"DEBUG: episodes_to_process = {episodes_to_process}")
         return

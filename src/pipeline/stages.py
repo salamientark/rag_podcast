@@ -467,7 +467,7 @@ def run_speaker_mapping_stage(episodes: list[Dict[str, Any]]) -> list[str]:
 
 @log_function(logger_name="pipeline", log_execution_time=True)
 def run_formatted_transcript_stage(
-    transcript_with_mapping: list[Dict[str, str]],
+    episodes: list[Dict[str, str]],
     cloud_storage: bool = False,
 ) -> list[str]:
     """
@@ -483,19 +483,20 @@ def run_formatted_transcript_stage(
 
     try:
         logger.info("Starting formatted transcription stage...")
-        local_formatted_path = []
+        updated_episodes = []
         local_storage = LocalStorage()
 
-        for item in transcript_with_mapping:
-            transcript_path = item["transcript"]
-            speaker_map_path = item["speaker_mapping"]
+        for episode in episodes:
+            transcript_path = episode['raw_transcript_path']
+            speaker_map_path = episode['mapping_path']
 
             # Create filename
-            episode_id = int(get_episode_id_from_path(transcript_path))
+            episode_id = episode['episode_id']
             filename = f"formatted_episode_{episode_id:03d}.txt"
 
             # Local save
-            local_workspace = local_storage.create_episode_workspace(episode_id)
+            local_workspace = f"data/{episodes[0]['podcast']}/transcripts/episode_{episode_id:03d}/"
+            # local_workspace = local_storage.create_episode_workspace(episode_id)
             logger.info(
                 f"transcribing episode id {episode_id} from file {transcript_path}..."
             )
@@ -521,12 +522,14 @@ def run_formatted_transcript_stage(
             formatted_file_path = local_storage.save_file(
                 local_workspace, filename, formatted_transcript
             )
-            local_formatted_path.append(str(formatted_file_path))
+            episode['formatted_transcript_path'] = str(formatted_file_path)
+            updated_episodes.append(episode)
+            # local_formatted_path.append(str(formatted_file_path))
 
             # Cloud save
             if cloud_storage:
                 storage = CloudStorage()
-                workspace = storage.create_episode_workspace(episode_id)
+                workspace = f"{episodes[0]['podcast']}/transcripts/episode_{episode_id:03d}/"
                 if storage.file_exist(workspace, filename):
                     logger.info(
                         f"Formatted transcript already exists for episode ID {episode_id}, skipping transcription."
@@ -541,13 +544,13 @@ def run_formatted_transcript_stage(
 
             # Update db
             update_episode_in_db(
-                episode_id=episode_id,
+                uuid=episode['uuid'],
                 formatted_transcript_path=str(formatted_file_path),
                 processing_stage=ProcessingStage.FORMATTED_TRANSCRIPT,
             )
 
         logger.info("Format transcription stage completed successfully.")
-        return local_formatted_path
+        return updated_episodes
 
     except Exception as e:
         logger.error(f"Failed to complete formatted transcript pipeline : {e}")
