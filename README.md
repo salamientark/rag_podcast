@@ -146,6 +146,9 @@ uv run -m src.ingestion.sync_episodes --full-sync
 
 # Limited sync with preview
 uv run -m src.ingestion.sync_episodes --limit 10 --dry-run --verbose
+
+# Use custom RSS feed
+uv run -m src.ingestion.sync_episodes --feed-url https://feeds.example.com/podcast.xml
 ```
 
 **Download Audio Files:**

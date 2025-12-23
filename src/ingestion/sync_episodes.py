@@ -7,6 +7,7 @@ Based on successful simple testing. Fast and reliable.
 Usage:
     uv run -m src.ingestion.sync_episodes                  # Sync last 30 days
     uv run -m src.ingestion.sync_episodes --full-sync      # Sync all episodes
+    uv run -m src.ingestion.sync_episodes --feed-url https://feeds.example.com/podcast.xml  # Custom feed
     uv run -m src.ingestion.sync_episodes --limit 5        # Sync 5 episodes
     uv run -m src.ingestion.sync_episodes --dry-run        # Test mode (very fast)
 """
@@ -36,12 +37,15 @@ logger = setup_logging(logger_name="sync_episodes", log_file="logs/sync_episodes
 
 
 @log_function(logger_name="sync_episodes", log_execution_time=True)
-def fetch_podcast_episodes() -> list[dict[str, Any]]:
+def fetch_podcast_episodes(feed_url: Optional[str] = None) -> list[dict[str, Any]]:
     """
     Fetch episodes from RSS feed and parse episode metadata.
 
     Retrieves the RSS feed URL from environment variables, parses the XML feed,
     and extracts episode information including title, date, audio URL, and description.
+
+    Args:
+        feed_url: RSS feed URL. If None, reads from FEED_URL environment variable.
 
     Returns:
         List of dictionaries containing episode data with keys:
@@ -55,14 +59,16 @@ def fetch_podcast_episodes() -> list[dict[str, Any]]:
         EnvironmentError: If .env file cannot be loaded or FEED_URL is missing
         requests.RequestException: If feed fetch fails
     """
-    # Get feed URL from .env
-    env = load_dotenv()
-    if not env:
-        raise EnvironmentError("Could not load .env file")
-    FEED_URL = os.getenv("FEED_URL")
-
-    if not FEED_URL:
-        raise EnvironmentError("FEED_URL not found in .env file")
+    # Get feed URL from parameter or .env
+    if not feed_url:
+        env = load_dotenv()
+        if not env:
+            raise EnvironmentError("Could not load .env file")
+        FEED_URL = os.getenv("FEED_URL")
+        if not FEED_URL:
+            raise EnvironmentError("FEED_URL not found in .env file")
+    else:
+        FEED_URL = feed_url
 
     logger.info(f"Fetching feed from {FEED_URL}...")
     try:
@@ -128,7 +134,10 @@ def fetch_podcast_episodes() -> list[dict[str, Any]]:
             episode_data["description"] = clean_desc[:1000]  # Limit length
 
         # Only add if we have required fields
-        if all(key in episode_data for key in ["title", "date", "audio_url", "uuid", "episode_id", "podcast"]):
+        if all(
+            key in episode_data
+            for key in ["title", "date", "audio_url", "uuid", "episode_id", "podcast"]
+        ):
             episodes.append(episode_data)
 
     print(f"Found {len(episodes)} episodes.")
@@ -239,7 +248,9 @@ def sync_to_database(
             try:
                 # Check if exists
                 existing = (
-                    session.query(Episode).filter_by(title=episode_data["title"]).first()
+                    session.query(Episode)
+                    .filter_by(title=episode_data["title"])
+                    .first()
                 )
                 if existing:
                     print(

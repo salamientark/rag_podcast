@@ -133,28 +133,44 @@ def update_episode_in_db(
 
 
 @log_function(logger_name="pipeline", log_execution_time=True)
-def run_sync_stage():
+def run_sync_stage(feed_url: Optional[str] = None) -> str:
     """
     Sync RSS feed to SQL database.
+
+    Args:
+        feed_url: Optional custom RSS feed URL. If None, uses FEED_URL from .env
+
+    Returns:
+        str: Podcast name extracted from the feed
     """
     logger = logging.getLogger("pipeline")
-    episodes = []  # Placeholder for actual sync logic
+    episodes = []
     try:
-        logger.info("Starting sync stage...")
+        if feed_url:
+            logger.info(f"Starting sync stage with custom feed URL: {feed_url}")
+        else:
+            logger.info("Starting sync stage with default feed URL from .env")
+
         logger.info("Fetching podcast episodes from RSS feed...")
-        episodes = fetch_podcast_episodes()
+        episodes = fetch_podcast_episodes(feed_url=feed_url)
         if not episodes:
             logger.error("No episodes fetched during sync stage.")
             raise ValueError("No episodes fetched during sync stage.")
 
-        episodes = filter_episodes(episodes, full_sync=True)
+        # Extract podcast name from first episode
+        podcast_name = episodes[0]["podcast"]
+        logger.info(f"Detected podcast from feed: {podcast_name}")
 
+        episodes = filter_episodes(episodes, full_sync=True)
         logger.info(f"Fetched {len(episodes)} episodes. Syncing to database...")
+
         stats = sync_to_database(episodes)
         logger.info(
-            f"\nSync stage completed: {stats['processed']} processed, {stats['added']} added, "
+            f"Sync stage completed: {stats['processed']} processed, {stats['added']} added, "
             f"{stats['skipped']} skipped, {stats['errors']} errors"
         )
+
+        return podcast_name
 
     except Exception as e:
         logger.error(f"Sync stage failed: {e}")
@@ -183,9 +199,9 @@ def run_download_stage(
 
         # Get workspace directory
         podcast = episodes[0].podcast
-        workspace = f'{podcast}/audio/'
+        workspace = f"{podcast}/audio/"
         if not cloud_save:
-            workspace = f'data/{workspace}'
+            workspace = f"data/{workspace}"
 
         # Get existing audio file
         existing_files = get_existing_files(workspace)
@@ -219,7 +235,9 @@ def run_download_stage(
                             storage.bucket_name,
                             f"{workspace}{filename}",
                         )
-                        logger.info(f"Uploaded episode {episode.episode_id} to cloud storage.")
+                        logger.info(
+                            f"Uploaded episode {episode.episode_id} to cloud storage."
+                        )
                     update_episode_in_db(
                         uuid=episode.uuid,
                         episode_id=episode.episode_id,
@@ -255,7 +273,9 @@ def run_download_stage(
                         storage.client.upload_file(
                             filepath, storage.bucket_name, f"{workspace}{filename}"
                         )
-                        logger.info(f"Uploaded episode {episode.episode_id} to cloud storage.")
+                        logger.info(
+                            f"Uploaded episode {episode.episode_id} to cloud storage."
+                        )
             else:
                 logger.warning(
                     f"Failed to download episode {episode.episode_id}: {episode['title']}"

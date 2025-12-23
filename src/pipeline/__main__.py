@@ -11,32 +11,25 @@ This pipeline orchestrates the complete workflow from RSS feed to vector embeddi
 
 Usage:
     uv run -m src.pipeline --podcast "Le rendez-vous Tech" --full
+    uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --limit 5
     uv run -m src.pipeline --podcast "Le rendez-vous Tech" --episode-id 672
-    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --limit 5
-    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --stages download,transcribe --limit 10
-    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --dry-run --verbose
+    uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --episode-id 672 680
 
 Examples:
-    # Process all episodes from podcast
+    # Using podcast name
     uv run -m src.pipeline --podcast "Le rendez-vous Tech" --full
-
-    # Process last 5 episodes that need work
     uv run -m src.pipeline --podcast "Le rendez-vous Tech" --limit 5
+    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --episode-id 672 680
 
-    # Process single episode
-    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --episode-id 672
+    # Using custom feed URL (auto-detects podcast name, always syncs)
+    uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --full
+    uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --limit 5
+    uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --episode-id 672
 
-    # Process multiple specific episodes
-    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --episode-id 672 680 685 690
-
-    # Process only specific stages for last 10 episodes
+    # Other options
     uv run -m src.pipeline --podcast "Le rendez-vous Tech" --stages transcribe,embed --limit 10
-
-    # Force reprocessing from beginning
     uv run -m src.pipeline --podcast "Le rendez-vous Tech" --episode-id 672 --force
-
-    # Dry run to see what would be processed
-    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --dry-run --limit 10 --verbose
+    uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --dry-run --verbose
 """
 
 import sys
@@ -218,6 +211,26 @@ def validate_storage_args(args: argparse.Namespace) -> None:
         args.local = True
 
 
+def validate_feed_url_podcast_exclusivity(args: argparse.Namespace) -> Optional[str]:
+    """
+    Validate that --feed-url and --podcast are mutually exclusive.
+    At least one must be provided.
+
+    Args:
+        args: Parsed command-line arguments
+
+    Returns:
+        Error message if validation fails, None otherwise
+    """
+    if args.feed_url and args.podcast:
+        return "Cannot use both --feed-url and --podcast (they are mutually exclusive)"
+
+    if not args.feed_url and not args.podcast:
+        return "Either --feed-url or --podcast must be provided"
+
+    return None
+
+
 def print_dry_run_summary(args: argparse.Namespace, logger) -> None:
     """
     Print dry-run summary showing what would be processed.
@@ -247,10 +260,15 @@ def print_dry_run_summary(args: argparse.Namespace, logger) -> None:
 
     print()
 
-    # Podcast filter
+    # Podcast/Feed filter
     if args.podcast:
         print(f"Podcast filter: {args.podcast}")
         print("  → Only process episodes from this podcast")
+        print()
+    elif args.feed_url:
+        print(f"Feed URL: {args.feed_url}")
+        print("  → Will sync from custom feed and auto-detect podcast name")
+        print("  → Sync stage will always run")
         print()
 
     # Stage configuration
@@ -314,8 +332,11 @@ def parse_arguments() -> argparse.Namespace:
         description="Podcast Processing Pipeline - Orchestrates RSS sync, audio download, transcription, chunking, and embedding",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Required Parameter:
-  --podcast         Podcast name to process (case-insensitive, REQUIRED)
+Required Parameter (choose one):
+  --podcast         Podcast name to process (case-insensitive)
+  --feed-url        RSS feed URL to sync and process (auto-detects podcast name)
+
+Note: --podcast and --feed-url are MUTUALLY EXCLUSIVE
 
 Processing Modes (choose one, default: --limit 5):
   --full            Process all episodes from podcast
@@ -338,40 +359,36 @@ Storage Options:
   --cloud                  Save files to cloud storage (DigitalOcean Spaces)
 
 Examples:
-  # Process all episodes from podcast
+  # Using podcast name
   uv run -m src.pipeline --podcast "Le rendez-vous Tech" --full
-
-  # Process last 5 episodes that need work
   uv run -m src.pipeline --podcast "Le rendez-vous Tech" --limit 5
-
-  # Process specific episodes
   uv run -m src.pipeline --podcast "Le rendez-vous Tech" --episode-id 672 680
 
-  # Process single episode
-  uv run -m src.pipeline --podcast "Le rendez-vous Tech" --episode-id 672
+  # Using custom feed URL (auto-detects podcast name, always syncs)
+  uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --full
+  uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --limit 5
+  uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --episode-id 672
 
-  # Only transcribe and embed (skip download)
-  uv run -m src.pipeline --podcast "Le rendez-vous Tech" --stages raw_transcript,format_transcript,embed --limit 10
+  # With specific stages
+  uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --stages embed --limit 10
 
-  # Force reprocessing from beginning
+  # Force reprocessing
   uv run -m src.pipeline --podcast "Le rendez-vous Tech" --episode-id 672 --force
 
-  # Dry run to preview
-  uv run -m src.pipeline --podcast "Le rendez-vous Tech" --dry-run --limit 10 --verbose
-
-  # Use cloud storage
-  uv run -m src.pipeline --podcast "Le rendez-vous Tech" --cloud --limit 5
+  # Dry run
+  uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --dry-run --verbose
 
   # Case-insensitive matching
   uv run -m src.pipeline --podcast "le rendez-vous tech" --limit 5
 
 Notes:
-  - --podcast is REQUIRED for all operations
-  - Podcast name matching is case-insensitive ("le rendez-vous tech" matches "Le rendez-vous Tech")
-  - Episode IDs are per-podcast (episode 672 from one podcast differs from episode 672 of another)
+  - Either --podcast or --feed-url is REQUIRED (mutually exclusive)
+  - With --feed-url: podcast name is auto-extracted from feed, sync always runs first
+  - With --podcast: uses default feed from .env, sync runs only if in --stages
+  - Podcast name matching is case-insensitive
+  - Episode IDs are per-podcast
+  - Multiple podcasts can coexist in the same database
   - Pipeline automatically skips completed stages (unless --force)
-  - Pipeline continues on error by default
-  - Database tracks processing status for each episode
   - Logs written to logs/pipeline.log
   - Default behavior (no mode): processes up to 5 episodes needing work
         """,
@@ -415,8 +432,13 @@ Notes:
         "--podcast",
         type=str,
         metavar="NAME",
-        required=True,
-        help="Podcast name to process (case-insensitive, required)",
+        help="Podcast name to process (case-insensitive, mutually exclusive with --feed-url)",
+    )
+    options_group.add_argument(
+        "--feed-url",
+        type=str,
+        metavar="URL",
+        help="RSS feed URL to sync and process (auto-detects podcast name, mutually exclusive with --podcast)",
     )
     options_group.add_argument(
         "--force",
@@ -473,13 +495,24 @@ def main():
     # Validate and set default storage arguments
     validate_storage_args(args)
 
-    # Validate podcast name (required parameter)
-    is_valid, canonical_podcast = validate_podcast(args.podcast)
-    if not is_valid:
+    # Validate feed-url and podcast mutual exclusivity
+    validation_error = validate_feed_url_podcast_exclusivity(args)
+    if validation_error:
+        print(f"✗ Error: {validation_error}", file=sys.stderr)
+        print("Run with --help for usage information", file=sys.stderr)
         sys.exit(1)
-    # Use canonical database name for consistency
-    args.podcast = canonical_podcast
-    logger.info(f"Filtering by podcast: {canonical_podcast}")
+
+    # Validate podcast name if provided (not needed for feed-url)
+    if args.podcast:
+        is_valid, canonical_podcast = validate_podcast(args.podcast)
+        if not is_valid:
+            sys.exit(1)
+        # Use canonical database name for consistency
+        args.podcast = canonical_podcast
+        logger.info(f"Filtering by podcast: {canonical_podcast}")
+    elif args.feed_url:
+        logger.info(f"Using custom feed URL: {args.feed_url}")
+        # Podcast name will be extracted during sync stage in orchestrator
 
     # Parse and validate stages if provided
     if args.stages:
@@ -563,6 +596,7 @@ def main():
             verbose=args.verbose,
             use_cloud_storage=args.cloud,
             podcast=args.podcast,
+            feed_url=args.feed_url,
         )
 
         logger.info("Pipeline execution completed successfully")

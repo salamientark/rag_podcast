@@ -23,12 +23,16 @@ uv run -m src.ingestion.sync_episodes --full-sync
 
 # Sync specific number
 uv run -m src.ingestion.sync_episodes --limit 5
+
+# Use custom RSS feed URL
+uv run -m src.ingestion.sync_episodes --feed-url https://feeds.example.com/podcast.xml
 ```
 
 **Options:**
 - `--full-sync` - Sync all episodes
 - `--days N` - Sync last N days (default: 30)
 - `--limit N` - Process only N episodes
+- `--feed-url URL` - Custom RSS feed URL (overrides .env FEED_URL)
 - `--dry-run` - Preview without saving
 - `--verbose` - Show detailed output
 

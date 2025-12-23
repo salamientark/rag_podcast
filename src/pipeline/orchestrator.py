@@ -126,6 +126,7 @@ def run_pipeline(
     verbose: bool = False,
     use_cloud_storage: bool = False,
     podcast: Optional[str] = None,
+    feed_url: Optional[str] = None,
 ):
     logger = logging.getLogger("pipeline")
 
@@ -137,11 +138,22 @@ def run_pipeline(
 
         # Run sync Stage
         logger.info("=== PIPELINE STARTED ===")
-        if podcast:
-            logger.info(f"Filtering by podcast: {podcast}")
 
-        if stages is None or "sync" in stages:
-            run_sync_stage()
+        # Handle feed_url vs podcast
+        if feed_url:
+            # Always run sync stage when feed_url is provided
+            logger.info(f"Using custom feed URL: {feed_url}")
+            extracted_podcast = run_sync_stage(feed_url=feed_url)
+            logger.info(f"Extracted podcast name from feed: {extracted_podcast}")
+            podcast = extracted_podcast
+        elif podcast:
+            logger.info(f"Filtering by podcast: {podcast}")
+            # Only run sync if stage is requested
+            if stages is None or "sync" in stages:
+                run_sync_stage()
+        else:
+            logger.error("Either feed_url or podcast must be provided")
+            raise ValueError("Either feed_url or podcast must be provided")
 
         # Filter episodes to process
         episodes_to_process = filter_episode(
