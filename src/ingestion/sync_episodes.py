@@ -251,7 +251,9 @@ def sync_to_database(
                 # Check if exists
                 existing = (
                     session.query(Episode)
-                    .filter_by(uuid=episode_data["uuid"])
+                    .filter_by(
+                        podcast=episode_data["podcast"],
+                        audio_url=episode_data["audio_url"])
                     .first()
                 )
                 if existing:

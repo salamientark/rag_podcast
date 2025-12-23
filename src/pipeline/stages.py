@@ -526,7 +526,7 @@ def run_embedding_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
         for episode in episodes:
             episode_id = episode["episode_id"]
             logger.info(
-                f"Processing embedding for episode ID {episode_id} from file {episode['raw_transcript_path']}..."
+                f"Processing embedding for episode ID {episode_id} from file {episode['formatted_transcript_path']}..."
             )
 
             # Use new 3-tier caching function
