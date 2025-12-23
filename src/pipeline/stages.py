@@ -181,7 +181,7 @@ def run_sync_stage(feed_url: Optional[str] = None) -> str:
 def run_download_stage(
     episodes: list[Episode],
     cloud_save: bool = False,
-) -> list[str]:
+) -> list[Dict[str, Any]]:
     """
     Download episode audio files.
 
@@ -208,30 +208,37 @@ def run_download_stage(
 
         # Find missing episodes and add path of existing episodes to list
         missing_episodes = []
-        episodes_path_list = []
+        episodes_list = []
         for episode in episodes:
             ep_number = episode.episode_id
             ep_title = episode.title
+            episode_data = {
+                    'uuid': episode.uuid,
+                    'podcast': episode.podcast,
+                    'episode_id': episode.episode_id,
+                    'title': episode.title,
+            }
             filename = generate_filename(ep_number, ep_title)
             if filename not in existing_files:
                 missing_episodes.append(episode)
             else:
                 filepath = os.path.join(workspace, filename)
-                episodes_path_list.append(filepath)
+                episode_data['audio_path'] = filepath
+                episodes_list.append(episode_data)
 
         if not missing_episodes:
             logger.info("No missing episodes to download.")
             if cloud_save:
                 storage = CloudStorage()
                 for i, episode in enumerate(episodes):
-                    filename = os.path.basename(episodes_path_list[i])
+                    filename = os.path.basename(episodes_list[i]['audio_path'])
                     if storage.file_exist(workspace, filename):
                         logger.info(
                             f"Episode {episode.episode_id} already exists in cloud storage, skipping upload."
                         )
                     else:
                         storage.client.upload_file(
-                            episodes_path_list[i],
+                            episodes_list[i]['audio_path'],
                             storage.bucket_name,
                             f"{workspace}{filename}",
                         )
@@ -246,10 +253,11 @@ def run_download_stage(
                         ),
                         processing_stage=ProcessingStage.AUDIO_DOWNLOADED,
                     )
-            return episodes_path_list
+            return episodes_list
         logger.info(f"Found {len(missing_episodes)} missing episodes to download.")
 
         for episode in missing_episodes:
+            workspace = f"data/{podcast}/audio/"
             success, filepath = download_episode(
                 episode.episode_id, episode.title, episode.audio_url, workspace
             )
@@ -261,9 +269,17 @@ def run_download_stage(
                     audio_file_path=filepath,
                     processing_stage=ProcessingStage.AUDIO_DOWNLOADED,
                 )
-                episodes_path_list.append(filepath)
+                episode_data = {
+                        'uuid': episode.uuid,
+                        'podcast': episode.podcast,
+                        'episode_id': episode.episode_id,
+                        'title': episode.title,
+                        'audio_path': filepath,
+                }
+                episodes_list.append(episode_data)
                 if cloud_save:
                     storage = CloudStorage()
+                    workspace = "{podcast}/audio/"
                     filename = os.path.basename(filepath)
                     if storage.file_exist(workspace, filename):
                         logger.info(
@@ -276,13 +292,21 @@ def run_download_stage(
                         logger.info(
                             f"Uploaded episode {episode.episode_id} to cloud storage."
                         )
+                    update_episode_in_db(
+                        uuid=episode.uuid,
+                        episode_id=episode.episode_id,
+                        audio_file_path=storage._get_absolute_filename(
+                            workspace, filename
+                        ),
+                        processing_stage=ProcessingStage.AUDIO_DOWNLOADED,
+                    )
             else:
                 logger.warning(
                     f"Failed to download episode {episode.episode_id}: {episode['title']}"
                 )
 
         logger.info("Download stage completed successfully.")
-        return episodes_path_list
+        return episodes_list
 
     except Exception as e:
         logger.error(f"Download stage failed: {e}")

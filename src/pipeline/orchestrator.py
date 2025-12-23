@@ -166,9 +166,19 @@ def run_pipeline(
 
         # Run download audio stage
         if stages is None or "download" in stages:
-            audio_path = run_download_stage(episodes_to_process, use_cloud_storage)
+            episodes_to_process = run_download_stage(episodes_to_process, use_cloud_storage)
         else:
-            audio_path = [ep.audio_file_path for ep in episodes_to_process]
+            episodes_to_process = [
+                    {
+                        'uuid': ep.uuid,
+                        'podcast': ep.podcast,
+                        'episode_id': ep.episode_id,
+                        'title': ep.title,
+                        'audio_file_path': ep.audio_file_path,
+                    } for ep in episodes_to_process]
+
+        print(f"DEBUG: episodes_to_process = {episodes_to_process}")
+        return
 
         # Run raw transcript stage
         if stages is None or "raw_transcript" in stages:
