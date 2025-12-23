@@ -238,9 +238,6 @@ def run_pipeline(
         if stages is None or "embed" in stages:
             run_embedding_stage(episodes_to_process)
 
-        print(f"DEBUG: episodes_to_process = {episodes_to_process}")
-        return
-
         logger.info("=== PIPELINE COMPLETED SUCCESSFULLY ===")
 
     except Exception:
