@@ -20,7 +20,7 @@ from sqlalchemy.exc import SQLAlchemyError, OperationalError
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import NullPool
 
-from .models import Base
+from .models import Base, Episode
 from src.logger import setup_logging, log_function
 
 
@@ -250,6 +250,33 @@ def get_database_info() -> dict:
     except Exception as e:
         db_logger.error(f"Failed to get database info: {e}")
         return {"error": str(e)}
+
+
+@log_function(logger_name="database", log_execution_time=True)
+def get_podcasts() -> list[str]:
+    """
+    Retrieve list of unique podcast names from the database.
+
+    Returns:
+        List of unique podcast names, sorted alphabetically.
+        Empty list if no podcasts found or database error.
+
+    Example:
+        >>> podcasts = get_podcasts()
+        >>> print(podcasts)
+        ['Le rendez-vous Tech', 'Another Podcast']
+    """
+    try:
+        with get_db_session() as session:
+            # Query distinct podcast names
+            results = session.query(Episode.podcast).distinct().all()
+            # Extract strings from tuples and sort
+            podcasts = sorted([row[0] for row in results])
+            db_logger.info(f"Retrieved {len(podcasts)} unique podcasts from database")
+            return podcasts
+    except Exception as e:
+        db_logger.error(f"Failed to retrieve podcasts: {e}")
+        return []
 
 
 # Log database configuration on module load

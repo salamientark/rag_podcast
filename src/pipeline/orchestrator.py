@@ -71,19 +71,28 @@ def filter_episode(
     episodes_id: Optional[list[int]] = None,
     limit: Optional[int] = None,
     stage: Optional[ProcessingStage] = ProcessingStage.EMBEDDED,
+    podcast: Optional[str] = None,
 ) -> list[Episode]:
     """
-    Filter episodes based on provided IDs and limit.
+    Filter episodes based on provided IDs, limit, stage, and podcast.
 
     Args:
         episodes (list[Episode]): List of Episode objects to filter.
         episodes_id (Optional[list[int]]): List of episode IDs to include. If None, include all.
         limit (Optional[int]): Maximum number of episodes to return. If None, no limit.
         stage (Optional[ProcessingStage]): Processing stage to filter by. If None, defaults to EMBEDDED.
+        podcast (Optional[str]): Podcast name to filter by (case-insensitive). If None, include all podcasts.
 
     Returns:
         list[Episode]: Filtered list of Episode objects.
     """
+    logger = logging.getLogger("pipeline")
+
+    # Filter by podcast first (case-insensitive)
+    if podcast is not None:
+        episodes = [ep for ep in episodes if ep.podcast.lower() == podcast.lower()]
+        logger.info(f"Filtered to {len(episodes)} episodes from podcast: {podcast}")
+
     filetered_episodes = []
     stage_order = list(ProcessingStage)
 
@@ -116,6 +125,7 @@ def run_pipeline(
     dry_run: bool = False,
     verbose: bool = False,
     use_cloud_storage: bool = False,
+    podcast: Optional[str] = None,
 ):
     logger = logging.getLogger("pipeline")
 
@@ -127,6 +137,9 @@ def run_pipeline(
 
         # Run sync Stage
         logger.info("=== PIPELINE STARTED ===")
+        if podcast:
+            logger.info(f"Filtering by podcast: {podcast}")
+
         if stages is None or "sync" in stages:
             run_sync_stage()
 
@@ -136,6 +149,7 @@ def run_pipeline(
             episodes_id=episodes_id,
             limit=limit,
             stage=last_stage,
+            podcast=podcast,
         )
 
         # Run download audio stage

@@ -128,7 +128,6 @@ def update_episode_in_db(
                 update_data,
             )
             session.commit()
-            print(f"DEBUG: Updated episode {uuid} with data: {update_data}")
     except Exception as e:
         raise e
 
@@ -238,7 +237,6 @@ def run_download_stage(
             )
 
             if success:
-                print(f"DEBUG: episode_uuid: {episode.uuid}")
                 update_episode_in_db(
                     uuid=episode.uuid,
                     episode_id=episode.episode_id,
@@ -453,7 +451,6 @@ def run_formatted_transcript_stage(
             logger.info(
                 f"transcribing episode id {episode_id} from file {transcript_path}..."
             )
-            print(f"DEBUG: speaker_map_path = {speaker_map_path}")
 
             # Load speaker mapping from JSON file
             speaker_mapping_dict = {}
@@ -473,7 +470,6 @@ def run_formatted_transcript_stage(
             formatted_transcript = format_transcript(
                 Path(transcript_path), speaker_mapping=speaker_mapping_dict
             )
-            # print(f"DEBUG: formatted_transcript = {formatted_transcript}")
             formatted_file_path = local_storage.save_file(
                 local_workspace, filename, formatted_transcript
             )
@@ -494,8 +490,6 @@ def run_formatted_transcript_stage(
                     formatted_file_path = storage.save_file(
                         workspace, filename, formatted_transcript
                     )
-
-            print(f"DEBUG: formatted_file_path = {formatted_file_path}")
 
             # Update db
             update_episode_in_db(

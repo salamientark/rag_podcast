@@ -10,34 +10,33 @@ This pipeline orchestrates the complete workflow from RSS feed to vector embeddi
     5. Generate and store embeddings in Qdrant
 
 Usage:
-    uv run -m src.pipeline --full
-    uv run -m src.pipeline --episode-id 672
-    uv run -m src.pipeline --episode-id 672 680 685
-    uv run -m src.pipeline --limit 5
-    uv run -m src.pipeline --stages download,transcribe --limit 10
-    uv run -m src.pipeline --dry-run --verbose
+    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --full
+    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --episode-id 672
+    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --limit 5
+    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --stages download,transcribe --limit 10
+    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --dry-run --verbose
 
 Examples:
-    # Process all episodes end-to-end
-    uv run -m src.pipeline --full
-
-    # Process single episode
-    uv run -m src.pipeline --episode-id 672
-
-    # Process multiple specific episodes
-    uv run -m src.pipeline --episode-id 672 680 685 690
+    # Process all episodes from podcast
+    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --full
 
     # Process last 5 episodes that need work
-    uv run -m src.pipeline --limit 5
+    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --limit 5
+
+    # Process single episode
+    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --episode-id 672
+
+    # Process multiple specific episodes
+    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --episode-id 672 680 685 690
 
     # Process only specific stages for last 10 episodes
-    uv run -m src.pipeline --stages transcribe,embed --limit 10
+    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --stages transcribe,embed --limit 10
 
     # Force reprocessing from beginning
-    uv run -m src.pipeline --episode-id 672 --force
+    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --episode-id 672 --force
 
     # Dry run to see what would be processed
-    uv run -m src.pipeline --dry-run --limit 10 --verbose
+    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --dry-run --limit 10 --verbose
 """
 
 import sys
@@ -66,7 +65,9 @@ def validate_episode_ids(episode_ids: List[int]) -> tuple[List[int], List[int]]:
     try:
         with get_db_session() as session:
             for episode_id in episode_ids:
-                episode = session.query(Episode).filter_by(episode_id=episode_id).first()
+                episode = (
+                    session.query(Episode).filter_by(episode_id=episode_id).first()
+                )
                 if episode:
                     valid_ids.append(episode_id)
                 else:
@@ -126,6 +127,57 @@ def count_episodes_by_stage() -> dict:
     except Exception as e:
         print(f"✗ Database error during stage counting: {e}", file=sys.stderr)
         return {}
+
+
+def get_available_podcasts() -> list[str]:
+    """
+    Retrieve list of available podcasts from database.
+
+    Returns:
+        List of podcast names (sorted alphabetically), or empty list if error occurs
+    """
+    try:
+        from src.db import get_podcasts
+
+        return get_podcasts()
+    except Exception as e:
+        print(f"✗ Error retrieving podcasts: {e}", file=sys.stderr)
+        return []
+
+
+def validate_podcast(podcast_name: str) -> tuple[bool, Optional[str]]:
+    """
+    Validate podcast name (case-insensitive) against database.
+
+    Args:
+        podcast_name: Podcast name to validate
+
+    Returns:
+        Tuple of (is_valid, canonical_name_or_none)
+        - If valid: (True, canonical_database_name)
+        - If invalid: (False, None) and prints available podcasts
+    """
+    available_podcasts = get_available_podcasts()
+
+    if not available_podcasts:
+        print(
+            "✗ Error: No podcasts found in database. Run sync first.", file=sys.stderr
+        )
+        return False, None
+
+    # Case-insensitive search for matching podcast
+    podcast_lower = podcast_name.lower()
+    for db_podcast in available_podcasts:
+        if db_podcast.lower() == podcast_lower:
+            return True, db_podcast  # Return canonical DB name
+
+    # Not found - show available podcasts
+    print(f"✗ Error: Podcast '{podcast_name}' not found in database", file=sys.stderr)
+    print("\nAvailable podcasts:", file=sys.stderr)
+    for podcast in available_podcasts:
+        print(f"  - {podcast}", file=sys.stderr)
+
+    return False, None
 
 
 def validate_mutually_exclusive_args(args: argparse.Namespace) -> Optional[str]:
@@ -195,6 +247,12 @@ def print_dry_run_summary(args: argparse.Namespace, logger) -> None:
 
     print()
 
+    # Podcast filter
+    if args.podcast:
+        print(f"Podcast filter: {args.podcast}")
+        print("  → Only process episodes from this podcast")
+        print()
+
     # Stage configuration
     if args.stages:
         print(f"Stages: {', '.join(args.stages)}")
@@ -256,9 +314,12 @@ def parse_arguments() -> argparse.Namespace:
         description="Podcast Processing Pipeline - Orchestrates RSS sync, audio download, transcription, chunking, and embedding",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
+Required Parameter:
+  --podcast         Podcast name to process (case-insensitive, REQUIRED)
+
 Processing Modes (choose one, default: --limit 5):
-  --full            Process all episodes in database
-  --episode-id      Process specific episode(s) by ID (can specify multiple)
+  --full            Process all episodes from podcast
+  --episode-id      Process specific episode(s) by ID
   --limit           Process up to N episodes needing work
   (default)         Process up to 5 episodes needing work (if no mode specified)
 
@@ -277,39 +338,42 @@ Storage Options:
   --cloud                  Save files to cloud storage (DigitalOcean Spaces)
 
 Examples:
-  # Process all episodes end-to-end
-  uv run -m src.pipeline --full
+  # Process all episodes from podcast
+  uv run -m src.pipeline --podcast "Le rendez-vous Tech" --full
+
+  # Process last 5 episodes that need work
+  uv run -m src.pipeline --podcast "Le rendez-vous Tech" --limit 5
+
+  # Process specific episodes
+  uv run -m src.pipeline --podcast "Le rendez-vous Tech" --episode-id 672 680
 
   # Process single episode
-  uv run -m src.pipeline --episode-id 672
-
-  # Process multiple specific episodes
-  uv run -m src.pipeline --episode-id 672 680 685 690
-
-  # Process last 5 episodes needing work
-  uv run -m src.pipeline --limit 5
+  uv run -m src.pipeline --podcast "Le rendez-vous Tech" --episode-id 672
 
   # Only transcribe and embed (skip download)
-  uv run -m src.pipeline --stages raw_transcript,format_transcript,embed --limit 10
+  uv run -m src.pipeline --podcast "Le rendez-vous Tech" --stages raw_transcript,format_transcript,embed --limit 10
 
   # Force reprocessing from beginning
-  uv run -m src.pipeline --episode-id 672 --force
+  uv run -m src.pipeline --podcast "Le rendez-vous Tech" --episode-id 672 --force
 
   # Dry run to preview
-  uv run -m src.pipeline --dry-run --limit 10 --verbose
+  uv run -m src.pipeline --podcast "Le rendez-vous Tech" --dry-run --limit 10 --verbose
 
-  # Use cloud storage instead of local
-  uv run -m src.pipeline --cloud --limit 5
+  # Use cloud storage
+  uv run -m src.pipeline --podcast "Le rendez-vous Tech" --cloud --limit 5
 
-  # Explicitly use local storage (default)
-  uv run -m src.pipeline --local --episode-id 672
+  # Case-insensitive matching
+  uv run -m src.pipeline --podcast "le rendez-vous tech" --limit 5
 
 Notes:
+  - --podcast is REQUIRED for all operations
+  - Podcast name matching is case-insensitive ("le rendez-vous tech" matches "Le rendez-vous Tech")
+  - Episode IDs are per-podcast (episode 672 from one podcast differs from episode 672 of another)
   - Pipeline automatically skips completed stages (unless --force)
   - Pipeline continues on error by default
   - Database tracks processing status for each episode
   - Logs written to logs/pipeline.log
-  - Default behavior (no args): processes up to 5 episodes needing work
+  - Default behavior (no mode): processes up to 5 episodes needing work
         """,
     )
 
@@ -347,6 +411,13 @@ Notes:
 
     # Options
     options_group = parser.add_argument_group("options")
+    options_group.add_argument(
+        "--podcast",
+        type=str,
+        metavar="NAME",
+        required=True,
+        help="Podcast name to process (case-insensitive, required)",
+    )
     options_group.add_argument(
         "--force",
         action="store_true",
@@ -401,6 +472,14 @@ def main():
 
     # Validate and set default storage arguments
     validate_storage_args(args)
+
+    # Validate podcast name (required parameter)
+    is_valid, canonical_podcast = validate_podcast(args.podcast)
+    if not is_valid:
+        sys.exit(1)
+    # Use canonical database name for consistency
+    args.podcast = canonical_podcast
+    logger.info(f"Filtering by podcast: {canonical_podcast}")
 
     # Parse and validate stages if provided
     if args.stages:
@@ -483,6 +562,7 @@ def main():
             dry_run=args.dry_run,
             verbose=args.verbose,
             use_cloud_storage=args.cloud,
+            podcast=args.podcast,
         )
 
         logger.info("Pipeline execution completed successfully")

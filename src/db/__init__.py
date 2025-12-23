@@ -27,6 +27,7 @@ from .database import (
     check_database_connection,
     init_database,
     get_database_info,
+    get_podcasts,
     engine,
     SessionLocal,
 )
@@ -56,6 +57,7 @@ __all__ = [
     "check_database_connection",
     "init_database",
     "get_database_info",
+    "get_podcasts",
     "engine",
     "SessionLocal",
     # Qdrant Vector Database utilities
