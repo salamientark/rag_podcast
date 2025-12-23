@@ -314,7 +314,7 @@ def run_download_stage(
 
 
 @log_function(logger_name="pipeline", log_execution_time=True)
-def run_raw_transcript_stage(audio_path: list[str]) -> list[str]:
+def run_raw_transcript_stage(episodes: list[Dict[str, Any]]) -> list[str]:
     """
     Generate raw transcript from audio files.
 
@@ -328,13 +328,14 @@ def run_raw_transcript_stage(audio_path: list[str]) -> list[str]:
 
     try:
         logger.info("Starting raw transcription stage...")
-        raw_transcript_paths = []
-        for path in audio_path:
+        transcripted_episodes = []
+        workspace = f"data/{episodes[0]['podcast']}/transcripts/"
+        for episode in episodes:
             # Get episode ID
-            episode_id = int(get_episode_id_from_path(path))
+            episode_id = episode["episode_id"]
 
             # Create output directory
-            output_dir = Path(TRANSCRIPT_DIR) / f"episode_{episode_id:03d}/"
+            output_dir = Path(f'{workspace}/episode_{episode_id:03d}/')
             try:
                 output_dir.mkdir(parents=True, exist_ok=True)
             except OSError as e:
@@ -353,8 +354,8 @@ def run_raw_transcript_stage(audio_path: list[str]) -> list[str]:
                 )
             else:
                 # Call transcription function here
-                logger.info(f"Transcribing episode ID {episode_id} from file {path}...")
-                raw_transcript = transcribe_with_diarization(Path(path), language="fr")
+                logger.info(f"Transcribing episode ID {episode_id} from file {episode['audio_path']}...")
+                raw_transcript = transcribe_with_diarization(Path(episode['audio_path']), language="fr")
 
                 # Extract metadata from new transcription
                 transcript_duration = raw_transcript.get("transcript", {}).get(
@@ -383,17 +384,18 @@ def run_raw_transcript_stage(audio_path: list[str]) -> list[str]:
                     continue
 
             # Update db with transcript path and metadata
-            raw_transcript_paths.append(str(raw_file_path))
+            episode['raw_transcript_path'] = str(raw_file_path)
             update_episode_in_db(
-                episode_id=episode_id,
+                uuid=episode['uuid'],
                 raw_transcript_path=str(raw_file_path),
                 processing_stage=ProcessingStage.RAW_TRANSCRIPT,
                 transcript_duration=transcript_duration,
                 transcript_confidence=transcript_confidence,
             )
+            transcripted_episodes.append(episode)
 
         logger.info("Raw transcription stage completed successfully.")
-        return raw_transcript_paths
+        return transcripted_episodes
 
     except Exception as e:
         logger.error(f"Failed to complete raw transcript pipeline : {e}")

@@ -177,14 +177,24 @@ def run_pipeline(
                         'audio_file_path': ep.audio_file_path,
                     } for ep in episodes_to_process]
 
-        print(f"DEBUG: episodes_to_process = {episodes_to_process}")
-        return
 
         # Run raw transcript stage
         if stages is None or "raw_transcript" in stages:
-            raw_transcript_path = run_raw_transcript_stage(audio_path)
+            episodes_to_process = run_raw_transcript_stage(episodes_to_process)
         else:
-            raw_transcript_path = [ep.raw_transcript_path for ep in episodes_to_process]
+            episodes_to_process = [
+                {
+                    'uuid': ep.uuid,
+                    'podcast': ep.podcast,
+                    'episode_id': ep.episode_id,
+                    'title': ep.title,
+                    'raw_transcript_path': ep.raw_transcript_path,
+                } for ep in episodes_to_process]
+            # episodes_to_process = [ep.raw_transcript_path for ep in episodes_to_process]
+
+
+        print(f"DEBUG: episodes_to_process = {episodes_to_process}")
+        return
 
         # Run formatted transcript stage (Speaker mapping included)
         if stages is None or "format_transcript" in stages:
