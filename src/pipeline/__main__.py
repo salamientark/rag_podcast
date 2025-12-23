@@ -42,36 +42,6 @@ from src.db.models import Episode, ProcessingStage
 from .orchestrator import run_pipeline
 
 
-def validate_episode_ids(episode_ids: List[int]) -> tuple[List[int], List[int]]:
-    """
-    Validate that episode IDs exist in the database.
-
-    Args:
-        episode_ids: List of episode IDs to validate
-
-    Returns:
-        Tuple of (valid_ids, invalid_ids)
-    """
-    valid_ids = []
-    invalid_ids = []
-
-    try:
-        with get_db_session() as session:
-            for episode_id in episode_ids:
-                episode = (
-                    session.query(Episode).filter_by(episode_id=episode_id).first()
-                )
-                if episode:
-                    valid_ids.append(episode_id)
-                else:
-                    invalid_ids.append(episode_id)
-    except Exception as e:
-        print(f"✗ Database error during validation: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    return valid_ids, invalid_ids
-
-
 def validate_stages(stage_names: List[str]) -> tuple[List[ProcessingStage], List[str]]:
     """
     Validate stage names against CLI stage names that map to orchestrator.
@@ -529,25 +499,6 @@ def main():
             )
             sys.exit(1)
         args.stages = stage_names  # Store validated stage names
-
-    # Validate episode IDs if provided
-    if args.episode_id:
-        logger.info(f"Validating {len(args.episode_id)} episode ID(s)")
-        valid_ids, invalid_ids = validate_episode_ids(args.episode_id)
-
-        if invalid_ids:
-            print(
-                f"✗ Error: The following episode IDs do not exist in database: {', '.join(map(str, invalid_ids))}",
-                file=sys.stderr,
-            )
-            logger.error(f"Invalid episode IDs: {invalid_ids}")
-            sys.exit(1)
-
-        if not valid_ids:
-            print("✗ Error: No valid episode IDs provided", file=sys.stderr)
-            sys.exit(1)
-
-        logger.info(f"All {len(valid_ids)} episode ID(s) validated successfully")
 
     # Dry run mode - show what would happen
     if args.dry_run:
