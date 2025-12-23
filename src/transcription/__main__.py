@@ -40,6 +40,8 @@ from src.transcription.transcript import (
     check_formatted_transcript_exists,
     get_episode_id_from_path,
     transcribe_with_diarization,
+)
+from src.transcript.speaker_mapper import (
     format_transcript,
     map_speakers_with_llm,
 )

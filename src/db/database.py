@@ -9,7 +9,7 @@ This module provides SQLite-specific database connectivity with:
 """
 
 import os
-import datetime
+from datetime import datetime
 from dotenv import load_dotenv
 from contextlib import contextmanager
 from pathlib import Path

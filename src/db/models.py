@@ -135,3 +135,24 @@ class Episode(Base, TimestampMixin):
             f"<Episode(uuid={self.uuid}, episode_id={self.episode_id}, title='{self.title}', "
             f"published_date='{self.published_date})', stage={self.processing_stage.value})>"
         )
+
+    def to_dict(self):
+        """Convert Episode instance to dictionary representation."""
+        return {
+            "uuid": self.uuid,
+            "podcast": self.podcast,
+            "episode_id": self.episode_id,
+            "title": self.title,
+            "description": self.description,
+            "published_date": self.published_date.isoformat() if self.published_date else None,
+            "audio_url": self.audio_url,
+            "processing_stage": self.processing_stage.value,
+            "audio_file_path": self.audio_file_path,
+            "raw_transcript_path": self.raw_transcript_path,
+            "speaker_mapping_path": self.speaker_mapping_path,
+            "formatted_transcript_path": self.formatted_transcript_path,
+            "transcript_duration": self.transcript_duration,
+            "transcript_confidence": self.transcript_confidence,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None, 
+        }

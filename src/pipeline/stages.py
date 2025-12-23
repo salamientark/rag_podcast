@@ -96,7 +96,7 @@ def run_sync_stage(feed_url: Optional[str] = None) -> str:
 
 @log_function(logger_name="pipeline", log_execution_time=True)
 def run_download_stage(
-    episodes: list[Episode],
+    episodes: list[Dict[str, Any]],
     cloud_save: bool = False,
 ) -> list[Dict[str, Any]]:
     """
@@ -114,7 +114,7 @@ def run_download_stage(
         logger.info("Starting download stage...")
 
         # Get workspace directory
-        podcast = episodes[0].podcast
+        podcast = episodes[0]['podcast']
         workspace = f"{podcast}/audio/"
         if not cloud_save:
             workspace = f"data/{workspace}"
@@ -126,13 +126,13 @@ def run_download_stage(
         missing_episodes = []
         episodes_list = []
         for episode in episodes:
-            ep_number = episode.episode_id
-            ep_title = episode.title
+            ep_number = episode["episode_id"]
+            ep_title = episode["title"]
             episode_data = {
-                "uuid": episode.uuid,
-                "podcast": episode.podcast,
-                "episode_id": episode.episode_id,
-                "title": episode.title,
+                "uuid": episode["uuid"],
+                "podcast": episode["podcast"],
+                "episode_id": episode["episode_id"],
+                "title": episode["title"],
             }
             filename = generate_filename(ep_number, ep_title)
             if filename not in existing_files:
@@ -146,24 +146,25 @@ def run_download_stage(
             logger.info("No missing episodes to download.")
             if cloud_save:
                 storage = CloudStorage()
-                for i, episode in enumerate(episodes):
-                    filename = os.path.basename(episodes_list[i]["audio_path"])
+                for episode in episodes_list:
+                # for i, episode in enumerate(episodes):
+                    filename = os.path.basename(episode["audio_path"])
                     if storage.file_exist(workspace, filename):
                         logger.info(
-                            f"Episode {episode.episode_id} already exists in cloud storage, skipping upload."
+                            f"Episode {episode['episode_id']} already exists in cloud storage, skipping upload."
                         )
                     else:
                         storage.client.upload_file(
-                            episodes_list[i]["audio_path"],
+                            episode["audio_path"],
                             storage.bucket_name,
                             f"{workspace}{filename}",
                         )
                         logger.info(
-                            f"Uploaded episode {episode.episode_id} to cloud storage."
+                            f"Uploaded episode {episode['episode_id']} to cloud storage."
                         )
                     update_episode_in_db(
-                        uuid=episode.uuid,
-                        episode_id=episode.episode_id,
+                        uuid=episode["uuid"],
+                        episode_id=episode["episode_id"],
                         audio_file_path=storage._get_absolute_filename(
                             workspace, filename
                         ),
@@ -175,21 +176,21 @@ def run_download_stage(
         for episode in missing_episodes:
             workspace = f"data/{podcast}/audio/"
             success, filepath = download_episode(
-                episode.episode_id, episode.title, episode.audio_url, workspace
+                episode["episode_id"], episode["title"], episode["audio_url"], workspace
             )
 
             if success:
                 update_episode_in_db(
-                    uuid=episode.uuid,
-                    episode_id=episode.episode_id,
+                    uuid=episode["uuid"],
+                    episode_id=episode["episode_id"],
                     audio_file_path=filepath,
                     processing_stage=ProcessingStage.AUDIO_DOWNLOADED,
                 )
                 episode_data = {
-                    "uuid": episode.uuid,
-                    "podcast": episode.podcast,
-                    "episode_id": episode.episode_id,
-                    "title": episode.title,
+                    "uuid": episode["uuid"],
+                    "podcast": episode["podcast"],
+                    "episode_id": episode["episode_id"],
+                    "title": episode["title"],
                     "audio_path": filepath,
                 }
                 episodes_list.append(episode_data)
@@ -199,18 +200,18 @@ def run_download_stage(
                     filename = os.path.basename(filepath)
                     if storage.file_exist(workspace, filename):
                         logger.info(
-                            f"Episode {episode.episode_id} already exists in cloud storage, skipping upload."
+                            f"Episode {episode["episode_id"]} already exists in cloud storage, skipping upload."
                         )
                     else:
                         storage.client.upload_file(
                             filepath, storage.bucket_name, f"{workspace}{filename}"
                         )
                         logger.info(
-                            f"Uploaded episode {episode.episode_id} to cloud storage."
+                            f"Uploaded episode {episode['episode_id']} to cloud storage."
                         )
                     update_episode_in_db(
-                        uuid=episode.uuid,
-                        episode_id=episode.episode_id,
+                        uuid=episode["uuid"],
+                        episode_id=episode["episode_id"],
                         audio_file_path=storage._get_absolute_filename(
                             workspace, filename
                         ),
@@ -218,7 +219,7 @@ def run_download_stage(
                     )
             else:
                 logger.warning(
-                    f"Failed to download episode {episode.episode_id}: {episode['title']}"
+                    f"Failed to download episode {episode['episode_id']}: {episode['title']}"
                 )
 
         logger.info("Download stage completed successfully.")
@@ -391,7 +392,7 @@ def run_speaker_mapping_stage(episodes: list[Dict[str, Any]]) -> list[str]:
 def run_formatted_transcript_stage(
     episodes: list[Dict[str, str]],
     cloud_storage: bool = False,
-) -> list[str]:
+) -> list[Dict[str, Any]]:
     """
     Generate formatted transcript with speaker names from raw transcript and mapping.
 
@@ -485,7 +486,7 @@ def run_formatted_transcript_stage(
 
 
 @log_function(logger_name="pipeline", log_execution_time=True)
-def run_embedding_stage(episodes: list[Dict[str, Any]]) -> list[str]:
+def run_embedding_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
     """
     Generate embeddings from formatted transcript files with 3-tier caching:
     1. Check Qdrant DB → save to local file if missing + update SQL
