@@ -52,13 +52,16 @@ EMBEDDING_DIR = "data/embeddings"
 @log_function(logger_name="pipeline", log_execution_time=True)
 def run_sync_stage(feed_url: Optional[str] = None) -> str:
     """
-    Sync RSS feed to SQL database.
-
-    Args:
-        feed_url: Optional custom RSS feed URL. If None, uses FEED_URL from .env
-
+    Sync podcast RSS feed into the SQL database and return the podcast name.
+    
+    Parameters:
+        feed_url (Optional[str]): Custom RSS feed URL; if None, uses FEED_URL from environment.
+    
     Returns:
-        str: Podcast name extracted from the feed
+        str: Podcast name extracted from the fetched feed.
+    
+    Raises:
+        ValueError: If no episodes are fetched from the feed.
     """
     logger = logging.getLogger("pipeline")
     episodes = []
@@ -100,14 +103,16 @@ def run_download_stage(
     cloud_save: bool = False,
 ) -> list[Dict[str, Any]]:
     """
-    Download episode audio files.
-
-    Args:
-        episodes: List of Episode objects to process
-        cloud_save: If True, upload to cloud storage after download
-
+    Download audio files for the provided episodes, optionally upload them to cloud storage, and update episode records.
+    
+    Processes the given list of Episode objects, reusing existing local audio files when present, downloading missing files, and updating the database processing stage and audio file path for each processed episode. If cloud_save is True, uploads audio files to cloud storage (skipping files that already exist there) and updates the database with the cloud absolute path.
+    
+    Parameters:
+        episodes (list[Episode]): Episodes to process; each Episode must include uuid, podcast, episode_id, title, and audio_url.
+        cloud_save (bool): If True, upload audio files to cloud storage and store cloud paths in the database.
+    
     Returns:
-        List of episode dictionaries with keys: uuid, podcast, episode_id, title, audio_path
+        list[dict]: List of episode dictionaries with keys `uuid`, `podcast`, `episode_id`, `title`, and `audio_path` (local or cloud path as stored in the DB).
     """
     logger = logging.getLogger("pipeline")
     try:
@@ -232,13 +237,20 @@ def run_download_stage(
 @log_function(logger_name="pipeline", log_execution_time=True)
 def run_raw_transcript_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
     """
-    Generate raw transcript from audio files.
-
-    Args:
-        episodes: List of episode dictionaries with keys: uuid, podcast, episode_id, title, audio_path
-
+    Generate raw transcripts for the provided episodes and persist them to disk.
+    
+    Parameters:
+        episodes (list[Dict[str, Any]]): List of episode dictionaries. Each dictionary must include
+            the keys `uuid`, `podcast`, `episode_id`, and `audio_path`. `title` is optional but may be present.
+    
     Returns:
-        List of episode dictionaries with added raw_transcript_path key
+        list[Dict[str, Any]]: The input episode dictionaries augmented with `raw_transcript_path`.
+            Episodes may also include `transcript_duration` (int seconds) and `transcript_confidence` when available.
+    
+    Side effects:
+        - Writes raw transcript JSON files to a per-episode workspace on disk.
+        - Updates the episode record in the database with `raw_transcript_path`, `processing_stage` set to
+          RAW_TRANSCRIPT, and any available `transcript_duration` and `transcript_confidence`.
     """
     logger = logging.getLogger("pipeline")
 
@@ -325,13 +337,15 @@ def run_raw_transcript_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, A
 @log_function(logger_name="pipeline", log_execution_time=True)
 def run_speaker_mapping_stage(episodes: list[Dict[str, Any]]) -> list[str]:
     """
-    Generate speaker mapping from raw transcript files.
-
-    Args:
-        episodes: List of episode dictionaries with keys: uuid, podcast, episode_id, title, raw_transcript_path
-
+    Generate per-episode speaker mappings from raw transcript files and attach mapping paths to each episode.
+    
+    Parameters:
+        episodes (list[Dict[str, Any]]): List of episode dictionaries. Each dictionary must include the keys
+            'uuid', 'podcast', 'episode_id', and 'raw_transcript_path'.
+    
     Returns:
-        List of episode dictionaries with added mapping_path key
+        list[Dict[str, Any]]: The same list of episode dictionaries with a new 'mapping_path' key for each episode
+        pointing to the JSON file containing the speaker mapping.
     """
     logger = logging.getLogger("pipeline")
 
@@ -393,14 +407,15 @@ def run_formatted_transcript_stage(
     cloud_storage: bool = False,
 ) -> list[str]:
     """
-    Generate formatted transcript with speaker names from raw transcript and mapping.
-
-    Args:
-        episodes: List of episode dictionaries with keys: uuid, podcast, episode_id, title, raw_transcript_path, mapping_path
-        cloud_storage: If True, upload to cloud storage
-
+    Create speaker-attributed, human-readable transcripts from raw transcripts and attach their paths to each episode.
+    
+    Parameters:
+        episodes (list[dict]): List of episode dictionaries. Each dictionary must include the keys
+            `uuid`, `podcast`, `episode_id`, `title`, `raw_transcript_path`, and `mapping_path`.
+        cloud_storage (bool): If True, upload the formatted transcript to configured cloud storage.
+    
     Returns:
-        List of episode dictionaries with added formatted_transcript_path key
+        list[dict]: The same episode dictionaries with a `formatted_transcript_path` key added (path to the saved formatted transcript).
     """
     logger = logging.getLogger("pipeline")
 
@@ -487,16 +502,13 @@ def run_formatted_transcript_stage(
 @log_function(logger_name="pipeline", log_execution_time=True)
 def run_embedding_stage(episodes: list[Dict[str, Any]]) -> list[str]:
     """
-    Generate embeddings from formatted transcript files with 3-tier caching:
-    1. Check Qdrant DB → save to local file if missing + update SQL
-    2. Check local file → upload to Qdrant + update SQL
-    3. Embed fresh → save to both + update SQL
-
-    Args:
-        episodes: List of episode dictionaries with keys: uuid, podcast, episode_id, title, formatted_transcript_path
-
+    Generate embeddings for each episode's formatted transcript using a three-tier cache (Qdrant → local file → fresh embedding) and attach resulting embedding paths to episode dictionaries.
+    
+    Parameters:
+        episodes (list[dict]): List of episode dictionaries. Each dictionary must include keys: `uuid`, `podcast`, `episode_id`, `title`, and `formatted_transcript_path`. The function will add or update the `embedding_path` key on successful processing.
+    
     Returns:
-        list[str]: List of embedding file paths.
+        list[dict]: The subset of input episode dictionaries that were successfully processed, each augmented with an `embedding_path` pointing to the local embedding file.
     """
     logger = logging.getLogger("pipeline")
 

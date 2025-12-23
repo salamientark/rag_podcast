@@ -44,13 +44,13 @@ from .orchestrator import run_pipeline
 
 def validate_stages(stage_names: List[str]) -> tuple[List[ProcessingStage], List[str]]:
     """
-    Validate stage names against CLI stage names that map to orchestrator.
-
-    Args:
-        stage_names: List of stage names (strings)
-
+    Map CLI stage name strings to their corresponding ProcessingStage enum values.
+    
+    Parameters:
+        stage_names (List[str]): Iterable of stage names provided via the CLI (e.g., "sync", "download", "raw_transcript", "format_transcript", "embed").
+    
     Returns:
-        Tuple of (valid_stages, invalid_names)
+        tuple[List[ProcessingStage], List[str]]: A pair where the first element is a list of recognized ProcessingStage enum values in the same order as valid input names, and the second element is a list of input names that were not recognized.
     """
     valid_stages = []
     invalid_names = []
@@ -75,10 +75,10 @@ def validate_stages(stage_names: List[str]) -> tuple[List[ProcessingStage], List
 
 def count_episodes_by_stage() -> dict:
     """
-    Count episodes at each processing stage.
-
+    Count episodes grouped by processing stage.
+    
     Returns:
-        Dict mapping stage name to episode count
+        dict: Mapping from `ProcessingStage.value` (stage name) to the integer count of `Episode` records in that stage. Returns an empty dict and prints an error to stderr if a database error occurs.
     """
     try:
         with get_db_session() as session:
@@ -94,10 +94,12 @@ def count_episodes_by_stage() -> dict:
 
 def get_available_podcasts() -> list[str]:
     """
-    Retrieve list of available podcasts from database.
-
+    Return the list of available podcast names from the database.
+    
+    If retrieval fails, prints an error message to stderr and returns an empty list.
+    
     Returns:
-        List of podcast names (sorted alphabetically), or empty list if error occurs
+        list[str]: Podcast names from the database, or an empty list if retrieval fails.
     """
     try:
         from src.db import get_podcasts
@@ -110,15 +112,16 @@ def get_available_podcasts() -> list[str]:
 
 def validate_podcast(podcast_name: str) -> tuple[bool, Optional[str]]:
     """
-    Validate podcast name (case-insensitive) against database.
-
-    Args:
-        podcast_name: Podcast name to validate
-
+    Finds a canonical podcast name in the database that matches the provided name.
+    
+    Parameters:
+        podcast_name (str): Podcast name to validate (case-insensitive).
+    
     Returns:
-        Tuple of (is_valid, canonical_name_or_none)
-        - If valid: (True, canonical_database_name)
-        - If invalid: (False, None) and prints available podcasts
+        tuple[bool, Optional[str]]: `(True, canonical_name)` when a case-insensitive match is found; `(False, None)` otherwise.
+    
+    Notes:
+        If no podcasts exist in the database or the name is not found, an error message is printed to stderr.
     """
     available_podcasts = get_available_podcasts()
 
@@ -170,11 +173,10 @@ def validate_mutually_exclusive_args(args: argparse.Namespace) -> Optional[str]:
 
 def validate_storage_args(args: argparse.Namespace) -> None:
     """
-    Validate and set default storage arguments.
-    Sets --local as default when neither --local nor --cloud is specified.
-
-    Args:
-        args: Parsed command-line arguments
+    Ensure a storage option is selected by defaulting to local when neither --local nor --cloud is provided.
+    
+    Parameters:
+        args (argparse.Namespace): Parsed CLI namespace; may be mutated to set `args.local = True` when neither `args.local` nor `args.cloud` is truthy.
     """
     # If neither storage flag is specified, default to local
     if not args.local and not args.cloud:
@@ -183,14 +185,13 @@ def validate_storage_args(args: argparse.Namespace) -> None:
 
 def validate_feed_url_podcast_exclusivity(args: argparse.Namespace) -> Optional[str]:
     """
-    Validate that --feed-url and --podcast are mutually exclusive.
-    At least one must be provided.
-
-    Args:
-        args: Parsed command-line arguments
-
+    Validate mutual exclusivity between --feed-url and --podcast and require that one is provided.
+    
+    Parameters:
+        args (argparse.Namespace): Parsed command-line arguments with `feed_url` and `podcast` attributes.
+    
     Returns:
-        Error message if validation fails, None otherwise
+        str: Error message if validation fails, `None` otherwise.
     """
     if args.feed_url and args.podcast:
         return "Cannot use both --feed-url and --podcast (they are mutually exclusive)"
@@ -203,11 +204,9 @@ def validate_feed_url_podcast_exclusivity(args: argparse.Namespace) -> Optional[
 
 def print_dry_run_summary(args: argparse.Namespace, logger) -> None:
     """
-    Print dry-run summary showing what would be processed.
-
-    Args:
-        args: Parsed command-line arguments
-        logger: Logger instance
+    Print a human-readable dry-run summary of the pipeline configuration and current database counts.
+    
+    The summary displays the selected processing mode (full, specific episode IDs, or limited), podcast or feed URL filter, chosen pipeline stages, runtime options (force, verbose, storage backend), and per-stage episode counts retrieved from the database. This function only prints information and does not perform any processing.
     """
     print("=" * 80)
     print("DRY RUN - No processing will occur")
@@ -279,10 +278,16 @@ def print_dry_run_summary(args: argparse.Namespace, logger) -> None:
 
 def parse_arguments() -> argparse.Namespace:
     """
-    Parse command-line arguments.
-
+    Parse command-line arguments for the podcast processing pipeline.
+    
+    Configures processing mode (--full, --episode-id, --limit), stage selection (--stages),
+    podcast selection (--podcast or --feed-url), storage options (--local, --cloud),
+    and miscellaneous flags (--force, --dry-run, --verbose).
+    
     Returns:
-        Parsed arguments namespace
+        argparse.Namespace: Parsed arguments with attributes:
+            full, episode_id, limit, stages, podcast, feed_url, force, dry_run,
+            verbose, local, cloud
     """
     parser = argparse.ArgumentParser(
         description="Podcast Processing Pipeline - Orchestrates RSS sync, audio download, transcription, chunking, and embedding",

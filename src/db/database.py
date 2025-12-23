@@ -220,10 +220,18 @@ def init_database() -> bool:
 @log_function(logger_name="database", log_execution_time=True)
 def get_database_info() -> dict:
     """
-    Get information about the database.
-
+    Collects diagnostic information about the configured SQLite database and the SQLAlchemy engine.
+    
     Returns:
-        dict: Database information including file size, path, etc.
+        dict: A mapping containing:
+            - `database_url` (str): The configured DATABASE_URL.
+            - `database_path` (str): Filesystem path extracted from the URL.
+            - `engine_pool_class` (str): Engine pool class name.
+            - `file_exists` (bool): True if the database file exists, False otherwise.
+            - `file_size_bytes` (int): Size of the database file in bytes (present if `file_exists` is True).
+            - `file_size_mb` (float): Size of the database file in megabytes rounded to 2 decimals (present if `file_exists` is True).
+            - `last_modified` (float): Last modification time as POSIX timestamp (present if `file_exists` is True).
+        If an error occurs, returns a dict with an `error` key containing the error message.
     """
     try:
         info = {
@@ -256,16 +264,10 @@ def get_database_info() -> dict:
 @log_function(logger_name="database", log_execution_time=True)
 def get_podcasts() -> list[str]:
     """
-    Retrieve list of unique podcast names from the database.
-
+    Return a sorted list of unique podcast names stored in the database.
+    
     Returns:
-        List of unique podcast names, sorted alphabetically.
-        Empty list if no podcasts found or database error.
-
-    Example:
-        >>> podcasts = get_podcasts()
-        >>> print(podcasts)
-        ['Le rendez-vous Tech', 'Another Podcast']
+        list[str]: Alphabetically sorted list of podcast names. Returns an empty list if no podcasts are found or an error occurs while querying the database.
     """
     try:
         with get_db_session() as session:
@@ -298,25 +300,25 @@ def update_episode_in_db(
     transcript_confidence: Optional[float] = None,
 ):
     """
-    Update episode record in the database.
-
-    Update episode by UUID. Only updates fields provided (non-None arguments).
-
-    Args:
+    Update fields of an Episode record identified by its UUID.
+    
+    Only parameters passed as non-None are written to the database; unspecified fields are left unchanged.
+    
+    Parameters:
         uuid (str): UUID of the episode to update.
         podcast (Optional[str]): New podcast name.
-        episode_id (Optional[int]): New episode id.
-        title (Optional[str]): New title.
-        description (Optional[str]): New description.
-        published_date (Optional[datetime]): New published date.
-        audio_url (Optional[str]): New audio URL.
-        processing_stage (Optional[ProcessingStage]): New processing stage.
-        audio_file_path (Optional[str]): New audio file
-        raw_transcript_path (Optional[str]): New raw transcript file path.
-        speaker_mapping_path (Optional[str]): New speaker mapping file path.
-        formatted_transcript_path (Optional[str]): New formatted transcript file path.
-        transcript_duration (Optional[int]): New transcript duration in seconds.
-        transcript_confidence (Optional[float]): New transcript confidence score.
+        episode_id (Optional[int]): New episode identifier.
+        title (Optional[str]): New episode title.
+        description (Optional[str]): New episode description.
+        published_date (Optional[datetime]): New published date/time.
+        audio_url (Optional[str]): New audio file URL.
+        processing_stage (Optional[ProcessingStage]): New processing stage enum value.
+        audio_file_path (Optional[str]): Filesystem path to the stored audio file.
+        raw_transcript_path (Optional[str]): Filesystem path to the raw transcript.
+        speaker_mapping_path (Optional[str]): Filesystem path to the speaker mapping file.
+        formatted_transcript_path (Optional[str]): Filesystem path to the formatted transcript.
+        transcript_duration (Optional[int]): Transcript duration in seconds.
+        transcript_confidence (Optional[float]): Transcript confidence score.
     """
     try:
         # Create update dictionary

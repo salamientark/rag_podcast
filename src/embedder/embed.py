@@ -174,16 +174,14 @@ def save_embedding_to_file(output_path: Path, embed: list[float] | np.ndarray) -
 
 
 def load_embedding_from_file(file_path: Path) -> Optional[np.ndarray]:
-    """Load embeddings from a .npy file.
-
-    Args:
-        file_path (Path): Path to the .npy embedding file.
-
+    """
+    Load an embedding array from a .npy file.
+    
     Returns:
-        Optional[np.ndarray]: Loaded embedding vector, or None if file doesn't exist.
-
+        Optional[np.ndarray]: The loaded embedding array, or `None` if the file does not exist.
+    
     Raises:
-        Exception: If file exists but cannot be loaded.
+        Exception: If the file exists but cannot be loaded.
     """
     if not file_path.exists():
         return None
@@ -207,15 +205,20 @@ def embed_file_to_db(
     save_to_file: bool = False,
 ):
     """
-    High-level function to embed text from a file and store in database.
-
-    Args:
-        input_file (str | Path): Path to the input transcript file.
-        episode_id (int): Database ID of the episode.
-        collection_name (str): Name of the collection to store embeddings.
-        dimensions (int): Output vector dimensions (default: 1024).
-        output_path (Optional[str | Path]): Optional path to save embeddings as .npy file.
-        save_to_file (bool): Whether to save embeddings to file.
+    Embed transcript text from a file and store the resulting vector in the specified collection.
+    
+    Reads the transcript at `input_file`, generates an embedding vector of the given `dimensions`, inserts the vector and episode metadata into `collection_name`, and updates the episode processing stage to EMBEDDED. Optionally saves the embedding to a .npy file in the default embeddings directory. The stored metadata includes episode_id, title, episode GUID, and publication date.
+    
+    Parameters:
+        input_file (str | Path): Path to the transcript file to read.
+        episode_id (int): Database numeric ID of the episode whose metadata will be attached.
+        collection_name (str): Name of the collection where the embedding vector will be inserted.
+        dimensions (int): Dimension size of the output embedding vector (default: 1024).
+        save_to_file (bool): If True, persist the embedding as a .npy file in the default embeddings directory.
+    
+    Raises:
+        ValueError: If no episode is found in the database for `episode_id`.
+        Exception: Propagates any other unexpected errors encountered during embedding, file I/O, or database/storage operations.
     """
     logger = logging.getLogger("embedder")
     input_path = Path(input_file)
@@ -278,23 +281,22 @@ def process_episode_embedding(
     dimensions: int = 1024,
 ) -> Dict[str, Any]:
     """
-    Process episode embedding with 3-tier caching strategy and automatic chunking:
-    1. Check if vector exists in Qdrant DB → save to local file if missing + update SQL
-    2. If not in Qdrant, check local file → upload to Qdrant + update SQL
-    3. If neither exists → chunk if needed, embed, save to both Qdrant + local file + update SQL
-
-    Args:
-        input_file (str | Path): Path to the input transcript file.
-        episode_uuid (str): Database UUID of the episode.
-        collection_name (str): Name of the collection to store embeddings.
-        dimensions (int): Output vector dimensions (default: 1024).
-
+    Process an episode's transcript into embeddings using a three-tier caching strategy and upload results to Qdrant.
+    
+    Checks Qdrant for existing vectors, falls back to a local .npy cache, and if neither exists splits the transcript into chunks, generates embeddings, saves them locally, and uploads per-chunk points to Qdrant. In all successful cases the episode's processing stage is updated to EMBEDDED.
+    
+    Parameters:
+        input_file (str | Path): Path to the transcript file to read.
+        episode_uuid (str): Database UUID of the episode to process and tag in metadata.
+        collection_name (str): Qdrant collection name to query/upload vectors.
+        dimensions (int): Embedding vector dimensionality to request and persist.
+    
     Returns:
-        Dict[str, Any]: Status dict with keys:
-            - action: "retrieved_from_qdrant", "loaded_from_file", or "embedded_fresh"
-            - embedding_path: Path to local .npy file
-            - success: bool
-            - error: Optional error message
+        dict: Status dictionary containing:
+            - action (str | None): One of "retrieved_from_qdrant", "loaded_from_file", or "embedded_fresh" indicating what was done.
+            - embedding_path (str | None): Path to the local .npy file where embeddings are stored (if available).
+            - success (bool): `true` when the operation completed successfully, `false` on error.
+            - error (str | None): Error message when `success` is `false`.
     """
     logger = logging.getLogger("embedder")
     input_path = Path(input_file)
