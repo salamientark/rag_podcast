@@ -188,29 +188,35 @@ def run_pipeline(
                     'podcast': ep.podcast,
                     'episode_id': ep.episode_id,
                     'title': ep.title,
+                    'audio_file_path': ep.audio_file_path,
                     'raw_transcript_path': ep.raw_transcript_path,
                 } for ep in episodes_to_process]
-            # episodes_to_process = [ep.raw_transcript_path for ep in episodes_to_process]
 
 
-        print(f"DEBUG: episodes_to_process = {episodes_to_process}")
-        return
 
         # Run formatted transcript stage (Speaker mapping included)
         if stages is None or "format_transcript" in stages:
-            speaker_mapping_paths = run_speaker_mapping_stage(raw_transcript_path)
+            episodes_to_process = run_speaker_mapping_stage(episodes_to_process)
 
-            transcript_with_mapping = [
-                {"transcript": rt, "speaker_mapping": sm}
-                for rt, sm in zip(raw_transcript_path, speaker_mapping_paths)
-            ]
-            formatted_transcript_paths = run_formatted_transcript_stage(
-                transcript_with_mapping, use_cloud_storage
-            )
+            print(f"DEBUG: episodes_to_process = {episodes_to_process}")
+            return
+            # speaker_mapping_paths = run_speaker_mapping_stage(raw_transcript_path)
+
+            # transcript_with_mapping = [
+            #     {"transcript": rt, "speaker_mapping": sm}
+            #     for rt, sm in zip(raw_transcript_path, speaker_mapping_paths)
+            # ]
+            episodes_to_process = run_formatted_transcript_stage(episodes_to_process, use_cloud_storage)
+            # formatted_transcript_paths = run_formatted_transcript_stage(
+            #     transcript_with_mapping, use_cloud_storage
+            # )
         else:
             formatted_transcript_paths = [
                 ep.formatted_transcript_path for ep in episodes_to_process
             ]
+
+        print(f"DEBUG: episodes_to_process = {episodes_to_process}")
+        return
 
         # Run embedding stage
         if stages is None or "embed" in stages:

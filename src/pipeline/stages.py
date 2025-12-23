@@ -314,7 +314,7 @@ def run_download_stage(
 
 
 @log_function(logger_name="pipeline", log_execution_time=True)
-def run_raw_transcript_stage(episodes: list[Dict[str, Any]]) -> list[str]:
+def run_raw_transcript_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
     """
     Generate raw transcript from audio files.
 
@@ -403,7 +403,7 @@ def run_raw_transcript_stage(episodes: list[Dict[str, Any]]) -> list[str]:
 
 
 @log_function(logger_name="pipeline", log_execution_time=True)
-def run_speaker_mapping_stage(raw_transcript_path: list[str]) -> list[str]:
+def run_speaker_mapping_stage(episodes: list[Dict[str, Any]]) -> list[str]:
     """
     Generate speaker mapping from raw transcript files.
 
@@ -417,11 +417,12 @@ def run_speaker_mapping_stage(raw_transcript_path: list[str]) -> list[str]:
 
     try:
         logger.info("Starting speaker mapping stage...")
-        speaker_mapping_paths = []
+        episodes_with_mapping = []
+        workspace = f"data/{episodes[0]['podcast']}/transcripts"
 
-        for path in raw_transcript_path:
-            episode_id = int(get_episode_id_from_path(path))
-            output_dir = Path(TRANSCRIPT_DIR) / f"episode_{episode_id:03d}/"
+        for episode in episodes:
+            episode_id = episode["episode_id"]
+            output_dir = Path(f"{workspace}/episode_{episode_id:03d}/")
 
             # Take mapping from cache if exists
             mapping_file_path = Path(
@@ -434,9 +435,9 @@ def run_speaker_mapping_stage(raw_transcript_path: list[str]) -> list[str]:
                 )
             else:
                 logger.info(
-                    f"Generating speaker mapping for episode ID {episode_id} from file {path}..."
+                    f"Generating speaker mapping for episode ID {episode_id} from file {episode['raw_transcript_path']}..."
                 )
-                raw_formatted_text = format_transcript(Path(path), max_tokens=10000)
+                raw_formatted_text = format_transcript(Path(episode['raw_transcript_path']), max_tokens=10000)
                 mapping_result = map_speakers_with_llm(raw_formatted_text)
                 try:
                     with open(mapping_file_path, "w", encoding="utf-8") as f:
@@ -447,16 +448,17 @@ def run_speaker_mapping_stage(raw_transcript_path: list[str]) -> list[str]:
                         f"Failed to write mapping result to {mapping_file_path}: {e}"
                     )
                     continue
-            speaker_mapping_paths.append(str(mapping_file_path))
+            episode['mapping_path'] = str(mapping_file_path)
+            episodes_with_mapping.append(episode)
 
             # Save to db
             update_episode_in_db(
-                episode_id=episode_id,
+                uuid=episode['uuid'],
                 speaker_mapping_path=str(mapping_file_path),
                 processing_stage=ProcessingStage.RAW_TRANSCRIPT,
             )
         logger.info("Speaker mapping stage completed successfully.")
-        return speaker_mapping_paths
+        return episodes_with_mapping
 
     except Exception as e:
         logger.error(f"Failed to complete speaker mapping pipeline : {e}")
