@@ -7,12 +7,14 @@ from chonkie.chunker.token import TokenChunker
 
 
 def chunks_to_text(chunks: list[Any]) -> list[str]:
-    """Convert list of Chunks to list of text strings.
-
-    Args:
-        chunks (list[Chunks]): List of Chunks objects.
+    """
+    Convert a list of chunk-like objects into their stripped text strings.
+    
+    Parameters:
+        chunks (list[Any]): Objects that expose a `text` attribute; each `text` value will be stripped of leading and trailing whitespace.
+    
     Returns:
-        list[str]: List of text strings extracted from chunks.
+        list[str]: Extracted and stripped text strings.
     """
     text_list = [chunk.text.strip() for chunk in chunks]
     return text_list
@@ -22,15 +24,15 @@ def chunk_long_text(
     text: str, max_tokens: int = 30000, overlap_percent: float = 0.1
 ) -> list[str]:
     """
-    Chunk text if it exceeds token limit, with overlap between chunks.
-
-    Args:
-        text: Input text to chunk
-        max_tokens: Maximum tokens per chunk (default 30000)
-        overlap_percent: Overlap between chunks as percentage (default 0.1 = 10%)
-
+    Chunk input text into token-sized segments with configurable overlap.
+    
+    Parameters:
+        text (str): Text to be chunked.
+        max_tokens (int): Maximum tokens per chunk. Defaults to 30000.
+        overlap_percent (float): Fraction of max_tokens to overlap between consecutive chunks (e.g., 0.1 for 10%). Defaults to 0.1.
+    
     Returns:
-        List of text chunks (single item if text fits within limit)
+        list[str]: List of chunked text segments; a single-item list containing the original text if it fits within max_tokens.
     """
     logger = logging.getLogger("embedder")
 

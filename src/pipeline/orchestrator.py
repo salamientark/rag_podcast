@@ -74,17 +74,19 @@ def filter_episode(
     podcast: Optional[str] = None,
 ) -> list[Episode]:
     """
-    Filter episodes based on provided IDs, limit, stage, and podcast.
-
-    Args:
-        episodes (list[Episode]): List of Episode objects to filter.
-        episodes_id (Optional[list[int]]): List of episode IDs to include. If None, include all.
-        limit (Optional[int]): Maximum number of episodes to return. If None, no limit.
-        stage (Optional[ProcessingStage]): Processing stage to filter by. If None, defaults to EMBEDDED.
-        podcast (Optional[str]): Podcast name to filter by (case-insensitive). If None, include all podcasts.
-
+    Filter a list of Episode objects by podcast name, specific episode IDs, a maximum count, and target processing stage.
+    
+    Podcast filtering is applied first and is case-insensitive. If `episodes_id` is provided, returns only episodes whose `episode_id` is in that list. If `episodes_id` is not provided and `limit` is provided, returns up to `limit` episodes whose current processing stage is earlier than the specified `stage`, preserving the input order. If neither `episodes_id` nor `limit` is provided, returns the (optionally podcast-filtered) input list.
+    
+    Parameters:
+        episodes (list[Episode]): Episodes to filter.
+        episodes_id (Optional[list[int]]): If provided, include only episodes with these IDs.
+        limit (Optional[int]): If provided and `episodes_id` is not, include up to this many episodes that are before `stage`.
+        stage (Optional[ProcessingStage]): Target processing stage used when applying `limit`.
+        podcast (Optional[str]): If provided, include only episodes whose podcast name matches this value (case-insensitive).
+    
     Returns:
-        list[Episode]: Filtered list of Episode objects.
+        list[Episode]: Episodes that match the provided filters.
     """
     logger = logging.getLogger("pipeline")
 
@@ -129,20 +131,19 @@ def run_pipeline(
     feed_url: Optional[str] = None,
 ):
     """
-    Run the complete podcast processing pipeline.
-
-    Orchestrates all stages from RSS sync to embedding generation.
-    Requires either podcast name or feed URL.
-
-    Args:
-        episodes_id: List of episode_id values to process (within the podcast)
-        limit: Maximum number of episodes to process
-        stages: List of stage names to run (None = all stages)
-        dry_run: Preview mode without making changes
-        verbose: Enable detailed logging
-        use_cloud_storage: Use cloud storage instead of local
-        podcast: Podcast name to filter episodes (mutually exclusive with feed_url)
-        feed_url: Custom RSS feed URL (auto-extracts podcast name, mutually exclusive with podcast)
+    Orchestrates the end-to-end podcast processing pipeline across configurable stages.
+    
+    Runs sync, download, transcription, formatting (including speaker mapping), and embedding stages as requested; when `feed_url` is provided the sync stage is always run and the podcast name is extracted and used for filtering, when only `podcast` is provided sync runs only if requested, and a ValueError is raised if neither `feed_url` nor `podcast` is supplied.
+    
+    Parameters:
+        episodes_id (list[int] | None): Specific episode_id values to process within the selected podcast; when provided the pipeline restricts processing to these episodes.
+        limit (int | None): Maximum number of episodes to process when `episodes_id` is not provided.
+        stages (list[str] | None): Ordered list of stage names to run (None runs all stages).
+        dry_run (bool): If true, run in preview mode without making persistent changes.
+        verbose (bool): If true, enable more detailed logging.
+        use_cloud_storage (bool): If true, use cloud storage paths and uploads where supported.
+        podcast (str | None): Podcast name to filter episodes; used when `feed_url` is not provided. If both `feed_url` and `podcast` are given, `feed_url` takes precedence.
+        feed_url (str | None): RSS feed URL to sync from; when provided the function runs the sync stage to extract the podcast name and uses it for filtering.
     """
     logger = logging.getLogger("pipeline")
 

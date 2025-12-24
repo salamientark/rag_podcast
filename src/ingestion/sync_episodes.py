@@ -39,27 +39,25 @@ logger = setup_logging(logger_name="sync_episodes", log_file="logs/sync_episodes
 @log_function(logger_name="sync_episodes", log_execution_time=True)
 def fetch_podcast_episodes(feed_url: Optional[str] = None) -> list[dict[str, Any]]:
     """
-    Fetch episodes from RSS feed and parse episode metadata.
-
-    Retrieves the RSS feed URL, parses the XML feed, and extracts episode information.
-    Auto-generates UUID7 identifiers and sequential episode_id for each episode.
-
-    Args:
-        feed_url: RSS feed URL. If None, reads from FEED_URL environment variable.
-
+    Fetch episodes from an RSS feed and return parsed episode metadata.
+    
+    If feed_url is provided it is used; otherwise FEED_URL is read from a .env file. Each returned item is a dict containing a generated UUID7, the podcast name, a sequential episode_id, title, publication date, audio URL, and an optional description (truncated to 1000 chars).
+    
+    Parameters:
+        feed_url (Optional[str]): RSS feed URL to fetch; when None, the FEED_URL environment variable from a loaded .env file is used.
+    
     Returns:
-        List of dictionaries containing episode data with keys:
-        - uuid (str): Unique episode identifier (UUID7 format)
-        - podcast (str): Podcast name extracted from feed
-        - episode_id (int): Sequential episode number within podcast
-        - title (str): Episode title
-        - date (datetime): Publication date
-        - audio_url (str): URL to audio file
-        - description (str, optional): Episode description (max 1000 chars)
-
+        list[dict[str, Any]]: A list of episode dictionaries with keys:
+            - uuid (str): Unique episode identifier (UUID7 format)
+            - podcast (str): Podcast name extracted from the feed
+            - episode_id (int): Sequential episode number within the podcast (1-based, chronological)
+            - title (str): Episode title
+            - date (datetime): Publication date (naive datetime)
+            - audio_url (str): URL to the episode's audio file
+            - description (str, optional): Cleaned episode description, up to 1000 characters
+    
     Raises:
-        EnvironmentError: If .env file cannot be loaded or FEED_URL is missing
-        requests.RequestException: If feed fetch fails
+        EnvironmentError: If the .env file cannot be loaded or FEED_URL is missing when feed_url is not provided.
     """
     # Get feed URL from parameter or .env
     if not feed_url:
@@ -203,23 +201,28 @@ def sync_to_database(
     episodes: list[dict[str, Any]], dry_run: bool = False
 ) -> dict[str, int]:
     """
-    Sync episodes from RSS feed to database.
-
-    Processes episodes in chronological order (oldest first) for consistent database
-    ID assignment. Skips episodes that already exist (based on GUID). In dry-run mode,
-    displays what would be added without making database changes.
-
-    Args:
-        episodes: List of episode dictionaries from RSS feed with keys:
-                  guid, title, date, audio_url, description
-        dry_run: If True, display actions without committing to database
-
+    Persist a list of parsed podcast episodes to the database, optionally performing a dry run.
+    
+    Processes episodes in the provided order (chronological: oldest first). When an episode with the same title already exists, that episode is skipped. In dry-run mode, no database changes are made and a summary of actions is printed.
+    
+    Parameters:
+        episodes (list[dict[str, Any]]): Episode dictionaries with required keys:
+            - uuid: UUID for the episode
+            - podcast: Podcast name
+            - episode_id: Sequential episode number for the podcast
+            - title: Episode title
+            - date: Publication datetime
+            - audio_url: URL to the episode audio
+          Optional keys:
+            - description: Episode description
+        dry_run (bool): If True, print what would be performed without modifying the database.
+    
     Returns:
-        Dictionary with statistics:
-        - processed: Total number of episodes processed
-        - added: Number of new episodes added to database
-        - skipped: Number of episodes that already existed
-        - errors: Number of episodes that failed to process
+        dict[str, int]: Statistics for the operation:
+            - processed: Number of episodes inspected
+            - added: Number of new episodes inserted
+            - skipped: Number of episodes skipped because they already existed
+            - errors: Number of episodes that failed to process
     """
     logger = logging.getLogger("sync_episodes")
 
