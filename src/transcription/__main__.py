@@ -63,7 +63,9 @@ def validate_podcast_exists(podcast_name: str) -> bool:
     logger = logging.getLogger("transcript")
     try:
         with get_db_session() as session:
-            episode = session.query(Episode).filter_by(podcast=podcast_name).first()
+            episode = session.query(Episode).filter(
+                Episode.podcast.ilike(podcast_name)
+            ).first()
             return episode is not None
     except Exception as e:
         logger.error(f"Error validating podcast '{podcast_name}': {e}")
