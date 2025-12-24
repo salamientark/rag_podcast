@@ -36,7 +36,7 @@ class LocalStorage(BaseStorage):
             str: The absolute filename in local storage.
         """
         if not workspace.endswith("/"):
-            workspace = f"{workspace}/"
+            workspace += "/"
         return os.path.abspath(f"{workspace}{filename}")
 
     def create_episode_workspace(self, episode_id: Optional[int]) -> str:
