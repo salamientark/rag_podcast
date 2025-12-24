@@ -92,8 +92,9 @@ def check_db_needs_update(
         with get_db_session() as session:
             episode = (
                 session.query(Episode)
-                .filter_by(podcast=podcast_name, episode_id=episode_id)
-                .first()
+                .filter(Episode.podcast.ilike(podcast_name),
+                        Episode.episode_id == episode_id
+                ).first()
             )
 
             if not episode:
@@ -372,8 +373,9 @@ def update_episode_transcription_paths(
         with get_db_session() as session:
             episode = (
                 session.query(Episode)
-                .filter_by(podcast=podcast_name, episode_id=episode_id)
-                .first()
+                .filter(Episode.podcast.ilike(podcast_name),
+                        Episode.episode_id == episode_id
+                ).first()
             )
 
             if not episode:
