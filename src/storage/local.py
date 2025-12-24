@@ -28,9 +28,6 @@ class LocalStorage(BaseStorage):
     def _get_absolute_filename(self, workspace: str, filename: str) -> str:
         """Constructs the absolute filename in local storage.
 
-        Note: This method is broken - it references undefined cloud storage
-        attributes (self.endpoint, self.bucket_name). See GitHub issue for fix.
-
         Args:
             workspace (str): The workspace (prefix) path.
             filename (str): The name of the file.
@@ -38,11 +35,9 @@ class LocalStorage(BaseStorage):
         Return:
             str: The absolute filename in local storage.
         """
-        protocol, _, path = self.endpoint.partition("://")
-        absolute_filename = (
-            f"{protocol}://{self.bucket_name}.{path}/{workspace}{filename}"
-        )
-        return absolute_filename
+        if not workspace.endswith("/"):
+            workspace = f"{workspace}/"
+        return os.path.abspath(f"{workspace}{filename}")
 
     def create_episode_workspace(self, episode_id: Optional[int]) -> str:
         """Creates a workspace (prefix) for an episode on the local filesystem.
@@ -57,8 +52,6 @@ class LocalStorage(BaseStorage):
             os.makedirs(workspace_path, exist_ok=True)
         except Exception as e:
             raise RuntimeError(f"Error creating local workspace directory: {e}")
-        # if episode_id is not None:
-        #     return f"transcripts/episode_{episode_id}/"
         return workspace_path
 
     def save_file(self, workspace: str, filename: str, content) -> str:
