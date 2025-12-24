@@ -209,7 +209,7 @@ def check_episode_exists_in_qdrant(
 ) -> bool:
     """Check if an episode is already embedded in the Qdrant collection.
 
-    Queries the collection for any points with matching episode_id in payload.
+    Queries the collection for any points with matching db_uuid in payload.
 
     Args:
         client (QdrantClient): Active Qdrant client instance
