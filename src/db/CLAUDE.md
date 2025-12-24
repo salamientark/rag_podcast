@@ -16,9 +16,9 @@ The module uses context managers for safe, session-per-operation database access
 **Episode Model**
 
 - Primary table storing podcast episode metadata and processing state
-- Uses UUID7 as primary key (not auto-increment)
+- Primary key is `uuid` (string UUID7)
 - Tracks processing pipeline through `ProcessingStage` enum
-- File paths populated as processing progresses (audio, transcripts)
+- `episode_id` is a per-podcast sequential integer (NOT globally unique)
 
 **ProcessingStage Enum**
 
@@ -54,15 +54,37 @@ The module uses context managers for safe, session-per-operation database access
 - `get_qdrant_client()`: Context manager for Qdrant connections
 - `create_collection()`: Creates collection if not exists
 - `insert_one_point()`: Inserts single vector with auto-generated UUID
-- `check_episode_exists_in_qdrant()`: Checks if episode is already embedded
-- `get_episode_vectors()`: Retrieves all vectors for an episode (supports multi-chunk)
+- `check_episode_exists_in_qdrant()`: Checks if episode is already embedded (by `episode_id`)
+- `get_episode_vectors()`: Retrieves all vectors for an episode (by `db_uuid`, supports multi-chunk)
 - `ensure_payload_indexes()`: Creates indexes for `episode_id` and `db_uuid` fields
 
-**Configuration**
+## Critical Contracts (for reviews)
 
-- Embedding dimension: 1024 (VoyageAI voyage-3.5)
-- Distance metric: Cosine similarity
-- Supports both API key and local deployment
+### Episode identity
+
+- SQL primary key: `Episode.uuid` (string)
+- Per-podcast integer: `Episode.episode_id`
+- Do not query `Episode.id` (does not exist)
+
+### Qdrant payload schema
+
+To support filtering and retrieval, Qdrant payloads must include:
+
+- `db_uuid` (string) — MUST match `Episode.uuid`
+- `episode_id` (int)
+- `podcast` (string)
+- `title` (string)
+- For chunked embeddings: `chunk_index`, `total_chunks`
+- For RAG: `text` (string)
+
+### Qdrant payload indexes
+
+Before filtering/scrolling by payload fields, ensure indexes exist:
+
+- `episode_id`: INTEGER
+- `db_uuid`: KEYWORD
+
+Filtering without indexes can be slow or fail.
 
 ## Important Patterns
 
@@ -111,16 +133,9 @@ QDRANT_API_KEY=xxx  # Optional for local deployment
 
 ## Gotchas
 
-1. **Episode IDs vs UUIDs**: `episode_id` is NOT unique across podcasts (only within a podcast). Always use `uuid` for lookups.
-
+1. **Episode IDs vs UUIDs**: `episode_id` is NOT unique across podcasts. Always use `uuid` for cross-podcast lookups and Qdrant linking.
 2. **Processing Stage Transitions**: Stages are sequential and implied - don't skip stages, reconciliation logic depends on this order.
-
 3. **SQLite Thread Safety**: Uses NullPool and `check_same_thread=False` but still subject to locking under heavy writes.
-
-4. **Qdrant Payload Indexes**: Must call `ensure_payload_indexes()` before filtering on `episode_id` or `db_uuid`. Filtering without indexes will be slow or fail.
-
+4. **Qdrant Payload Indexes**: Must call `ensure_payload_indexes()` before filtering on `episode_id` or `db_uuid`.
 5. **Database Migrations**: `init_database()` creates tables but doesn't run Alembic migrations - use `alembic upgrade head`.
-
-6. **Error Handling**: Database errors trigger automatic rollback. Qdrant errors use fail-open approach (returns False, not exception).
-
-7. **Multi-Chunk Limit**: `get_episode_vectors()` assumes max 100 chunks per episode. Increase `limit` parameter if episodes exceed this.
+6. **Multi-Chunk Limit**: `get_episode_vectors()` assumes max 100 chunks per episode. Increase `limit` parameter if episodes exceed this.

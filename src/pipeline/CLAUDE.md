@@ -41,18 +41,7 @@ Wrapper functions for each pipeline stage with standardized error handling, logg
 
 CLI interface with comprehensive argument parsing.
 
-**CLI modes (mutually exclusive):**
-
-- `--full`: Process all episodes
-- `--episode-id ID [ID...]`: Process specific episodes
-- `--limit N`: Process up to N episodes (default: 5)
-
-**Podcast selection (mutually exclusive):**
-
-- `--podcast NAME`: Filter by podcast name
-- `--feed-url URL`: Use custom feed URL (always syncs)
-
-## Stage Mapping
+## Stage Mapping (CLI → ProcessingStage)
 
 ```python
 "sync" → ProcessingStage.SYNCED
@@ -62,23 +51,45 @@ CLI interface with comprehensive argument parsing.
 "embed" → ProcessingStage.EMBEDDED
 ```
 
+## Critical Contracts (for reviews)
+
+### Episode identity
+
+- SQL primary key is `Episode.uuid`
+- `episode_id` is per-podcast and not globally unique
+- Pipeline filtering by `--episode-id` is scoped to the selected podcast
+
+### Stage monotonicity
+
+- Pipeline stages must only move forward.
+- Downgrades are only allowed in reconciliation workflows.
+
+### File layout expectations
+
+Pipeline stage wrappers currently assume a per-podcast workspace layout:
+
+- Audio: `data/{podcast}/audio/`
+- Transcripts: `data/{podcast}/transcripts/episode_{episode_id:03d}/`
+- Embeddings: `data/{podcast}/embeddings/`
+
+If you change these conventions, you must update:
+
+- stage wrappers
+- reconciliation logic
+- documentation contracts
+
+### Qdrant payload requirements
+
+Embedding stage must store payload fields required by query:
+
+- `db_uuid`, `podcast`, `episode_id`, `title`, `chunk_index`, `total_chunks`, `text`
+
 ## Gotchas
 
 1. **Case sensitivity**: Podcast filtering is case-insensitive, but DB stores canonical names.
-
 2. **Feed URL vs Podcast**: Mutually exclusive. `feed_url` always triggers sync.
-
-3. **Episode ID scope**: Episode IDs are per-podcast, not global.
-
-4. **Default behavior**: Defaults to `--limit 5`, not full processing.
-
-5. **Stage dependencies**: Stages must run in order. Can't skip stages.
-
-6. **Dictionary conversion**: Episodes converted from SQLAlchemy models to dicts via `to_dict()`.
-
-7. **Workspace paths**: Local paths use `data/{podcast}/{stage}/`, cloud paths omit `data/`.
-
-8. **Speaker mapping token limit**: 10000 token limit for LLM input.
+3. **Stage dependencies**: Stages must run in order. Can't skip prerequisites.
+4. **Dictionary conversion**: Episodes converted from SQLAlchemy models to dicts via `to_dict()`.
 
 ## Usage Examples
 

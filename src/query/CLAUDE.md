@@ -32,7 +32,7 @@ Both modes use VoyageAI embeddings with Qdrant vector store and Claude LLM for g
 **Models:**
 
 - `llm_model`: Claude Sonnet 4 (default: "claude-sonnet-4-20250514")
-- `embedding_model`: VoyageAI (default: "voyage-3.5" @ 1024 dims)
+- `embedding_model`: VoyageAI (default: "voyage-3.5" in config)
 - `rerank_model`: BGE-M3 multilingual reranker
 
 **Retrieval settings:**
@@ -51,6 +51,37 @@ Sorts retrieved nodes by episode ID (descending) for temporal queries. Detects k
 
 Creates `SentenceTransformerRerank` instance using BGE-M3 model.
 
+## Critical Contracts (for reviews)
+
+### Qdrant payload must include text
+
+The query system expects retrieved nodes to contain the original chunk text. This is typically stored in Qdrant payload as `text` and then surfaced by the vector store.
+
+If embeddings were inserted without `text`, the system may retrieve metadata-only nodes and produce poor/empty answers.
+
+### Global Settings side effects (LlamaIndex)
+
+Both `service.py` and `__main__.py` set:
+
+- `llama_index.core.Settings.embed_model`
+- `llama_index.core.Settings.llm`
+
+These are **global**. Multiple instances (or tests) can conflict. Reviews should be cautious about introducing additional global Settings mutations or relying on Settings state across modules.
+
+### Episode identity
+
+Episode identity in Qdrant must be linked via payload field:
+
+- `db_uuid` == SQL `Episode.uuid`
+
+Do not assume `episode_id` is globally unique.
+
+## Gotchas
+
+1. **Temporal sorting assumption**: assumes higher `episode_id` = more recent. This is only valid if episode_id assignment is chronological and stable per podcast.
+2. **Reranking performance**: BGE-M3 is slower but more accurate.
+3. **Async-only query**: must be called with `await` or `asyncio.run()`.
+
 ## CLI Entry Points
 
 ```bash
@@ -59,20 +90,6 @@ uv run -m src.query --enable-reranking
 uv run -m src.query --mcp-server-url http://localhost:9000
 ```
 
-## Gotchas
+## Known Gaps (not necessarily broken)
 
-1. **Global Settings**: LLM and embedding models configured globally via `Settings`. Conflicts possible with multiple instances.
-
-2. **Temporal Sorting Logic**: Assumes higher `episode_id` = more recent.
-
-3. **Reranking Performance**: BGE-M3 is slower but more accurate. Default enabled.
-
-4. **Memory Token Limit**: 3000 tokens (~8-12 exchanges). Older messages auto-dropped.
-
-5. **API Key Validation**: Missing keys raise `ValueError` immediately at initialization.
-
-6. **Async-Only Query**: Must be called with `await` or `asyncio.run()`.
-
-7. **Response Type**: Returns `str`, not response objects. Metadata lost.
-
-8. **Error Messages in French**: User-facing CLI errors are in French.
+- `process_nodes_with_metadata()` exists but is not consistently applied in the query flow. If you want guaranteed citations, ensure metadata injection is part of the retrieval/synthesis pipeline.

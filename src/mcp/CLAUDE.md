@@ -32,7 +32,7 @@ Core configuration and dependency injection.
 
 French-language system prompt for the MCP server.
 
-- Instructs AI to use `query_podcast` tool for all podcast-related queries
+- Instructs AI to use the MCP tool for all podcast-related queries
 
 ### `tools/query_db.py`
 
@@ -42,9 +42,9 @@ The core MCP tool implementation.
   - Stateless RAG query - each call is independent
   - Delegates to `PodcastQueryService.query()`
 
-## Architecture Patterns
+## Critical Contracts (for reviews)
 
-### Stateless Design
+### Stateless design
 
 The server maintains NO conversation history. Each `query_db()` call is independent. The MCP client handles:
 
@@ -52,9 +52,15 @@ The server maintains NO conversation history. Each `query_db()` call is independ
 - Query reformulation
 - Multi-turn reasoning
 
-### Singleton Service Pattern
+### Singleton service pattern
 
 Single `PodcastQueryService` instance shared across all requests via lazy initialization.
+
+### Tool naming consistency
+
+The MCP tool function is currently named `query_db`. Prompts and client integrations must refer to the correct tool name.
+
+If a prompt mentions a different tool name (e.g., `query_podcast`), that is a mismatch and should be corrected to avoid tool-call failures.
 
 ## Gotchas
 

@@ -2,7 +2,9 @@
 
 ## Overview
 
-The embedder module generates vector embeddings from podcast transcripts using VoyageAI's API and stores them in Qdrant vector database. It supports batch processing, automatic chunking for long texts, and a 3-tier caching strategy.
+The embedder module generates vector embeddings from podcast transcripts using VoyageAI's API and stores them in Qdrant vector database. It supports automatic chunking for long texts and a 3-tier caching strategy.
+
+This documentation is review-oriented: it defines the payload and caching contracts that other modules depend on.
 
 ## Key Files
 
@@ -10,87 +12,74 @@ The embedder module generates vector embeddings from podcast transcripts using V
 
 **Key Functions:**
 
-- `embed_text(text, dimensions=1024)` - Generate embeddings using VoyageAI's voyage-3 model
-  - Accepts string or list of strings
-  - Validates dimensions (256, 512, 1024, 2048)
-  - Pre-checks token limits before API call
-  - Returns VoyageAI result object with embeddings
+- `embed_text(text, dimensions=1024)`  
+  Generate embeddings using VoyageAI. Accepts a string or list of strings. Validates dimensions and checks token limits before calling the API.
 
-- `process_episode_embedding(input_file, episode_uuid, collection_name, dimensions)` - Main processing function
-  - **3-Tier Caching Strategy:**
-    1. Check Qdrant DB first → if found, save to local file
-    2. Check local .npy file → if found, upload to Qdrant
-    3. Generate fresh embeddings → save to both Qdrant and local file
-  - Handles automatic chunking for long transcripts (max 30K tokens/chunk, 10% overlap)
-  - Returns status dict with action taken
+  **Important (current code reality):**
+  - The embedder currently uses `model_name = "voyage-3"` inside `embed_text()`.
+  - If the rest of the system expects `voyage-3.5`, this mismatch should be resolved (either update code or config), otherwise retrieval quality and compatibility assumptions can drift.
 
-- `save_embedding_to_file(output_path, embed)` / `load_embedding_from_file(file_path)` - Local storage helpers
-  - Saves/loads embeddings as numpy .npy files
-  - Supports both 1D (single chunk) and 2D (multi-chunk) arrays
+- `process_episode_embedding(input_file, episode_uuid, collection_name, dimensions)`  
+  Main processing function implementing **3-tier caching**:
+  1. Check Qdrant DB first → if found, save to local file (if missing) + update SQL stage
+  2. Check local `.npy` file → if found, upload to Qdrant + update SQL stage
+  3. Generate fresh embeddings (with chunking) → save to both Qdrant and local file + update SQL stage
+
+- `save_embedding_to_file(output_path, embed)` / `load_embedding_from_file(file_path)`  
+  Local storage helpers. Local `.npy` files can be:
+  - 1D array: legacy single-chunk embedding
+  - 2D array: multi-chunk embeddings (shape: `(num_chunks, dimensions)`)
 
 ### `__main__.py` - CLI Batch Processor
 
-**CLI Usage:**
+Provides batch embedding for transcript files. Note: some DB lookups in this CLI are currently inconsistent with the SQLAlchemy model (see “Known Broken”).
 
-```bash
-uv run -m src.embedder file.txt
-uv run -m src.embedder "data/transcripts/**/*.txt"
-uv run -m src.embedder *.txt --dimensions 512 --collection my_collection
-uv run -m src.embedder *.txt --skip-existing  # default
-uv run -m src.embedder *.txt --no-skip-existing  # force reprocess
-uv run -m src.embedder *.txt --dry-run --verbose
-```
+## Chunking Contract
 
-## Important Patterns
+Long transcripts are chunked to fit VoyageAI limits:
 
-### Multi-Chunk Embedding Architecture
+- Max tokens per chunk: 30,000
+- Overlap: 10%
 
-Long transcripts are automatically chunked to fit VoyageAI's 32K token limit:
+Chunking must be deterministic enough that re-chunking (e.g., when uploading from local cache) does not produce wildly different chunk counts. If chunking parameters change, cached embeddings may no longer align with chunk texts.
 
-- Each chunk is embedded separately
-- All chunks stored as separate Qdrant points with shared metadata
-- Local storage saves all chunks in single .npy file as 2D array
+## Qdrant Payload Contract (REQUIRED)
 
-### Payload Metadata Structure
-
-Every Qdrant point includes:
+Every Qdrant point inserted for an episode must include at least:
 
 ```python
 {
-    "podcast": str,
-    "episode_id": int,
-    "title": str,
-    "db_uuid": str,
-    "dimensions": int,
-    "publication_date": str,  # ISO 8601 with timezone
-    "chunk_index": int,
-    "total_chunks": int,
-    "token_count": int,
-    "text": str
+  "podcast": str,
+  "episode_id": int,
+  "title": str,
+  "db_uuid": str,          # MUST match Episode.uuid
+  "dimensions": int,
+  "publication_date": str, # ISO 8601
+  "chunk_index": int,
+  "total_chunks": int,
+  "token_count": int,
+  "text": str              # REQUIRED for RAG responses
 }
 ```
 
-## Gotchas
+If `text` is missing, the query system may return empty/low-quality answers because it cannot synthesize responses from retrieved nodes.
 
-1. **Token Limits**: VoyageAI voyage-3 model has 32K token limit. Pre-validation via `check_voyage_limits()` prevents API errors.
+## Qdrant Indexes (REQUIRED)
 
-2. **Caching Behavior**: Re-chunking happens when loading from local file. Chunk boundaries must be deterministic!
+Before filtering/scrolling by payload fields, the collection must have payload indexes:
 
-3. **Dimension Mismatch**: Changing dimensions requires re-embedding everything. Local files are named with dimension suffix: `episode_001_d1024.npy`.
+- `episode_id`: INTEGER
+- `db_uuid`: KEYWORD
 
-4. **Skip Logic**: `--skip-existing` checks Qdrant only, not local files. Uses `check_episode_exists_in_qdrant()`.
+The helper `ensure_payload_indexes()` exists for this purpose.
 
-5. **Array Shape Handling**: Local .npy files can be 1D (legacy single chunk) or 2D (multi-chunk). Code must handle both.
+## Gotchas / Review Rules
 
-6. **Episode ID vs UUID**: `episode_id` is int, `episode_uuid` is string. Functions use different parameter names.
+1. **UUID vs episode_id**: Qdrant linking must use `db_uuid` (Episode.uuid). `episode_id` is not globally unique.
+2. **Dimension changes**: changing `dimensions` requires re-embedding; local cache filenames include dimension suffix.
+3. **Multi-chunk support**: code must handle both 1D and 2D `.npy` formats.
+4. **Model naming drift**: keep embedder model name aligned with query embedding model configuration.
 
-7. **VoyageAI Result Object**: `embed_text()` returns a result object, extract with `result.embeddings[0]`.
+## Known Broken (current code reality)
 
-## Dependencies
-
-- `voyageai` - VoyageAI API client
-- `numpy` - Embedding array storage
-- `qdrant-client` - Vector database
-- `tiktoken` - Token counting (via src.chunker.token_counter)
-- `src.db.qdrant_client` - Qdrant helper functions
-- `src.chunker` - Text chunking logic
+- The embedder CLI (`src/embedder/__main__.py`) contains DB lookups using fields like `Episode.id` / `Episode.guid` that do not match the current SQLAlchemy model (`Episode.uuid` and `Episode.episode_id`). This can fail at runtime.
