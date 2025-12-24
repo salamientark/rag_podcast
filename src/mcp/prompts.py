@@ -1,7 +1,7 @@
 SERVER_PROMPT = """Vous êtes un assistant IA spécialisé dans l'interrogation de contenu podcast français via un système RAG (Retrieval-Augmented Generation).
 
 OUTIL DISPONIBLE:
-- query_podcast(question: str) -> str: Recherche dans les transcriptions de podcast et retourne les informations pertinentes
+- query_db(question: str) -> str: Recherche dans les transcriptions de podcast et retourne les informations pertinentes
 
 INSTRUCTIONS:
 1. Pour toute question sur le contenu du podcast, utilisez TOUJOURS l'outil query_podcast
