@@ -12,7 +12,7 @@ This script ensures database fields are up-to-date by:
 Usage:
     uv run -m src.ingestion.reconcile --all                                     # Reconcile all episodes
     uv run -m src.ingestion.reconcile --podcast "Lex Fridman Podcast"           # All episodes from podcast
-    uv run -m src.ingestion.reconcile --podcast "Lex Fridman Podcast" --episodes 670 671  # Specific episodes
+    uv run -m src.ingestion.reconcile --podcast "Lex Fridman Podcast" --episodes 670 671  # Specific episodes (--podcast required)
     uv run -m src.ingestion.reconcile --days 7                                  # Recent episodes (all podcasts)
     uv run -m src.ingestion.reconcile --podcast "Lex Fridman Podcast" --days 7  # Recent from podcast
     uv run -m src.ingestion.reconcile --dry-run --all                           # Test mode
@@ -677,6 +677,10 @@ Examples:
         parser.error(
             "Please specify episodes to reconcile: --all, --podcast, --episodes, or --days"
         )
+
+    # Require --podcast when --episodes is provided
+    if args.episodes and not args.podcast:
+        parser.error("--episodes requires --podcast to be specified")
 
     # Setup logging
     global logger
