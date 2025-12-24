@@ -62,12 +62,10 @@ if not client:
     return
 
 prompt = _speaker_identification_prompt()
-response = client.chat.completions.create(
-    model="gpt-4",
-    messages=[
-        {"role": "system", "content": prompt},
-        {"role": "user", "content": transcript_text}
-    ],
-    temperature=0.1
+response = client.responses.create(
+    model="gpt-5",
+    instructions=prompt,
+    input=transcript_text,
 )
+result = response.output_text
 ```
