@@ -466,7 +466,7 @@ def reconcile_qdrant(
 
                         # Check if episode exists in Qdrant
                         exists_in_qdrant = check_episode_exists_in_qdrant(
-                            client, collection_name, episode.episode_id
+                            client, collection_name, episode.uuid
                         )
 
                         if exists_in_qdrant:
