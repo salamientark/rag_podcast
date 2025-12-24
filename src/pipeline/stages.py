@@ -52,13 +52,13 @@ EMBEDDING_DIR = "data/embeddings"
 def run_sync_stage(feed_url: Optional[str] = None) -> str:
     """
     Sync podcast RSS feed into the SQL database and return the podcast name.
-    
+
     Parameters:
         feed_url (Optional[str]): Custom RSS feed URL; if None, uses FEED_URL from environment.
-    
+
     Returns:
         str: Podcast name extracted from the fetched feed.
-    
+
     Raises:
         ValueError: If no episodes are fetched from the feed.
     """
@@ -103,13 +103,13 @@ def run_download_stage(
 ) -> list[Dict[str, Any]]:
     """
     Download audio files for the provided episodes, optionally upload them to cloud storage, and update episode records.
-    
+
     Processes the given list of Episode objects, reusing existing local audio files when present, downloading missing files, and updating the database processing stage and audio file path for each processed episode. If cloud_save is True, uploads audio files to cloud storage (skipping files that already exist there) and updates the database with the cloud absolute path.
-    
+
     Parameters:
         episodes (list[Episode]): Episodes to process; each Episode must include uuid, podcast, episode_id, title, and audio_url.
         cloud_save (bool): If True, upload audio files to cloud storage and store cloud paths in the database.
-    
+
     Returns:
         list[dict]: List of episode dictionaries with keys `uuid`, `podcast`, `episode_id`, `title`, and `audio_path` (local or cloud path as stored in the DB).
     """
@@ -238,15 +238,15 @@ def run_download_stage(
 def run_raw_transcript_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
     """
     Generate raw transcripts for the provided episodes and persist them to disk.
-    
+
     Parameters:
         episodes (list[Dict[str, Any]]): List of episode dictionaries. Each dictionary must include
             the keys `uuid`, `podcast`, `episode_id`, and `audio_path`. `title` is optional but may be present.
-    
+
     Returns:
         list[Dict[str, Any]]: The input episode dictionaries augmented with `raw_transcript_path`.
             Episodes may also include `transcript_duration` (int seconds) and `transcript_confidence` when available.
-    
+
     Side effects:
         - Writes raw transcript JSON files to a per-episode workspace on disk.
         - Updates the episode record in the database with `raw_transcript_path`, `processing_stage` set to
@@ -338,11 +338,11 @@ def run_raw_transcript_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, A
 def run_speaker_mapping_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
     """
     Generate per-episode speaker mappings from raw transcript files and attach mapping paths to each episode.
-    
+
     Parameters:
         episodes (list[Dict[str, Any]]): List of episode dictionaries. Each dictionary must include the keys
             'uuid', 'podcast', 'episode_id', and 'raw_transcript_path'.
-    
+
     Returns:
         list[Dict[str, Any]]: The same list of episode dictionaries with a new 'mapping_path' key for each episode
         pointing to the JSON file containing the speaker mapping.
@@ -408,12 +408,12 @@ def run_formatted_transcript_stage(
 ) -> list[Dict[str, Any]]:
     """
     Create speaker-attributed, human-readable transcripts from raw transcripts and attach their paths to each episode.
-    
+
     Parameters:
         episodes (list[dict]): List of episode dictionaries. Each dictionary must include the keys
             `uuid`, `podcast`, `episode_id`, `title`, `raw_transcript_path`, and `mapping_path`.
         cloud_storage (bool): If True, upload the formatted transcript to configured cloud storage.
-    
+
     Returns:
         list[dict]: The same episode dictionaries with a `formatted_transcript_path` key added (path to the saved formatted transcript).
     """
@@ -503,10 +503,10 @@ def run_formatted_transcript_stage(
 def run_embedding_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
     """
     Generate embeddings for each episode's formatted transcript using a three-tier cache (Qdrant → local file → fresh embedding) and attach resulting embedding paths to episode dictionaries.
-    
+
     Parameters:
         episodes (list[dict]): List of episode dictionaries. Each dictionary must include keys: `uuid`, `podcast`, `episode_id`, `title`, and `formatted_transcript_path`. The function will add or update the `embedding_path` key on successful processing.
-    
+
     Returns:
         list[dict]: The subset of input episode dictionaries that were successfully processed, each augmented with an `embedding_path` pointing to the local embedding file.
     """

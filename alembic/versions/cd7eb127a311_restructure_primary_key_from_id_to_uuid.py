@@ -21,7 +21,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """
     Apply a migration that replaces the numeric primary key with a UUID primary key for the episodes table.
-    
+
     Renames the existing `guid` column to `uuid` and makes it the table primary key, renames `id` to `episode_id` (no longer a primary key or unique), copies all existing episode data into the new schema, drops the old table, and renames the new table back to `episodes`. The migration recreates the table (suitable for SQLite) to effect the primary-key change.
     """
     # Clean up any leftover temporary tables from previous migrations
@@ -78,7 +78,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     """
     Revert the episodes table schema to use `id` as the primary key and `guid` as a unique non-primary identifier.
-    
+
     Creates a temporary table with the original schema (integer `id` primary key, `guid` unique), migrates data from the current table (mapping `episode_id` → `id` and `uuid` → `guid`), drops the current `episodes` table, and renames the temporary table back to `episodes`.
     """
     # Create table with old schema

@@ -55,7 +55,7 @@ def run_migrations_offline() -> None:
 def run_migrations_online() -> None:
     """
     Run database migrations using a live database connection (online mode).
-    
+
     Configures an Engine-backed connection, attaches it to the Alembic context with batch rendering enabled, and executes pending migrations.
     """
     connectable = engine_from_config(

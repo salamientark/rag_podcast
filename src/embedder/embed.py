@@ -174,10 +174,10 @@ def save_embedding_to_file(output_path: Path, embed: list[float] | np.ndarray) -
 def load_embedding_from_file(file_path: Path) -> Optional[np.ndarray]:
     """
     Load an embedding array from a .npy file.
-    
+
     Returns:
         Optional[np.ndarray]: The loaded embedding array, or `None` if the file does not exist.
-    
+
     Raises:
         Exception: If the file exists but cannot be loaded.
     """
@@ -276,15 +276,15 @@ def process_episode_embedding(
 ) -> Dict[str, Any]:
     """
     Process an episode's transcript into embeddings using a three-tier caching strategy and upload results to Qdrant.
-    
+
     Checks Qdrant for existing vectors, falls back to a local .npy cache, and if neither exists splits the transcript into chunks, generates embeddings, saves them locally, and uploads per-chunk points to Qdrant. In all successful cases the episode's processing stage is updated to EMBEDDED.
-    
+
     Parameters:
         input_file (str | Path): Path to the transcript file to read.
         episode_uuid (str): Database UUID of the episode to process and tag in metadata.
         collection_name (str): Qdrant collection name to query/upload vectors.
         dimensions (int): Embedding vector dimensionality to request and persist.
-    
+
     Returns:
         dict: Status dictionary containing:
             - action (str | None): One of "retrieved_from_qdrant", "loaded_from_file", or "embedded_fresh" indicating what was done.

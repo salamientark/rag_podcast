@@ -45,10 +45,10 @@ from .orchestrator import run_pipeline
 def validate_stages(stage_names: List[str]) -> tuple[List[ProcessingStage], List[str]]:
     """
     Map CLI stage name strings to their corresponding ProcessingStage enum values.
-    
+
     Parameters:
         stage_names (List[str]): Iterable of stage names provided via the CLI (e.g., "sync", "download", "raw_transcript", "format_transcript", "embed").
-    
+
     Returns:
         tuple[List[ProcessingStage], List[str]]: A pair where the first element is a list of recognized ProcessingStage enum values in the same order as valid input names, and the second element is a list of input names that were not recognized.
     """
@@ -76,7 +76,7 @@ def validate_stages(stage_names: List[str]) -> tuple[List[ProcessingStage], List
 def count_episodes_by_stage() -> dict:
     """
     Count episodes grouped by processing stage.
-    
+
     Returns:
         dict: Mapping from `ProcessingStage.value` (stage name) to the integer count of `Episode` records in that stage. Returns an empty dict and prints an error to stderr if a database error occurs.
     """
@@ -95,9 +95,9 @@ def count_episodes_by_stage() -> dict:
 def get_available_podcasts() -> list[str]:
     """
     Return the list of available podcast names from the database.
-    
+
     If retrieval fails, prints an error message to stderr and returns an empty list.
-    
+
     Returns:
         list[str]: Podcast names from the database, or an empty list if retrieval fails.
     """
@@ -113,13 +113,13 @@ def get_available_podcasts() -> list[str]:
 def validate_podcast(podcast_name: str) -> tuple[bool, Optional[str]]:
     """
     Finds a canonical podcast name in the database that matches the provided name.
-    
+
     Parameters:
         podcast_name (str): Podcast name to validate (case-insensitive).
-    
+
     Returns:
         tuple[bool, Optional[str]]: `(True, canonical_name)` when a case-insensitive match is found; `(False, None)` otherwise.
-    
+
     Notes:
         If no podcasts exist in the database or the name is not found, an error message is printed to stderr.
     """
@@ -174,7 +174,7 @@ def validate_mutually_exclusive_args(args: argparse.Namespace) -> Optional[str]:
 def validate_storage_args(args: argparse.Namespace) -> None:
     """
     Ensure a storage option is selected by defaulting to local when neither --local nor --cloud is provided.
-    
+
     Parameters:
         args (argparse.Namespace): Parsed CLI namespace; may be mutated to set `args.local = True` when neither `args.local` nor `args.cloud` is truthy.
     """
@@ -186,10 +186,10 @@ def validate_storage_args(args: argparse.Namespace) -> None:
 def validate_feed_url_podcast_exclusivity(args: argparse.Namespace) -> Optional[str]:
     """
     Validate mutual exclusivity between --feed-url and --podcast and require that one is provided.
-    
+
     Parameters:
         args (argparse.Namespace): Parsed command-line arguments with `feed_url` and `podcast` attributes.
-    
+
     Returns:
         str: Error message if validation fails, `None` otherwise.
     """
@@ -205,7 +205,7 @@ def validate_feed_url_podcast_exclusivity(args: argparse.Namespace) -> Optional[
 def print_dry_run_summary(args: argparse.Namespace, logger) -> None:
     """
     Print a human-readable dry-run summary of the pipeline configuration and current database counts.
-    
+
     The summary displays the selected processing mode (full, specific episode IDs, or limited), podcast or feed URL filter, chosen pipeline stages, runtime options (force, verbose, storage backend), and per-stage episode counts retrieved from the database. This function only prints information and does not perform any processing.
     """
     print("=" * 80)
@@ -279,11 +279,11 @@ def print_dry_run_summary(args: argparse.Namespace, logger) -> None:
 def parse_arguments() -> argparse.Namespace:
     """
     Parse command-line arguments for the podcast processing pipeline.
-    
+
     Configures processing mode (--full, --episode-id, --limit), stage selection (--stages),
     podcast selection (--podcast or --feed-url), storage options (--local, --cloud),
     and miscellaneous flags (--force, --dry-run, --verbose).
-    
+
     Returns:
         argparse.Namespace: Parsed arguments with attributes:
             full, episode_id, limit, stages, podcast, feed_url, force, dry_run,

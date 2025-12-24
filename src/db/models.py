@@ -133,7 +133,7 @@ class Episode(Base, TimestampMixin):
     def __repr__(self):
         """
         Return a concise string representation of the Episode showing its primary identifiers and processing stage.
-        
+
         Returns:
             str: A string containing the episode's `uuid`, `episode_id`, `title`, `published_date`, and current processing stage.
         """

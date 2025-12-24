@@ -221,7 +221,7 @@ def init_database() -> bool:
 def get_database_info() -> dict:
     """
     Collects diagnostic information about the configured SQLite database and the SQLAlchemy engine.
-    
+
     Returns:
         dict: A mapping containing:
             - `database_url` (str): The configured DATABASE_URL.
@@ -265,7 +265,7 @@ def get_database_info() -> dict:
 def get_podcasts() -> list[str]:
     """
     Return a sorted list of unique podcast names stored in the database.
-    
+
     Returns:
         list[str]: Alphabetically sorted list of podcast names. Returns an empty list if no podcasts are found or an error occurs while querying the database.
     """
@@ -301,9 +301,9 @@ def update_episode_in_db(
 ):
     """
     Update fields of an Episode record identified by its UUID.
-    
+
     Only parameters passed as non-None are written to the database; unspecified fields are left unchanged.
-    
+
     Parameters:
         uuid (str): UUID of the episode to update.
         podcast (Optional[str]): New podcast name.

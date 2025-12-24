@@ -9,10 +9,10 @@ from chonkie.chunker.token import TokenChunker
 def chunks_to_text(chunks: list[Any]) -> list[str]:
     """
     Convert a list of chunk-like objects into their stripped text strings.
-    
+
     Parameters:
         chunks (list[Any]): Objects that expose a `text` attribute; each `text` value will be stripped of leading and trailing whitespace.
-    
+
     Returns:
         list[str]: Extracted and stripped text strings.
     """
@@ -25,12 +25,12 @@ def chunk_long_text(
 ) -> list[str]:
     """
     Chunk input text into token-sized segments with configurable overlap.
-    
+
     Parameters:
         text (str): Text to be chunked.
         max_tokens (int): Maximum tokens per chunk. Defaults to 30000.
         overlap_percent (float): Fraction of max_tokens to overlap between consecutive chunks (e.g., 0.1 for 10%). Defaults to 0.1.
-    
+
     Returns:
         list[str]: List of chunked text segments; a single-item list containing the original text if it fits within max_tokens.
     """

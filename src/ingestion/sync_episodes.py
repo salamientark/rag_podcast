@@ -40,12 +40,12 @@ logger = setup_logging(logger_name="sync_episodes", log_file="logs/sync_episodes
 def fetch_podcast_episodes(feed_url: Optional[str] = None) -> list[dict[str, Any]]:
     """
     Fetch episodes from an RSS feed and return parsed episode metadata.
-    
+
     If feed_url is provided it is used; otherwise FEED_URL is read from a .env file. Each returned item is a dict containing a generated UUID7, the podcast name, a sequential episode_id, title, publication date, audio URL, and an optional description (truncated to 1000 chars).
-    
+
     Parameters:
         feed_url (Optional[str]): RSS feed URL to fetch; when None, the FEED_URL environment variable from a loaded .env file is used.
-    
+
     Returns:
         list[dict[str, Any]]: A list of episode dictionaries with keys:
             - uuid (str): Unique episode identifier (UUID7 format)
@@ -55,7 +55,7 @@ def fetch_podcast_episodes(feed_url: Optional[str] = None) -> list[dict[str, Any
             - date (datetime): Publication date (naive datetime)
             - audio_url (str): URL to the episode's audio file
             - description (str, optional): Cleaned episode description, up to 1000 characters
-    
+
     Raises:
         EnvironmentError: If the .env file cannot be loaded or FEED_URL is missing when feed_url is not provided.
     """
@@ -202,9 +202,9 @@ def sync_to_database(
 ) -> dict[str, int]:
     """
     Persist a list of parsed podcast episodes to the database, optionally performing a dry run.
-    
+
     Processes episodes in the provided order (chronological: oldest first). When an episode with the same title already exists, that episode is skipped. In dry-run mode, no database changes are made and a summary of actions is printed.
-    
+
     Parameters:
         episodes (list[dict[str, Any]]): Episode dictionaries with required keys:
             - uuid: UUID for the episode
@@ -216,7 +216,7 @@ def sync_to_database(
           Optional keys:
             - description: Episode description
         dry_run (bool): If True, print what would be performed without modifying the database.
-    
+
     Returns:
         dict[str, int]: Statistics for the operation:
             - processed: Number of episodes inspected

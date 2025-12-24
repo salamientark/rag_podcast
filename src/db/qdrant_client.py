@@ -272,13 +272,13 @@ def get_episode_vectors(
 ) -> Optional[list[list[float]]]:
     """
     Retrieve all embedding vectors for an episode identified by UUID from the specified Qdrant collection.
-    
+
     Handles both legacy single-chunk episodes and multi-chunk episodes; when multiple chunks exist, vectors are returned sorted by the payload `chunk_index`.
-    
+
     Parameters:
         collection_name (str): Name of the Qdrant collection to query.
         episode_uuid (str): Episode UUID to match against the `db_uuid` payload field.
-    
+
     Returns:
         Optional[list[list[float]]]: A list of embedding vectors (each vector is a list of floats) sorted by `chunk_index` when present; `None` if the collection or episode is not found or if an error occurs.
     """
@@ -381,12 +381,12 @@ def ensure_payload_indexes(
 ) -> None:
     """
     Ensure the collection has payload indexes for episode lookup by numeric ID and UUID.
-    
+
     Creates an INTEGER index for `episode_id` and a KEYWORD index for `db_uuid` when they are missing; does nothing if the collection does not exist or the indexes are already present.
-    
+
     Parameters:
         collection_name (str): Name of the collection to ensure payload indexes on.
-    
+
     Raises:
         Exception: Propagates any error raised while checking the collection or creating indexes.
     """

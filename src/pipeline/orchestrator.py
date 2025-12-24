@@ -75,16 +75,16 @@ def filter_episode(
 ) -> list[Episode]:
     """
     Filter a list of Episode objects by podcast name, specific episode IDs, a maximum count, and target processing stage.
-    
+
     Podcast filtering is applied first and is case-insensitive. If `episodes_id` is provided, returns only episodes whose `episode_id` is in that list. If `episodes_id` is not provided and `limit` is provided, returns up to `limit` episodes whose current processing stage is earlier than the specified `stage`, preserving the input order. If neither `episodes_id` nor `limit` is provided, returns the (optionally podcast-filtered) input list.
-    
+
     Parameters:
         episodes (list[Episode]): Episodes to filter.
         episodes_id (Optional[list[int]]): If provided, include only episodes with these IDs.
         limit (Optional[int]): If provided and `episodes_id` is not, include up to this many episodes that are before `stage`.
         stage (Optional[ProcessingStage]): Target processing stage used when applying `limit`.
         podcast (Optional[str]): If provided, include only episodes whose podcast name matches this value (case-insensitive).
-    
+
     Returns:
         list[Episode]: Episodes that match the provided filters.
     """
@@ -132,9 +132,9 @@ def run_pipeline(
 ):
     """
     Orchestrates the end-to-end podcast processing pipeline across configurable stages.
-    
+
     Runs sync, download, transcription, formatting (including speaker mapping), and embedding stages as requested; when `feed_url` is provided the sync stage is always run and the podcast name is extracted and used for filtering, when only `podcast` is provided sync runs only if requested, and a ValueError is raised if neither `feed_url` nor `podcast` is supplied.
-    
+
     Parameters:
         episodes_id (list[int] | None): Specific episode_id values to process within the selected podcast; when provided the pipeline restricts processing to these episodes.
         limit (int | None): Maximum number of episodes to process when `episodes_id` is not provided.

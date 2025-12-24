@@ -33,13 +33,13 @@ sys.path.insert(0, str(project_root))
 def sanitize_filename(title, max_length=100):
     """
     Produce a filesystem-safe, lowercase filename from an episode title.
-    
+
     Keeps only ASCII letters (a–z), digits, and underscores (spaces become underscores), truncates to the last whole word within max_length, and returns "unknown_episode" if the title is empty or sanitization produces an empty string.
-    
+
     Parameters:
         title (str): Episode title to sanitize.
         max_length (int): Maximum length for the resulting filename (default 100).
-    
+
     Returns:
         str: Sanitized filename suitable for use on most filesystems.
     """
@@ -68,7 +68,7 @@ def sanitize_filename(title, max_length=100):
 def generate_filename(episode_number: int, title: str):
     """
     Create a standardized MP3 filename for an episode.
-    
+
     Returns:
         filename (str): The filename in the form "episode_{number:03d}_{sanitized_title}.mp3",
             where `number` is the zero-padded episode_number and `sanitized_title` is the title
@@ -119,10 +119,10 @@ def update_episode_status(uuid: str, audio_file_path: str) -> bool:
 def get_episodes_from_db(limit=None):
     """
     Retrieve recent episodes that have an audio URL, ordered by published date descending.
-    
+
     Parameters:
         limit (int | None): Optional maximum number of episodes to return (most recent first). If None, no limit is applied.
-    
+
     Returns:
         list[dict]: A list of episode dictionaries. Each dictionary contains the keys:
             - 'uuid': episode UUID
@@ -185,16 +185,16 @@ def download_episode(
 ) -> tuple[bool, str]:
     """
     Download an episode audio file using browser-like headers and save it to the given workspace.
-    
+
     Attempts up to `max_retries` downloads with exponential backoff, removes partial files on failure, and verifies the saved file is at least 100 KB before reporting success.
-    
+
     Parameters:
         episode_number: Numeric episode identifier used to construct the output filename.
         title: Episode title used to construct the output filename.
         url: HTTP(S) URL of the audio resource to download.
         workspace: Directory path where the downloaded file will be saved.
         max_retries (int): Maximum number of download attempts (default 3).
-    
+
     Returns:
         tuple[bool, str]: `(True, filepath)` when the file was successfully downloaded and validated; `(False, "")` if all attempts failed.
     """
@@ -278,12 +278,12 @@ def download_episode(
 def download_missing_episodes(audio_dir="data/audio", limit=None, dry_run=False):
     """
     Check the database and audio directory, download any missing episode files, and update episode records on success.
-    
+
     Parameters:
         audio_dir (str): Path to the directory where audio files are stored and downloaded.
         limit (int | None): Maximum number of episodes to consider (applies to the initial DB query and to limiting the set of missing episodes downloaded). If None, no limit is applied.
         dry_run (bool): If True, print which files would be downloaded but do not perform any downloads or database updates.
-    
+
     Returns:
         dict: Summary statistics about the operation with keys:
             - total (int): Total episodes found in the database.
