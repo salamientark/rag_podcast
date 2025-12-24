@@ -4,29 +4,29 @@ CLI interface for transcription using AssemblyAI Universal-2 with diarization.
 Processes single or multiple audio files sequentially with caching support.
 
 Usage:
-    uv run -m src.transcription <file1.mp3> [file2.mp3 ...]
-    uv run -m src.transcription <file1.mp3> -o data/transcripts/
-    uv run -m src.transcription <file1.mp3> --dry-run
-    uv run -m src.transcription <file1.mp3> --force --no-db-update
+    uv run -m src.transcription --podcast "Podcast Name" <file1.mp3> [file2.mp3 ...]
+    uv run -m src.transcription --podcast "Podcast Name" <file1.mp3> -o data/transcripts/
+    uv run -m src.transcription --podcast "Podcast Name" <file1.mp3> --dry-run
+    uv run -m src.transcription --podcast "Podcast Name" <file1.mp3> --force --no-db-update
 
 Examples:
     # Single file with default output
-    uv run -m src.transcription data/audio/episode_001_title.mp3
+    uv run -m src.transcription --podcast "Podcast Name" data/audio/episode_001_title.mp3
 
     # Multiple files
-    uv run -m src.transcription data/audio/episode_001.mp3 data/audio/episode_002.mp3
+    uv run -m src.transcription --podcast "Podcast Name" data/audio/episode_001.mp3 data/audio/episode_002.mp3
 
     # Custom output directory
-    uv run -m src.transcription episode_001.mp3 -o custom/output/
+    uv run -m src.transcription --podcast "Podcast Name" episode_001.mp3 -o custom/output/
 
     # Dry run to check what would be processed
-    uv run -m src.transcription episode_*.mp3 --dry-run
+    uv run -m src.transcription --podcast "Podcast Name" episode_*.mp3 --dry-run
 
     # Force re-transcription even if formatted transcript exists
-    uv run -m src.transcription episode_001.mp3 --force
+    uv run -m src.transcription --podcast "Podcast Name" episode_001.mp3 --force
 
     # Process without updating database
-    uv run -m src.transcription episode_001.mp3 --no-db-update
+    uv run -m src.transcription --podcast "Podcast Name" episode_001.mp3 --no-db-update
 """
 
 import sys
@@ -41,7 +41,7 @@ from src.transcription.transcript import (
     get_episode_id_from_path,
     transcribe_with_diarization,
 )
-from src.transcript.speaker_mapper import (
+from src.transcription.speaker_mapper import (
     format_transcript,
     map_speakers_with_llm,
 )
@@ -50,11 +50,38 @@ from src.db.database import get_db_session
 from src.db.models import Episode, ProcessingStage
 
 
-def check_db_needs_update(episode_id: int, output_dir: Path) -> Dict[str, Any]:
+def validate_podcast_exists(podcast_name: str) -> bool:
+    """
+    Validate that a podcast exists in the database.
+
+    Args:
+        podcast_name: Name of the podcast to validate
+
+    Returns:
+        bool: True if podcast exists, False otherwise
+    """
+    logger = logging.getLogger("transcript")
+    try:
+        with get_db_session() as session:
+            episode = (
+                session.query(Episode)
+                .filter(Episode.podcast.ilike(podcast_name))
+                .first()
+            )
+            return episode is not None
+    except Exception as e:
+        logger.error(f"Error validating podcast '{podcast_name}': {e}")
+        return False
+
+
+def check_db_needs_update(
+    podcast_name: str, episode_id: int, output_dir: Path
+) -> Dict[str, Any]:
     """
     Check if database record needs updating for an episode.
 
     Args:
+        podcast_name: Podcast name
         episode_id: Episode ID number
         output_dir: Base output directory
 
@@ -63,7 +90,14 @@ def check_db_needs_update(episode_id: int, output_dir: Path) -> Dict[str, Any]:
     """
     try:
         with get_db_session() as session:
-            episode = session.query(Episode).filter_by(id=episode_id).first()
+            episode = (
+                session.query(Episode)
+                .filter(
+                    Episode.podcast.ilike(podcast_name),
+                    Episode.episode_id == episode_id,
+                )
+                .first()
+            )
 
             if not episode:
                 return {
@@ -102,7 +136,11 @@ def check_db_needs_update(episode_id: int, output_dir: Path) -> Dict[str, Any]:
 
 
 def dry_run_analysis(
-    files: List[Path], output_dir: Path, force: bool, no_db_update: bool
+    files: List[Path],
+    output_dir: Path,
+    podcast_name: str,
+    force: bool,
+    no_db_update: bool,
 ) -> None:
     """
     Perform dry-run analysis showing what would be processed.
@@ -110,6 +148,7 @@ def dry_run_analysis(
     Args:
         files: List of audio files to process
         output_dir: Output directory for transcripts
+        podcast_name: Podcast name
         force: Whether to force re-transcription
         no_db_update: Whether to skip database updates
     """
@@ -117,6 +156,7 @@ def dry_run_analysis(
     print("DRY RUN - No files will be processed")
     print("=" * 80)
     print(f"\nOutput directory: {output_dir.absolute()}")
+    print(f"Podcast: {podcast_name}")
     print(f"Force re-transcription: {force}")
     print(f"Database updates: {'disabled' if no_db_update else 'enabled'}")
     print(f"\nFiles to process: {len(files)}")
@@ -148,7 +188,7 @@ def dry_run_analysis(
 
         # Check database status
         if not no_db_update:
-            db_status = check_db_needs_update(episode_id, output_dir)
+            db_status = check_db_needs_update(podcast_name, episode_id, output_dir)
             if db_status["exists"]:
                 print(
                     f"  Database: Episode exists (stage: {db_status['current_stage']})"
@@ -170,6 +210,7 @@ def dry_run_analysis(
 def process_files(
     files: List[Path],
     output_dir: Path,
+    podcast_name: str,
     language: str,
     force: bool,
     no_db_update: bool,
@@ -181,6 +222,7 @@ def process_files(
     Args:
         files: List of audio files to process
         output_dir: Output directory for transcripts
+        podcast_name: Podcast name
         language: Language code for transcription
         force: Force re-transcription even if formatted transcript exists
         no_db_update: Skip database updates
@@ -214,7 +256,9 @@ def process_files(
 
                 # Still update DB if needed
                 if not no_db_update:
-                    db_status = check_db_needs_update(episode_id, output_dir)
+                    db_status = check_db_needs_update(
+                        podcast_name, episode_id, output_dir
+                    )
                     if db_status["exists"] and db_status["needs_update"]:
                         print("  ↻ Updating database stage...")
                         try:
@@ -234,6 +278,7 @@ def process_files(
                             )
 
                             update_episode_transcription_paths(
+                                podcast_name,
                                 episode_id,
                                 str(raw_path),
                                 str(mapping_path),
@@ -261,6 +306,7 @@ def process_files(
                 input_file=file_path,
                 language=language,
                 output_dir=output_dir,
+                podcast_name=podcast_name,
                 episode_id=episode_id,
             )
 
@@ -301,6 +347,7 @@ def print_summary(results: Dict[str, List[str]]) -> None:
 
 @log_function(logger_name="transcript", log_execution_time=True)
 def update_episode_transcription_paths(
+    podcast_name: str,
     episode_id: int,
     raw_transcript_path: str,
     speaker_mapping_path: str,
@@ -312,6 +359,7 @@ def update_episode_transcription_paths(
     Update episode database record with transcription file paths.
 
     Args:
+        podcast_name: Podcast name
         episode_id: Database ID of the episode
         raw_transcript_path: Path to raw transcription JSON
         speaker_mapping_path: Path to speaker mapping JSON
@@ -325,7 +373,14 @@ def update_episode_transcription_paths(
     logger = logging.getLogger("audio_scraper")
     try:
         with get_db_session() as session:
-            episode = session.query(Episode).filter_by(id=episode_id).first()
+            episode = (
+                session.query(Episode)
+                .filter(
+                    Episode.podcast.ilike(podcast_name),
+                    Episode.episode_id == episode_id,
+                )
+                .first()
+            )
 
             if not episode:
                 logger.error(f"Episode {episode_id} not found in database")
@@ -356,6 +411,7 @@ def transcribe_local_file(
     input_file: Union[str, Path],
     language: str = "fr",
     output_dir: Optional[Union[str, Path]] = "data/transcripts/",
+    podcast_name: Optional[str] = None,
     episode_id: Optional[int] = None,
 ):
     """High level function to transcribe a local audio file.
@@ -373,6 +429,7 @@ def transcribe_local_file(
         input_path: Path to local audio file
         language: Language code for transcription (default: fr)
         output_dir: Directory to save output files (default: data/transcripts/)
+        podcast_name: Podcast name (required for database updates)
         episode_id: Optional episode ID for naming else try to found it file name
 
     Raises:
@@ -456,15 +513,19 @@ def transcribe_local_file(
         try:
             transcript_duration = raw_result["transcript"].get("audio_duration")
             transcript_confidence = raw_result["transcript"].get("confidence")
-            update_episode_transcription_paths(
-                episode_nbr,
-                str(raw_file_path),
-                str(mapping_file_path),
-                str(formatted_transcript_path),
-                transcript_duration=transcript_duration,
-                transcript_confidence=transcript_confidence,
-            )
-            logger.info("Database updated successfully")
+            if podcast_name:
+                update_episode_transcription_paths(
+                    podcast_name,
+                    episode_nbr,
+                    str(raw_file_path),
+                    str(mapping_file_path),
+                    str(formatted_transcript_path),
+                    transcript_duration=transcript_duration,
+                    transcript_confidence=transcript_confidence,
+                )
+                logger.info("Database updated successfully")
+            else:
+                logger.warning("No podcast_name provided, skipping database update")
         except Exception as db_error:
             logger.error(f"DB update failed but files saved: {db_error}")
             # Files exist but DB not updated - manual intervention needed
@@ -483,24 +544,25 @@ def main():
         epilog="""
 Examples:
   # Single file
-  uv run -m src.transcription data/audio/episode_001_title.mp3
+  uv run -m src.transcription --podcast "Podcast Name" data/audio/episode_001_title.mp3
   
   # Multiple files
-  uv run -m src.transcription data/audio/episode_001.mp3 data/audio/episode_002.mp3
+  uv run -m src.transcription --podcast "Podcast Name" data/audio/episode_001.mp3 data/audio/episode_002.mp3
   
   # Custom output directory
-  uv run -m src.transcription episode_001.mp3 -o custom/output/
+  uv run -m src.transcription --podcast "Podcast Name" episode_001.mp3 -o custom/output/
   
   # Dry run (show what would be processed)
-  uv run -m src.transcription episode_001.mp3 --dry-run
+  uv run -m src.transcription --podcast "Podcast Name" episode_001.mp3 --dry-run
   
   # Force re-transcription
-  uv run -m src.transcription episode_001.mp3 --force
+  uv run -m src.transcription --podcast "Podcast Name" episode_001.mp3 --force
   
   # Skip database updates
-  uv run -m src.transcription episode_001.mp3 --no-db-update
+  uv run -m src.transcription --podcast "Podcast Name" episode_001.mp3 --no-db-update
 
 Notes:
+  - Podcast name must match the name in the database
   - Episode IDs are extracted from filenames (pattern: episode_XXX_)
   - Skips transcription if formatted transcript already exists (use --force to override)
   - Processes multiple files sequentially, continuing on errors
@@ -513,6 +575,12 @@ Notes:
         nargs="+",
         type=Path,
         help="Audio file(s) to transcribe (supports multiple files)",
+    )
+    parser.add_argument(
+        "--podcast",
+        type=str,
+        required=True,
+        help="Podcast name (must match podcast name in database)",
     )
     parser.add_argument(
         "-o",
@@ -550,6 +618,13 @@ Notes:
         logger_name="transcript", log_file="logs/transcript.log", verbose=args.verbose
     )
 
+    # Validate podcast exists in database
+    if not validate_podcast_exists(args.podcast):
+        print(f"✗ Error: Podcast '{args.podcast}' not found in database")
+        logger.error(f"Podcast '{args.podcast}' not found in database")
+        print("\nPlease check the podcast name and ensure it exists in the database.")
+        sys.exit(1)
+
     # Validate input files
     valid_files = []
     for file_path in args.files:
@@ -569,7 +644,9 @@ Notes:
 
     # Dry run mode
     if args.dry_run:
-        dry_run_analysis(valid_files, args.output_dir, args.force, args.no_db_update)
+        dry_run_analysis(
+            valid_files, args.output_dir, args.podcast, args.force, args.no_db_update
+        )
         sys.exit(0)
 
     # Process files
@@ -579,6 +656,7 @@ Notes:
         results = process_files(
             files=valid_files,
             output_dir=args.output_dir,
+            podcast_name=args.podcast,
             language=args.language,
             force=args.force,
             no_db_update=args.no_db_update,

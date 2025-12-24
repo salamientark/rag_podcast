@@ -27,8 +27,11 @@ Examples:
     # Dry run to validate files
     uv run -m src.embedder.main *.txt --dry-run --verbose
 
-    # With explicit episode ID
-    uv run -m src.embedder.main transcript.txt --episode-id 123
+    # With explicit episode ID and podcast (both required together)
+    uv run -m src.embedder.main transcript.txt --podcast my_podcast --episode-id 123
+
+    # Process specific podcast's transcripts
+    uv run -m src.embedder.main *.txt --podcast my_podcast
 """
 
 import argparse
@@ -119,6 +122,8 @@ Examples:
   %(prog)s file.txt --save-local --verbose
   %(prog)s *.txt --dry-run
   %(prog)s *.txt --no-skip-existing  # Process all files, even if already embedded
+  %(prog)s transcript.txt --podcast my_podcast --episode-id 123
+  %(prog)s data/transcripts/**/*.txt --podcast my_podcast
 
 For more information, see the embedder README.
         """,
@@ -164,6 +169,13 @@ For more information, see the embedder README.
     )
 
     parser.add_argument(
+        "--podcast",
+        type=str,
+        default=None,
+        help="Podcast identifier for database tracking (required when --episode-id is provided)",
+    )
+
+    parser.add_argument(
         "--skip-existing",
         action="store_true",
         default=True,
@@ -190,7 +202,13 @@ For more information, see the embedder README.
         help="Enable verbose logging output",
     )
 
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    # Validate --podcast and --episode-id dependency
+    if args.episode_id is not None and args.podcast is None:
+        parser.error("--podcast is required when --episode-id is provided")
+
+    return args
 
 
 def expand_glob_patterns(patterns: list[str]) -> list[Path]:
@@ -264,12 +282,13 @@ def validate_files(
 
 
 def get_episode_info_from_db(
-    episode_id: int, logger: logging.Logger
+    episode_id: int, podcast: Optional[str], logger: logging.Logger
 ) -> Optional[Dict[str, Any]]:
     """Fetch episode information from database.
 
     Args:
-        episode_id (int): Episode database ID.
+        episode_id (int): Episode number within podcast.
+        podcast (Optional[str]): Podcast identifier for filtering.
         logger (logging.Logger): Logger instance.
 
     Returns:
@@ -277,12 +296,19 @@ def get_episode_info_from_db(
     """
     try:
         with get_db_session() as session:
-            episode = session.query(Episode).filter_by(id=episode_id).first()
+            query = session.query(Episode).filter_by(episode_id=episode_id)
+
+            # Add podcast filter if provided
+            if podcast:
+                query = query.filter_by(podcast=podcast)
+
+            episode = query.first()
+
             if episode:
                 return {
-                    "id": episode.id,
+                    "episode_id": episode.episode_id,
                     "title": episode.title,
-                    "guid": str(episode.guid),
+                    "guid": str(episode.uuid),
                 }
             return None
     except Exception as e:
@@ -296,6 +322,7 @@ def process_single_file(
     dimensions: int,
     save_local: bool,
     episode_id: Optional[int],
+    podcast: Optional[str],
     skip_existing: bool,
     logger: logging.Logger,
 ) -> Dict[str, Any]:
@@ -307,6 +334,7 @@ def process_single_file(
         dimensions (int): Embedding dimensions.
         save_local (bool): Whether to save embeddings locally.
         episode_id (Optional[int]): Episode ID (if None, auto-extract from filename).
+        podcast (Optional[str]): Podcast identifier for filtering.
         skip_existing (bool): Whether to skip if episode already exists in Qdrant.
         logger (logging.Logger): Logger instance.
 
@@ -374,11 +402,18 @@ def process_single_file(
         # Fetch episode info from database for metadata
         episode_info = None
         if episode_id:
-            episode_info = get_episode_info_from_db(episode_id, logger)
+            episode_info = get_episode_info_from_db(episode_id, podcast, logger)
+
+            # If both podcast and episode_id provided, episode MUST exist
+            if podcast and episode_id and not episode_info:
+                raise ValueError(
+                    f"Episode {episode_id} not found for podcast '{podcast}'. "
+                    "Cannot proceed without valid episode metadata."
+                )
 
         # Create payload metadata
         payload = {
-            "episode_id": episode_id if episode_id else None,
+            "episode_id": episode_info["episode_id"] if episode_info else episode_id,
             "title": episode_info["title"] if episode_info else file_path.stem,
             "uuuuuid": episode_info["uuid"] if episode_info else None,
             "source_file": str(file_path),
@@ -449,6 +484,10 @@ def main() -> int:
         logger.info(f"Save local: {args.save_local}")
         logger.info(f"Skip existing: {args.skip_existing}")
         logger.info(f"Dry run: {args.dry_run}")
+        logger.info(
+            f"Episode ID: {args.episode_id if args.episode_id else 'auto-detect'}"
+        )
+        logger.info(f"Podcast: {args.podcast if args.podcast else 'N/A'}")
         logger.info("=" * 60)
 
         # Expand glob patterns
@@ -515,6 +554,7 @@ def main() -> int:
                     dimensions=args.dimensions,
                     save_local=args.save_local,
                     episode_id=args.episode_id,
+                    podcast=args.podcast,
                     skip_existing=args.skip_existing,
                     logger=logger,
                 )
