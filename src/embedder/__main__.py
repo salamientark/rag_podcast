@@ -308,7 +308,7 @@ def get_episode_info_from_db(
                 return {
                     "episode_id": episode.episode_id,
                     "title": episode.title,
-                    "guid": str(episode.uuid),
+                    "uuid": str(episode.uuid),
                 }
             return None
     except Exception as e:
@@ -415,7 +415,7 @@ def process_single_file(
         payload = {
             "episode_id": episode_info["episode_id"] if episode_info else episode_id,
             "title": episode_info["title"] if episode_info else file_path.stem,
-            "uuuuuid": episode_info["uuid"] if episode_info else None,
+            "db_uuid": episode_info["uuid"] if episode_info else None,
             "source_file": str(file_path),
             "dimensions": dimensions,
         }
