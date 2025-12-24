@@ -380,7 +380,7 @@ def process_single_file(
         payload = {
             "episode_id": episode_id if episode_id else None,
             "title": episode_info["title"] if episode_info else file_path.stem,
-            "db_guid": episode_info["guid"] if episode_info else None,
+            "uuuuuid": episode_info["uuid"] if episode_info else None,
             "source_file": str(file_path),
             "dimensions": dimensions,
         }

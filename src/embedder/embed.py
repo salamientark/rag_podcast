@@ -246,7 +246,7 @@ def embed_file_to_db(
         payload = {
             "episode_id": episode_id,
             "title": episode.title,
-            "db_guid": str(episode.uuid),
+            "db_uuid": str(episode.uuid),
             "publication_date": format_publication_date(episode.published_date),
         }
 
