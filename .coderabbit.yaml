@@ -1,0 +1,17 @@
+language: "en-US"
+reviews:
+  profile: "assertive"  # Thorough reviews
+  tone: "friendly and collaborative, like a helpful coworker"
+  high_level_summary: true
+  review_status: true
+  auto_review:
+    enabled: true
+    drafts: false
+  path_instructions:
+    - path: "**/*.py"
+      instructions: |
+        - Code is formatted with `uv run ruff format`
+        - Code is checked with `uv run ruff check`
+        - Verify fixes don't break existing functionality
+chat:
+  auto_reply: true
