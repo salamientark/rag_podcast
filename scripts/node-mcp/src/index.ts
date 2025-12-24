@@ -23,6 +23,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import * as readline from 'node:readline/promises';
 import type { CoreMessage } from 'ai';
+import { createAuthToken } from './auth.js';
 
 
 // --- Environment Loading ---
@@ -37,6 +38,8 @@ async function main() {
   console.log("===================\n");
 
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
+  const authToken = await createAuthToken();
+  const serverUrl = 'http://localhost:8080/mcp';
 
   // Creating readline interface for CLI interaction
   const terminal = readline.createInterface({
@@ -51,7 +54,10 @@ async function main() {
 	mcpClient = await createMCPClient({
 		transport: {
 			type: 'http',
-			url: 'http://localhost:8080/mcp',
+			url: serverUrl,
+			headers: {
+				Authorization: `Bearer ${authToken}`,
+			},
 		},
 	});
 	console.log("MCP Client initialized successfully!");
