@@ -139,7 +139,7 @@ class Episode(Base, TimestampMixin):
         """
         return (
             f"<Episode(uuid={self.uuid}, episode_id={self.episode_id}, title='{self.title}', "
-            f"published_date='{self.published_date})', stage={self.processing_stage.value})>"
+            f"published_date='{self.published_date}', stage={self.processing_stage.value})>"
         )
 
     def to_dict(self):

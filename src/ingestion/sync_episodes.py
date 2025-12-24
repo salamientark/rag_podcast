@@ -203,7 +203,7 @@ def sync_to_database(
     """
     Persist a list of parsed podcast episodes to the database, optionally performing a dry run.
 
-    Processes episodes in the provided order (chronological: oldest first). When an episode with the same title already exists, that episode is skipped. In dry-run mode, no database changes are made and a summary of actions is printed.
+    Processes episodes in the provided order (chronological: oldest first). When an episode with the same (podcast, audio_url) combination already exists, that episode is skipped. In dry-run mode, no database changes are made and a summary of actions is printed.
 
     Parameters:
         episodes (list[dict[str, Any]]): Episode dictionaries with required keys:

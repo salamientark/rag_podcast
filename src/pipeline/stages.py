@@ -104,14 +104,14 @@ def run_download_stage(
     """
     Download audio files for the provided episodes, optionally upload them to cloud storage, and update episode records.
 
-    Processes the given list of Episode objects, reusing existing local audio files when present, downloading missing files, and updating the database processing stage and audio file path for each processed episode. If cloud_save is True, uploads audio files to cloud storage (skipping files that already exist there) and updates the database with the cloud absolute path.
+    Processes the given list of episode dictionaries, reusing existing local audio files when present, downloading missing files, and updating the database processing stage and audio file path for each processed episode. If cloud_save is True, uploads audio files to cloud storage (skipping files that already exist there) and updates the database with the cloud absolute path.
 
     Parameters:
-        episodes (list[Episode]): Episodes to process; each Episode must include uuid, podcast, episode_id, title, and audio_url.
+        episodes (list[Dict[str, Any]]): Episodes to process; each dict must include keys uuid, podcast, episode_id, title, and audio_url.
         cloud_save (bool): If True, upload audio files to cloud storage and store cloud paths in the database.
 
     Returns:
-        list[dict]: List of episode dictionaries with keys `uuid`, `podcast`, `episode_id`, `title`, and `audio_path` (local or cloud path as stored in the DB).
+        list[Dict[str, Any]]: List of episode dictionaries with keys `uuid`, `podcast`, `episode_id`, `title`, and `audio_path` (local or cloud path as stored in the DB).
     """
     logger = logging.getLogger("pipeline")
     try:

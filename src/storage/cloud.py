@@ -85,7 +85,10 @@ class CloudStorage(BaseStorage):
 
     def create_episode_workspace(self, episode_id: Optional[int]) -> str:
         """
-        Get the workspace prefix for an episode.
+        Create a workspace prefix for an episode in cloud storage.
+
+        Note: This implementation returns a static prefix and does not actually
+        create any cloud resources. The episode_id parameter is ignored.
 
         Parameters:
             episode_id (Optional[int]): Episode identifier (ignored by this implementation).

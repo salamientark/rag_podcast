@@ -175,6 +175,9 @@ def load_embedding_from_file(file_path: Path) -> Optional[np.ndarray]:
     """
     Load an embedding array from a .npy file.
 
+    Args:
+        file_path (Path): Path to the .npy file containing the embedding array.
+
     Returns:
         Optional[np.ndarray]: The loaded embedding array, or `None` if the file does not exist.
 
@@ -208,10 +211,10 @@ def embed_file_to_db(
 
     Args:
         input_file (str | Path): Path to the input transcript file.
-        episode_uuid (str): Episode UUID in Database
+        episode_uuid (str): Episode UUID in database.
+        episode_id (int): Episode ID for filename generation.
         collection_name (str): Name of the collection to store embeddings.
         dimensions (int): Output vector dimensions (default: 1024).
-        output_path (Optional[str | Path]): Optional path to save embeddings as .npy file.
         save_to_file (bool): Whether to save embeddings to file.
     """
     logger = logging.getLogger("embedder")
@@ -289,8 +292,8 @@ def process_episode_embedding(
         dict: Status dictionary containing:
             - action (str | None): One of "retrieved_from_qdrant", "loaded_from_file", or "embedded_fresh" indicating what was done.
             - embedding_path (str | None): Path to the local .npy file where embeddings are stored (if available).
-            - success (bool): `true` when the operation completed successfully, `false` on error.
-            - error (str | None): Error message when `success` is `false`.
+            - success (bool): True when the operation completed successfully, False on error.
+            - error (str | None): Error message when success is False.
     """
     logger = logging.getLogger("embedder")
     input_path = Path(input_file)

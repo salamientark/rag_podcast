@@ -276,6 +276,7 @@ def get_episode_vectors(
     Handles both legacy single-chunk episodes and multi-chunk episodes; when multiple chunks exist, vectors are returned sorted by the payload `chunk_index`.
 
     Parameters:
+        client (QdrantClient): Active Qdrant client instance.
         collection_name (str): Name of the Qdrant collection to query.
         episode_uuid (str): Episode UUID to match against the `db_uuid` payload field.
 
@@ -385,6 +386,7 @@ def ensure_payload_indexes(
     Creates an INTEGER index for `episode_id` and a KEYWORD index for `db_uuid` when they are missing; does nothing if the collection does not exist or the indexes are already present.
 
     Parameters:
+        client (QdrantClient): Active Qdrant client instance.
         collection_name (str): Name of the collection to ensure payload indexes on.
 
     Raises:

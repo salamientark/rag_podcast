@@ -207,6 +207,10 @@ def print_dry_run_summary(args: argparse.Namespace, logger) -> None:
     Print a human-readable dry-run summary of the pipeline configuration and current database counts.
 
     The summary displays the selected processing mode (full, specific episode IDs, or limited), podcast or feed URL filter, chosen pipeline stages, runtime options (force, verbose, storage backend), and per-stage episode counts retrieved from the database. This function only prints information and does not perform any processing.
+
+    Args:
+        args (argparse.Namespace): Parsed command-line arguments.
+        logger: Logger instance for recording the dry-run action.
     """
     print("=" * 80)
     print("DRY RUN - No processing will occur")
