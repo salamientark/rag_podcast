@@ -80,9 +80,12 @@ class CloudStorage(BaseStorage):
                 Bucket=self.bucket_name, Key=f"{workspace}{filename}"
             )
         except ClientError as e:
-            if int(e.response["Error"]["Code"]) == 404:
+            # head_object returns "404" as string, not NoSuchKey
+            # See: https://github.com/boto/boto3/issues/2442
+            error_code = str(e.response.get("Error", {}).get("Code", ""))
+            if error_code in ("404", "NoSuchKey"):
                 return False
-            raise  # Re-raise non-404 errors (403, 500, etc.)
+            raise  # Re-raise other errors (403 AccessDenied, 500, etc.)
         return True
 
     def create_episode_workspace(self, episode_id: Optional[int]) -> str:
