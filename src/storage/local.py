@@ -47,6 +47,8 @@ class LocalStorage(BaseStorage):
         Returns:
             str: The prefix path for the episode workspace.
         """
+        if episode_id is None:
+            episode_id = 0
         workspace_path = f"data/transcripts/episode_{episode_id:03d}/"
         try:
             os.makedirs(workspace_path, exist_ok=True)
