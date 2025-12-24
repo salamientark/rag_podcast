@@ -205,16 +205,16 @@ def insert_one_point(
 def check_episode_exists_in_qdrant(
     client: QdrantClient,
     collection_name: str,
-    episode_id: int,
+    episode_uuid: str,
 ) -> bool:
     """Check if an episode is already embedded in the Qdrant collection.
 
-    Queries the collection for any points with matching episode_id in payload.
+    Queries the collection for any points with matching db_uuid in payload.
 
     Args:
         client (QdrantClient): Active Qdrant client instance
         collection_name (str): Name of the collection to search
-        episode_id (int): Episode ID to check for
+        episode_uuid (str): Episode UUID to check for
 
     Returns:
         bool: True if episode exists in collection, False otherwise
@@ -232,7 +232,7 @@ def check_episode_exists_in_qdrant(
 
         # Build filter for episode_id
         scroll_filter = Filter(
-            must=[FieldCondition(key="episode_id", match=MatchValue(value=episode_id))]
+            must=[FieldCondition(key="db_uuid", match=MatchValue(value=episode_uuid))]
         )
 
         # Query for matching points (limit 1 since we only need to know if it exists)
@@ -247,18 +247,18 @@ def check_episode_exists_in_qdrant(
         exists = len(records) > 0
         if exists:
             qdrant_logger.debug(
-                f"Episode {episode_id} found in collection '{collection_name}'"
+                f"Episode {episode_uuid} found in collection '{collection_name}'"
             )
         else:
             qdrant_logger.debug(
-                f"Episode {episode_id} not found in collection '{collection_name}'"
+                f"Episode {episode_uuid} not found in collection '{collection_name}'"
             )
 
         return exists
 
     except Exception as e:
         qdrant_logger.error(
-            f"Error checking if episode {episode_id} exists in '{collection_name}': {e}"
+            f"Error checking if episode {episode_uuid} exists in '{collection_name}': {e}"
         )
         # On error, return False to allow processing (fail-open approach)
         return False
@@ -294,7 +294,7 @@ def get_episode_vectors(
         # Ensure required indexes exist
         ensure_payload_indexes(client, collection_name)
 
-        # Build filter for episode_id
+        # Build filter for episode_uuid
         scroll_filter = Filter(
             must=[FieldCondition(key="db_uuid", match=MatchValue(value=episode_uuid))]
         )
