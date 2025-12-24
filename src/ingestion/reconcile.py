@@ -10,11 +10,13 @@ This script ensures database fields are up-to-date by:
   - Updating episode processing stages accordingly
 
 Usage:
-    uv run -m src.ingestion.reconcile --all                     # Reconcile all episodes
-    uv run -m src.ingestion.reconcile --episodes 670 671 672    # Specific episodes
-    uv run -m src.ingestion.reconcile --days 7                  # Recent episodes
-    uv run -m src.ingestion.reconcile --dry-run --all           # Test mode
-    uv run -m src.ingestion.reconcile --all --skip-qdrant       # Filesystem only
+    uv run -m src.ingestion.reconcile --all                                     # Reconcile all episodes
+    uv run -m src.ingestion.reconcile --podcast "Lex Fridman Podcast"           # All episodes from podcast
+    uv run -m src.ingestion.reconcile --podcast "Lex Fridman Podcast" --episodes 670 671  # Specific episodes
+    uv run -m src.ingestion.reconcile --days 7                                  # Recent episodes (all podcasts)
+    uv run -m src.ingestion.reconcile --podcast "Lex Fridman Podcast" --days 7  # Recent from podcast
+    uv run -m src.ingestion.reconcile --dry-run --all                           # Test mode
+    uv run -m src.ingestion.reconcile --all --skip-qdrant                       # Filesystem only
 """
 
 import argparse
@@ -232,28 +234,32 @@ def reconcile_filesystem(
                 old_stage = episode.processing_stage
 
                 # Find files using patterns
-                episode_transcript_dir = transcript_dir / f"episode_{episode.id:03d}"
+                episode_transcript_dir = (
+                    transcript_dir / f"episode_{episode.episode_id:03d}"
+                )
 
                 # 1. Audio file
-                audio_pattern = f"episode_{episode.id:03d}_*.mp3"
-                audio_path = find_episode_file(episode.id, audio_dir, audio_pattern)
+                audio_pattern = f"episode_{episode.episode_id:03d}_*.mp3"
+                audio_path = find_episode_file(
+                    episode.episode_id, audio_dir, audio_pattern
+                )
 
                 # 2. Raw transcript
-                raw_pattern = f"raw_episode_{episode.id}.json"
+                raw_pattern = f"raw_episode_{episode.episode_id}.json"
                 raw_path = find_episode_file(
-                    episode.id, episode_transcript_dir, raw_pattern
+                    episode.episode_id, episode_transcript_dir, raw_pattern
                 )
 
                 # 3. Speaker mapping
-                speaker_pattern = f"speakers_episode_{episode.id}.json"
+                speaker_pattern = f"speakers_episode_{episode.episode_id}.json"
                 speaker_path = find_episode_file(
-                    episode.id, episode_transcript_dir, speaker_pattern
+                    episode.episode_id, episode_transcript_dir, speaker_pattern
                 )
 
                 # 4. Formatted transcript
-                formatted_pattern = f"formatted_episode_{episode.id}.txt"
+                formatted_pattern = f"formatted_episode_{episode.episode_id}.txt"
                 formatted_path = find_episode_file(
-                    episode.id, episode_transcript_dir, formatted_pattern
+                    episode.episode_id, episode_transcript_dir, formatted_pattern
                 )
 
                 # Update paths with warnings for overwrites
@@ -261,7 +267,7 @@ def reconcile_filesystem(
                     if episode.audio_file_path != str(audio_path):
                         if episode.audio_file_path:
                             logger.warning(
-                                f"Episode {episode.id}: Overwriting audio_file_path "
+                                f"Episode {episode.episode_id}: Overwriting audio_file_path "
                                 f"from '{episode.audio_file_path}' to '{audio_path}'"
                             )
                         episode.audio_file_path = str(audio_path)
@@ -272,7 +278,7 @@ def reconcile_filesystem(
                     if episode.raw_transcript_path != str(raw_path):
                         if episode.raw_transcript_path:
                             logger.warning(
-                                f"Episode {episode.id}: Overwriting raw_transcript_path "
+                                f"Episode {episode.episode_id}: Overwriting raw_transcript_path "
                                 f"from '{episode.raw_transcript_path}' to '{raw_path}'"
                             )
                         episode.raw_transcript_path = str(raw_path)
@@ -298,7 +304,7 @@ def reconcile_filesystem(
                     if episode.speaker_mapping_path != str(speaker_path):
                         if episode.speaker_mapping_path:
                             logger.warning(
-                                f"Episode {episode.id}: Overwriting speaker_mapping_path "
+                                f"Episode {episode.episode_id}: Overwriting speaker_mapping_path "
                                 f"from '{episode.speaker_mapping_path}' to '{speaker_path}'"
                             )
                         episode.speaker_mapping_path = str(speaker_path)
@@ -309,7 +315,7 @@ def reconcile_filesystem(
                     if episode.formatted_transcript_path != str(formatted_path):
                         if episode.formatted_transcript_path:
                             logger.warning(
-                                f"Episode {episode.id}: Overwriting formatted_transcript_path "
+                                f"Episode {episode.episode_id}: Overwriting formatted_transcript_path "
                                 f"from '{episode.formatted_transcript_path}' to '{formatted_path}'"
                             )
                         episode.formatted_transcript_path = str(formatted_path)
@@ -363,21 +369,21 @@ def reconcile_filesystem(
                         )
 
                     print(
-                        f"  ✓ Episode {episode.id}: {', '.join(changes)}{stage_change}"
+                        f"  ✓ Episode {episode.episode_id}: {', '.join(changes)}{stage_change}"
                     )
-                    logger.info(f"Updated episode {episode.id}: {changes}")
+                    logger.info(f"Updated episode {episode.episode_id}: {changes}")
                     stats["updated"] += 1
                 else:
                     print(
-                        f"  - Episode {episode.id}: No update needed (stage: {episode.processing_stage.value})"
+                        f"  - Episode {episode.episode_id}: No update needed (stage: {episode.processing_stage.value})"
                     )
                     stats["unchanged"] += 1
 
                 stats["processed"] += 1
 
             except Exception as e:
-                print(f"  ✗ Error reconciling episode {episode.id}: {e}")
-                logger.error(f"Error reconciling episode {episode.id}: {e}")
+                print(f"  ✗ Error reconciling episode {episode.episode_id}: {e}")
+                logger.error(f"Error reconciling episode {episode.episode_id}: {e}")
                 stats["errors"] += 1
 
     return stats
@@ -460,7 +466,7 @@ def reconcile_qdrant(
 
                         # Check if episode exists in Qdrant
                         exists_in_qdrant = check_episode_exists_in_qdrant(
-                            client, collection_name, episode.id
+                            client, collection_name, episode.episode_id
                         )
 
                         if exists_in_qdrant:
@@ -475,12 +481,12 @@ def reconcile_qdrant(
                                     session.commit()
 
                                 print(
-                                    f"  ✓ Episode {episode.id}: Found in Qdrant → EMBEDDED (was {old_stage.value})"
+                                    f"  ✓ Episode {episode.episode_id}: Found in Qdrant → EMBEDDED (was {old_stage.value})"
                                 )
                                 stats["updated_to_embedded"] += 1
                             else:
                                 print(
-                                    f"  ✓ Episode {episode.id}: Found in Qdrant, already EMBEDDED"
+                                    f"  ✓ Episode {episode.episode_id}: Found in Qdrant, already EMBEDDED"
                                 )
                         else:
                             # Episode NOT in Qdrant
@@ -501,19 +507,21 @@ def reconcile_qdrant(
                                     session.commit()
 
                                 print(
-                                    f"  ⚠️  Episode {episode.id}: NOT in Qdrant, downgraded EMBEDDED → {target_stage.value}"
+                                    f"  ⚠️  Episode {episode.episode_id}: NOT in Qdrant, downgraded EMBEDDED → {target_stage.value}"
                                 )
                                 logger.warning(
-                                    f"Episode {episode.id} marked EMBEDDED but not found in Qdrant, "
+                                    f"Episode {episode.episode_id} marked EMBEDDED but not found in Qdrant, "
                                     f"downgraded to {target_stage.value}"
                                 )
                                 stats["downgraded"] += 1
                             else:
-                                print(f"  - Episode {episode.id}: Not yet embedded")
+                                print(
+                                    f"  - Episode {episode.episode_id}: Not yet embedded"
+                                )
 
                     except Exception as e:
                         logger.error(
-                            f"Error checking episode {episode.id} in Qdrant: {e}"
+                            f"Error checking episode {episode.episode_id} in Qdrant: {e}"
                         )
                         stats["errors"] = stats.get("errors", 0) + 1
 
@@ -600,10 +608,16 @@ Examples:
   # Reconcile all episodes
   uv run -m src.ingestion.reconcile --all
 
-  # Reconcile specific episodes
-  uv run -m src.ingestion.reconcile --episodes 670 671 672
+  # Reconcile all episodes from a specific podcast
+  uv run -m src.ingestion.reconcile --podcast "Lex Fridman Podcast"
 
-  # Reconcile episodes from last 7 days
+  # Reconcile specific episodes from a podcast
+  uv run -m src.ingestion.reconcile --podcast "Lex Fridman Podcast" --episodes 670 671 672
+
+  # Reconcile episodes from last 7 days from a podcast
+  uv run -m src.ingestion.reconcile --podcast "Lex Fridman Podcast" --days 7
+
+  # Reconcile episodes from last 7 days (all podcasts)
   uv run -m src.ingestion.reconcile --days 7
 
   # Dry run (no database changes)
@@ -649,13 +663,19 @@ Examples:
         action="store_true",
         help="Enable verbose logging output",
     )
+    parser.add_argument(
+        "--podcast",
+        type=str,
+        metavar="NAME",
+        help="Filter episodes by podcast name (case-insensitive)",
+    )
 
     args = parser.parse_args()
 
     # Mutual exclusivity check
-    if not (args.all or args.episodes or args.days):
+    if not (args.all or args.episodes or args.days or args.podcast):
         parser.error(
-            "Please specify episodes to reconcile: --all, --episodes, or --days"
+            "Please specify episodes to reconcile: --all, --podcast, --episodes, or --days"
         )
 
     # Setup logging
@@ -675,19 +695,33 @@ Examples:
     with get_db_session() as session:
         if args.episodes:
             # Specific episodes
-            episodes = (
-                session.query(Episode).filter(Episode.id.in_(args.episodes)).all()
-            )
+            query = session.query(Episode).filter(Episode.episode_id.in_(args.episodes))
+            if args.podcast:
+                query = query.filter(Episode.podcast.ilike(args.podcast))
+            episodes = query.all()
             print(f"Mode: Specific episodes ({args.episodes})")
+            if args.podcast:
+                print(f"      Filtered by podcast: {args.podcast}")
         elif args.days:
             # Recent episodes
             cutoff = datetime.now() - timedelta(days=args.days)
-            episodes = session.query(Episode).filter(Episode.updated_at >= cutoff).all()
+            query = session.query(Episode).filter(Episode.updated_at >= cutoff)
+            if args.podcast:
+                query = query.filter(Episode.podcast.ilike(args.podcast))
+            episodes = query.all()
             print(f"Mode: Episodes from last {args.days} days")
+            if args.podcast:
+                print(f"      Filtered by podcast: {args.podcast}")
         else:
-            # All episodes
-            episodes = session.query(Episode).all()
-            print("Mode: ALL episodes")
+            # All episodes (or filtered by podcast only)
+            query = session.query(Episode)
+            if args.podcast:
+                query = query.filter(Episode.podcast.ilike(args.podcast))
+                episodes = query.all()
+                print(f"Mode: ALL episodes from podcast '{args.podcast}'")
+            else:
+                episodes = query.all()
+                print("Mode: ALL episodes")
 
     if not episodes:
         print("No episodes found to reconcile")
