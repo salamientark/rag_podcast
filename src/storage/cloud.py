@@ -80,7 +80,9 @@ class CloudStorage(BaseStorage):
                 Bucket=self.bucket_name, Key=f"{workspace}{filename}"
             )
         except ClientError as e:
-            return int(e.response["Error"]["Code"]) != 404
+            if int(e.response["Error"]["Code"]) == 404:
+                return False
+            raise  # Re-raise non-404 errors (403, 500, etc.)
         return True
 
     def create_episode_workspace(self, episode_id: Optional[int]) -> str:

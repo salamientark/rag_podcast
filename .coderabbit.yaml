@@ -1,7 +1,7 @@
 language: "en-US"
+tone_instructions: "friendly and collaborative, like a helpful coworker"
 reviews:
   profile: "assertive" # Thorough reviews
-  tone: "friendly and collaborative, like a helpful coworker"
   high_level_summary: true
   review_status: true
   auto_review:
