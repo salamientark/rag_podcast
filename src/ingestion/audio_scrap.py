@@ -32,20 +32,16 @@ sys.path.insert(0, str(project_root))
 
 def sanitize_filename(title, max_length=100):
     """
-    Clean filename for safe filesystem usage - removes ALL punctuation.
+    Produce a filesystem-safe, lowercase filename from an episode title.
 
-    Strategy for short, efficient filenames:
-    - Remove all punctuation and special characters
-    - Convert to lowercase for consistency
-    - Limit to max_length characters (default 100)
-    - Truncate at word boundaries to avoid cutting words
+    Keeps only ASCII letters (a–z), digits, and underscores (spaces become underscores), truncates to the last whole word within max_length, and returns "unknown_episode" if the title is empty or sanitization produces an empty string.
 
-    Args:
-        title: Episode title to sanitize
-        max_length: Maximum length for filename (default 100)
+    Parameters:
+        title (str): Episode title to sanitize.
+        max_length (int): Maximum length for the resulting filename (default 100).
 
     Returns:
-        Sanitized filename string
+        str: Sanitized filename suitable for use on most filesystems.
     """
     if not title:
         return "unknown_episode"
@@ -70,7 +66,14 @@ def sanitize_filename(title, max_length=100):
 
 
 def generate_filename(episode_number: int, title: str):
-    """Generate filename: episode_{number:03d}_{title}.mp3"""
+    """
+    Create a standardized MP3 filename for an episode.
+
+    Returns:
+        filename (str): The filename in the form "episode_{number:03d}_{sanitized_title}.mp3",
+            where `number` is the zero-padded episode_number and `sanitized_title` is the title
+            produced by sanitize_filename.
+    """
     safe_title = sanitize_filename(title)
     return f"episode_{episode_number:03d}_{safe_title}.mp3"
 
@@ -114,7 +117,22 @@ def update_episode_status(uuid: str, audio_file_path: str) -> bool:
 
 @log_function(logger_name="audio_scraper", log_execution_time=True)
 def get_episodes_from_db(limit=None):
-    """Get episodes from database, ordered by most recent first, using database ID as episode number"""
+    """
+    Retrieve recent episodes that have an audio URL, ordered by published date descending.
+
+    Parameters:
+        limit (int | None): Optional maximum number of episodes to return (most recent first). If None, no limit is applied.
+
+    Returns:
+        list[dict]: A list of episode dictionaries. Each dictionary contains the keys:
+            - 'uuid': episode UUID
+            - 'podcast': podcast identifier or name
+            - 'title': episode title
+            - 'audio_url': URL to the episode's audio
+            - 'published_date': publication timestamp
+            - 'episode_id': database episode identifier used for filename generation
+        Only episodes with a non-empty `audio_url` are included.
+    """
     logger = logging.getLogger("audio_scraper")
 
     try:
@@ -165,7 +183,21 @@ def get_existing_files(audio_dir):
 def download_episode(
     episode_number, title, url, workspace, max_retries=3
 ) -> tuple[bool, str]:
-    """Download single episode with browser headers for feedpress.me URLs"""
+    """
+    Download an episode audio file using browser-like headers and save it to the given workspace.
+
+    Attempts up to `max_retries` downloads with exponential backoff, removes partial files on failure, and verifies the saved file is at least 100 KB before reporting success.
+
+    Parameters:
+        episode_number: Numeric episode identifier used to construct the output filename.
+        title: Episode title used to construct the output filename.
+        url: HTTP(S) URL of the audio resource to download.
+        workspace: Directory path where the downloaded file will be saved.
+        max_retries (int): Maximum number of download attempts (default 3).
+
+    Returns:
+        tuple[bool, str]: `(True, filepath)` when the file was successfully downloaded and validated; `(False, "")` if all attempts failed.
+    """
     logger = logging.getLogger("audio_scraper")
 
     os.makedirs(workspace, exist_ok=True)
@@ -244,7 +276,23 @@ def download_episode(
 
 @log_function(logger_name="audio_scraper", log_execution_time=True)
 def download_missing_episodes(audio_dir="data/audio", limit=None, dry_run=False):
-    """Main download function"""
+    """
+    Check the database and audio directory, download any missing episode files, and update episode records on success.
+
+    Parameters:
+        audio_dir (str): Path to the directory where audio files are stored and downloaded.
+        limit (int | None): Maximum number of episodes to consider (applies to the initial DB query and to limiting the set of missing episodes downloaded). If None, no limit is applied.
+        dry_run (bool): If True, print which files would be downloaded but do not perform any downloads or database updates.
+
+    Returns:
+        dict: Summary statistics about the operation with keys:
+            - total (int): Total episodes found in the database.
+            - downloaded (int): Number of episodes successfully downloaded during this run.
+            - failed (int): Number of download attempts that failed.
+            - skipped (int): Number of existing files that caused episodes to be skipped.
+            - db_updated (int): Number of downloaded episodes for which the database was successfully updated (present when downloads were attempted).
+            - db_failed (int): Number of downloaded episodes that failed to update in the database (present when downloads were attempted).
+    """
     logger = logging.getLogger("audio_scraper")
 
     print(f"Checking for missing episodes in {audio_dir}...")

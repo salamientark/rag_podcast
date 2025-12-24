@@ -5,7 +5,7 @@ from .base import BaseStorage
 
 
 class LocalStorage(BaseStorage):
-    """A client for interacting with cloud storage services. (DigitalOcean)"""
+    """A client for interacting with local filesystem storage."""
 
     def file_exist(self, workspace: str, filename: str) -> bool:
         """
@@ -26,14 +26,17 @@ class LocalStorage(BaseStorage):
         return False
 
     def _get_absolute_filename(self, workspace: str, filename: str) -> str:
-        """Constructs the absolute filename in cloud storage.
+        """Constructs the absolute filename in local storage.
+
+        Note: This method is broken - it references undefined cloud storage
+        attributes (self.endpoint, self.bucket_name). See GitHub issue for fix.
 
         Args:
             workspace (str): The workspace (prefix) path.
             filename (str): The name of the file.
 
         Return:
-            str: The absolute filename in cloud storage.
+            str: The absolute filename in local storage.
         """
         protocol, _, path = self.endpoint.partition("://")
         absolute_filename = (
@@ -59,12 +62,12 @@ class LocalStorage(BaseStorage):
         return workspace_path
 
     def save_file(self, workspace: str, filename: str, content) -> str:
-        """Saves a file to the specified workspace in cloud storage.
+        """Saves a file to the specified workspace in local storage.
 
         Args:
             workspace (str): The workspace (prefix) path.
             filename (str): The name of the file to save.
-            content: The content to save text
+            content: The content to save as text.
 
         Returns:
             str: The full path of the saved file on local filesystem.

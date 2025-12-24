@@ -25,7 +25,15 @@ from src.ingestion.sync_episodes import (
 
 
 def main():
-    """Main function"""
+    """
+    Entry point for the ingestion CLI that synchronizes podcast episodes from an RSS feed into the database.
+
+    Parses command-line arguments (e.g., --full-sync, --days, --limit, --dry-run, --feed-url, --reconcile, --verbose) and runs one of two workflows:
+    - Reconciliation: iterates database episodes to reconcile state from the filesystem (currently raises NotImplementedError).
+    - RSS sync: fetches episodes from the configured or provided feed URL, filters and synchronizes them to the database, and prints a summary.
+
+    Exits the process with code 0 on success, 1 on error, or 130 when interrupted by the user.
+    """
     parser = argparse.ArgumentParser(
         description="Sync podcast episodes from RSS feed to database",
         formatter_class=argparse.RawDescriptionHelpFormatter,

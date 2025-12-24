@@ -80,15 +80,26 @@ class CloudStorage(BaseStorage):
                 Bucket=self.bucket_name, Key=f"{workspace}{filename}"
             )
         except ClientError as e:
-            return int(e.response["Error"]["Code"]) != 404
+            # head_object returns "404" as string, not NoSuchKey
+            # See: https://github.com/boto/boto3/issues/2442
+            error_code = str(e.response.get("Error", {}).get("Code", ""))
+            if error_code in ("404", "NoSuchKey"):
+                return False
+            raise  # Re-raise other errors (403 AccessDenied, 500, etc.)
         return True
 
     def create_episode_workspace(self, episode_id: Optional[int]) -> str:
-        """Creates a workspace (prefix) for an episode in the cloud storage.
-        Args:
-            episode_id (int | None): The ID of the episode.
+        """
+        Create a workspace prefix for an episode in cloud storage.
+
+        Note: This implementation returns a static prefix and does not actually
+        create any cloud resources. The episode_id parameter is ignored.
+
+        Parameters:
+            episode_id (Optional[int]): Episode identifier (ignored by this implementation).
+
         Returns:
-            str: The prefix path for the episode workspace.
+            str: The workspace prefix "transcripts/".
         """
         return "transcripts/"
 

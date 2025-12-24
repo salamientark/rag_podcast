@@ -134,9 +134,7 @@ def update_episode_processing_stage(
                 episode.processing_stage = ProcessingStage.EMBEDDED
 
             session.commit()
-            logger.info(
-                f"Updated episode ID {uuid} with EMBEDDED processing stage"
-            )
+            logger.info(f"Updated episode ID {uuid} with EMBEDDED processing stage")
             return True
     except Exception as e:
         logger.error(f"Failed to update episode ID {uuid}: {e}")
@@ -174,16 +172,17 @@ def save_embedding_to_file(output_path: Path, embed: list[float] | np.ndarray) -
 
 
 def load_embedding_from_file(file_path: Path) -> Optional[np.ndarray]:
-    """Load embeddings from a .npy file.
+    """
+    Load an embedding array from a .npy file.
 
     Args:
-        file_path (Path): Path to the .npy embedding file.
+        file_path (Path): Path to the .npy file containing the embedding array.
 
     Returns:
-        Optional[np.ndarray]: Loaded embedding vector, or None if file doesn't exist.
+        Optional[np.ndarray]: The loaded embedding array, or `None` if the file does not exist.
 
     Raises:
-        Exception: If file exists but cannot be loaded.
+        Exception: If the file exists but cannot be loaded.
     """
     if not file_path.exists():
         return None
@@ -212,10 +211,10 @@ def embed_file_to_db(
 
     Args:
         input_file (str | Path): Path to the input transcript file.
-        episode_uuid (str): Episode UUID in Database
+        episode_uuid (str): Episode UUID in database.
+        episode_id (int): Episode ID for filename generation.
         collection_name (str): Name of the collection to store embeddings.
         dimensions (int): Output vector dimensions (default: 1024).
-        output_path (Optional[str | Path]): Optional path to save embeddings as .npy file.
         save_to_file (bool): Whether to save embeddings to file.
     """
     logger = logging.getLogger("embedder")
@@ -279,23 +278,22 @@ def process_episode_embedding(
     dimensions: int = 1024,
 ) -> Dict[str, Any]:
     """
-    Process episode embedding with 3-tier caching strategy and automatic chunking:
-    1. Check if vector exists in Qdrant DB → save to local file if missing + update SQL
-    2. If not in Qdrant, check local file → upload to Qdrant + update SQL
-    3. If neither exists → chunk if needed, embed, save to both Qdrant + local file + update SQL
+    Process an episode's transcript into embeddings using a three-tier caching strategy and upload results to Qdrant.
 
-    Args:
-        input_file (str | Path): Path to the input transcript file.
-        episode_uuid (str): Database UUID of the episode.
-        collection_name (str): Name of the collection to store embeddings.
-        dimensions (int): Output vector dimensions (default: 1024).
+    Checks Qdrant for existing vectors, falls back to a local .npy cache, and if neither exists splits the transcript into chunks, generates embeddings, saves them locally, and uploads per-chunk points to Qdrant. In all successful cases the episode's processing stage is updated to EMBEDDED.
+
+    Parameters:
+        input_file (str | Path): Path to the transcript file to read.
+        episode_uuid (str): Database UUID of the episode to process and tag in metadata.
+        collection_name (str): Qdrant collection name to query/upload vectors.
+        dimensions (int): Embedding vector dimensionality to request and persist.
 
     Returns:
-        Dict[str, Any]: Status dict with keys:
-            - action: "retrieved_from_qdrant", "loaded_from_file", or "embedded_fresh"
-            - embedding_path: Path to local .npy file
-            - success: bool
-            - error: Optional error message
+        dict: Status dictionary containing:
+            - action (str | None): One of "retrieved_from_qdrant", "loaded_from_file", or "embedded_fresh" indicating what was done.
+            - embedding_path (str | None): Path to the local .npy file where embeddings are stored (if available).
+            - success (bool): True when the operation completed successfully, False on error.
+            - error (str | None): Error message when success is False.
     """
     logger = logging.getLogger("embedder")
     input_path = Path(input_file)
