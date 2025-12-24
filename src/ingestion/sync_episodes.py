@@ -253,7 +253,8 @@ def sync_to_database(
                     session.query(Episode)
                     .filter_by(
                         podcast=episode_data["podcast"],
-                        audio_url=episode_data["audio_url"])
+                        audio_url=episode_data["audio_url"],
+                    )
                     .first()
                 )
                 if existing:

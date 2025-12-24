@@ -134,9 +134,7 @@ def update_episode_processing_stage(
                 episode.processing_stage = ProcessingStage.EMBEDDED
 
             session.commit()
-            logger.info(
-                f"Updated episode ID {uuid} with EMBEDDED processing stage"
-            )
+            logger.info(f"Updated episode ID {uuid} with EMBEDDED processing stage")
             return True
     except Exception as e:
         logger.error(f"Failed to update episode ID {uuid}: {e}")

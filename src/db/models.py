@@ -144,7 +144,9 @@ class Episode(Base, TimestampMixin):
             "episode_id": self.episode_id,
             "title": self.title,
             "description": self.description,
-            "published_date": self.published_date.isoformat() if self.published_date else None,
+            "published_date": self.published_date.isoformat()
+            if self.published_date
+            else None,
             "audio_url": self.audio_url,
             "processing_stage": self.processing_stage.value,
             "audio_file_path": self.audio_file_path,
@@ -154,5 +156,5 @@ class Episode(Base, TimestampMixin):
             "transcript_duration": self.transcript_duration,
             "transcript_confidence": self.transcript_confidence,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None, 
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

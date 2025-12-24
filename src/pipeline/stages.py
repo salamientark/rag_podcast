@@ -19,7 +19,6 @@ from dotenv import load_dotenv
 
 from src.logger import log_function
 from src.db import (
-    Episode,
     ProcessingStage,
     get_qdrant_client,
     create_collection,
@@ -114,7 +113,7 @@ def run_download_stage(
         logger.info("Starting download stage...")
 
         # Get workspace directory
-        podcast = episodes[0]['podcast']
+        podcast = episodes[0]["podcast"]
         workspace = f"{podcast}/audio/"
         if not cloud_save:
             workspace = f"data/{workspace}"
@@ -147,7 +146,7 @@ def run_download_stage(
             if cloud_save:
                 storage = CloudStorage()
                 for episode in episodes_list:
-                # for i, episode in enumerate(episodes):
+                    # for i, episode in enumerate(episodes):
                     filename = os.path.basename(episode["audio_path"])
                     if storage.file_exist(workspace, filename):
                         logger.info(
@@ -200,7 +199,7 @@ def run_download_stage(
                     filename = os.path.basename(filepath)
                     if storage.file_exist(workspace, filename):
                         logger.info(
-                            f"Episode {episode["episode_id"]} already exists in cloud storage, skipping upload."
+                            f"Episode {episode['episode_id']} already exists in cloud storage, skipping upload."
                         )
                     else:
                         storage.client.upload_file(
