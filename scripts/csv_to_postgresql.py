@@ -242,6 +242,7 @@ def import_csv_to_postgresql(
                     if fail_fast:
                         raise
                     session.rollback()
+                    session.expire_all()
                     continue
 
                 if upserted % batch_size == 0:

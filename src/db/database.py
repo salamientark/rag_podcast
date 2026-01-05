@@ -48,7 +48,6 @@ def validate_database_url(url: str) -> tuple[bool, str]:
     """Validate the PostgreSQL database URL format."""
     try:
         parsed = urlparse(url)
-        print("DEBUG: Parsed URL:", parsed)
         if parsed.scheme not in ("postgresql", "postgresql+psycopg2"):
             return (
                 False,
@@ -254,14 +253,15 @@ def get_database_info() -> dict:
 
         # Add PostgreSQL pool-specific info
         pool = engine.pool
-        if hasattr(pool, "_pool"):
-            info.update(
-                {
-                    "pool_size": getattr(pool, "_pool_size", "unknown"),
-                    "pool_checked_in": len(getattr(pool, "_pool", [])),
-                    "pool_status": "active",
-                }
-            )
+        info.update(
+            {
+                "pool_size": pool.size(),
+                "pool_checked_in": pool.checkedin(),
+                "pool_checked_out": pool.checkedout(),
+                "pool_overflow": pool.overflow(),
+                "pool_status": "active",
+            }
+        )
 
         return info
 
@@ -361,10 +361,10 @@ def update_episode_in_db(
 
         # Update the episode in the database
         with get_db_session() as session:
-            # Use individual field updates to avoid type issues
-            episode_query = session.query(Episode).filter(Episode.uuid == uuid)
-            for key, value in update_data.items():
-                episode_query.update({key: value}, synchronize_session=False)
+            if update_data:
+                session.query(Episode).filter(Episode.uuid == uuid).update(
+                    update_data, synchronize_session=False
+                )
             session.commit()
     except Exception as e:
         raise e

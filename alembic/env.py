@@ -42,9 +42,7 @@ def run_migrations_offline() -> None:
 
     """
     load_dotenv(interpolate=True)
-    # url = config.get_main_option("sqlalchemy.url")
     url = getenv("DATABASE_URL")
-    print("Running migrations offline against URL:", url, flush=True)
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -65,9 +63,7 @@ def run_migrations_online() -> None:
     """
 
     load_dotenv(interpolate=True)
-    # url = config.get_main_option("sqlalchemy.url")
     url = getenv("DATABASE_URL")
-    print("Running migrations offline against URL:", url, flush=True)
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         url=url,

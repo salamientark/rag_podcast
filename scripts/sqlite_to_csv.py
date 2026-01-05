@@ -50,17 +50,16 @@ def export_table_to_csv(
     try:
         # Connect to SQLite database
         logger.info(f"Connecting to database: {db_path}")
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
 
-        # Check if table exists
-        tables = get_table_names(conn)
-        if table_name not in tables:
-            logger.error(
-                f"Table '{table_name}' not found. Available tables: {', '.join(tables)}"
-            )
-            conn.close()
-            return False
+            # Check if table exists
+            tables = get_table_names(conn)
+            if table_name not in tables:
+                logger.error(
+                    f"Table '{table_name}' not found. Available tables: {', '.join(tables)}"
+                )
+                return False
 
         # Fetch data
         logger.info(f"Reading data from table '{table_name}'...")

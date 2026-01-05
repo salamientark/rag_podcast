@@ -1,4 +1,4 @@
-"""Postgresql podcast databse init
+"""Postgresql podcast database init
 
 Revision ID: 90dfcd298097
 Revises:
