@@ -5,6 +5,12 @@ import { Button } from './ui/button';
 import { Markdown } from './markdown';
 import { ChevronDownIcon } from './icons';
 
+/**
+ * MCP tool response for query_db.
+ * - `structuredContent.result`: Primary response format with the query result as a string.
+ * - `content`: Fallback MCP format as an array of content blocks (e.g., [{type: 'text', text: '...'}]).
+ * - `isError`: Set to true when the query failed; in that case, content may contain error details.
+ */
 interface QueryDbResult {
   content?: Array<{ type: string; text: string }>;
   isError?: boolean;
