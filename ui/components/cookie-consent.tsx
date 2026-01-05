@@ -5,11 +5,17 @@ import { Button } from './ui/button';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 
+interface CookieConsentProps {
+  variant?: 'default' | 'small';
+  onAcceptCallback?: () => void;
+  onDeclineCallback?: () => void;
+}
+
 export default function CookieConsent({
   variant = 'default',
   onAcceptCallback = () => {},
   onDeclineCallback = () => {},
-}) {
+}: CookieConsentProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [hide, setHide] = useState(false);
 
@@ -74,6 +80,7 @@ export default function CookieConsent({
                 agree to our use of cookies.
               </span>
               <br />
+              {/* TODO: Add cookie policy page link or modal */}
               <button type="button" className="text-xs underline">
                 Learn more.
               </button>
@@ -115,14 +122,14 @@ export default function CookieConsent({
           </div>
           <div className="p-3 flex items-center gap-2 mt-2 border-t">
             <Button onClick={accept} className="w-full h-9 rounded-full">
-              accept
+              Accept
             </Button>
             <Button
               onClick={decline}
               className="w-full h-9 rounded-full"
               variant="outline"
             >
-              decline
+              Decline
             </Button>
           </div>
         </div>
