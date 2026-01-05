@@ -22,5 +22,5 @@ export const chatModels: Array<ChatModel> = [
     //   id: 'gpt',
     //   name: 'GPT-4o',
     //   description: 'OpenAI model',
-  }
+  },
 ];

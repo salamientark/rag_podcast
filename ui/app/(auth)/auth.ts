@@ -1,8 +1,8 @@
 import { compare } from 'bcrypt-ts';
 import NextAuth, { type DefaultSession } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
-import Google from 'next-auth/providers/google'
-import Discord from 'next-auth/providers/discord'
+import Google from 'next-auth/providers/google';
+import Discord from 'next-auth/providers/discord';
 import { createGuestUser, createUser, getUser } from '@/lib/db/queries';
 import { authConfig } from './auth.config';
 import { DUMMY_PASSWORD } from '@/lib/constants';
@@ -42,7 +42,7 @@ export const {
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     }),
     Discord,
     Credentials({
@@ -86,7 +86,10 @@ export const {
       }
 
       // Handle OAuth sign-in (Google, Facebook)
-      if (account && (account.provider === 'google' || account.provider === 'discord')) {
+      if (
+        account &&
+        (account.provider === 'google' || account.provider === 'discord')
+      ) {
         // Get or create user in your database
         const users = await getUser(token.email as string);
 
