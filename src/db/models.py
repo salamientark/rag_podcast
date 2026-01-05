@@ -117,7 +117,6 @@ class Episode(Base, TimestampMixin):
         Enum(ProcessingStage),
         nullable=False,
         default=ProcessingStage.SYNCED,
-        server_default="synced",
     )
 
     # File paths (populated as processing progresses)

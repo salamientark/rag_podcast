@@ -1,11 +1,11 @@
 """
-SQLite database engine and session management for podcast RAG system.
+PostgreSQL database engine and session management for podcast RAG system.
 
-This module provides SQLite-specific database connectivity with:
+This module provides PostgreSQL-specific database connectivity with:
 - Session-per-operation pattern for backend scripts
-- NullPool connection pooling to avoid SQLite locking issues
+- QueuePool connection pooling for optimal PostgreSQL performance
 - Comprehensive error handling and file-based logging
-- SQLite optimization settings (WAL mode, foreign keys, timeouts)
+- PostgreSQL optimization settings (connection pooling, timeouts, health checks)
 """
 
 import os
@@ -13,13 +13,13 @@ from datetime import datetime
 from dotenv import load_dotenv
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Generator, Any, Optional
+from typing import Generator, Any, Optional, Dict, cast
 from urllib.parse import urlparse
 
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.exc import SQLAlchemyError, OperationalError
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import QueuePool
 
 from .models import Base, Episode, ProcessingStage
 from src.logger import setup_logging, log_function
@@ -34,53 +34,68 @@ db_logger = setup_logging(
 
 
 # Database configuration
-env = load_dotenv()
+env = load_dotenv(interpolate=True)
 DATABASE_URL = os.getenv("DATABASE_URL")
+
+if DATABASE_URL is None:
+    db_logger.error("DATABASE_URL environment variable is not set")
+    raise ValueError("DATABASE_URL environment variable is not set")
 
 
 @log_function(
     logger_name="database", log_args=True, log_result=True, log_execution_time=True
 )
 def validate_database_url(url: str) -> tuple[bool, str]:
-    """Validate the database URL format and path."""
+    """Validate the PostgreSQL database URL format."""
     try:
         parsed = urlparse(url)
-        if parsed.scheme != "sqlite":
-            return False, f"Only SQLite databases are supported, got: {parsed.scheme}"
+        print("DEBUG: Parsed URL:", parsed)
+        if parsed.scheme not in ("postgresql", "postgresql+psycopg2"):
+            return (
+                False,
+                f"Only PostgreSQL databases are supported, got: {parsed.scheme}",
+            )
 
-        # Extract database file path (remove leading /)
-        db_path = parsed.path.lstrip("/")
-        if not db_path:
-            return False, "Database file path is empty"
+        # Check required components
+        if not parsed.hostname:
+            return False, "Database hostname is missing"
 
-        # Check if parent directory exists (but don't create it)
-        parent_dir = Path(db_path).parent
-        if not parent_dir.exists():
-            return False, f"Database directory does not exist: {parent_dir}"
+        if not parsed.path or parsed.path == "/":
+            return False, "Database name is missing"
 
-        return True, db_path
+        # Extract database name (remove leading /)
+        db_name = parsed.path.lstrip("/")
+        if not db_name:
+            return False, "Database name is empty"
+
+        return True, f"postgresql://{parsed.hostname}:{parsed.port or 5432}/{db_name}"
 
     except Exception as e:
         return False, f"Invalid database URL format: {e}"
 
 
-def optimize_sqlite_connection(dbapi_connection, connection_record):
-    """Apply SQLite-specific optimizations when connection is created."""
+def optimize_postgresql_connection(dbapi_connection, connection_record):
+    """Apply PostgreSQL-specific optimizations when connection is created."""
     cursor = dbapi_connection.cursor()
 
-    # Enable WAL mode for better concurrent access
-    cursor.execute("PRAGMA journal_mode=WAL")
+    # Set connection-level optimizations
+    cursor.execute("SET statement_timeout = '30s'")  # Query timeout
+    cursor.execute(
+        "SET idle_in_transaction_session_timeout = '60s'"
+    )  # Idle transaction timeout
+    cursor.execute("SET lock_timeout = '10s'")  # Lock timeout
 
-    # Set busy timeout to 30 seconds to handle locks
-    cursor.execute("PRAGMA busy_timeout=30000")
+    # Optimize for bulk operations
+    cursor.execute("SET synchronous_commit = on")  # Ensure data durability
+    cursor.execute("SET work_mem = '16MB'")  # Memory for sorting/hashing operations
+    cursor.execute(
+        "SET maintenance_work_mem = '64MB'"
+    )  # Memory for maintenance operations
 
-    # Enable foreign key constraints
-    cursor.execute("PRAGMA foreign_keys=ON")
-
-    # Optimize for better performance
-    cursor.execute("PRAGMA synchronous=NORMAL")
-    cursor.execute("PRAGMA cache_size=1000")
-    cursor.execute("PRAGMA temp_store=MEMORY")
+    # Connection pooling optimizations
+    cursor.execute("SET tcp_keepalives_idle = 600")  # Keep alive settings
+    cursor.execute("SET tcp_keepalives_interval = 30")
+    cursor.execute("SET tcp_keepalives_count = 3")
 
     cursor.close()
 
@@ -94,20 +109,21 @@ if not is_valid:
 db_logger.info(f"Database configured: {db_info}")
 
 
-# Create SQLAlchemy engine with NullPool for SQLite
+# Create SQLAlchemy engine with QueuePool for PostgreSQL
 try:
     engine = create_engine(
         DATABASE_URL,
-        poolclass=NullPool,  # Avoid connection pooling issues with SQLite
-        echo=False,  # Set to True to log SQL queries
-        connect_args={
-            "check_same_thread": False,  # Allow multi-threading
-            "timeout": 30,  # Connection timeout in seconds
-        },
+        poolclass=QueuePool,
+        pool_size=10,  # Optimal pool for PostgreSQL
+        max_overflow=20,  # Allow burst connections
+        pool_pre_ping=True,  # Health check connections
+        pool_timeout=30,  # Connection wait timeout
+        pool_recycle=3600,  # Recycle connections every hour
+        echo=False,  # Set to True for SQL debugging
     )
 
-    # Apply SQLite optimizations on connection
-    event.listen(engine, "connect", optimize_sqlite_connection)
+    # Apply PostgreSQL optimizations on connection
+    event.listen(engine, "connect", optimize_postgresql_connection)
 
     db_logger.info("Database engine created successfully")
 
@@ -143,21 +159,18 @@ def get_db_session() -> Generator[Session, None, None]:
         db_logger.error(f"Database operational error: {e}")
         session.rollback()
 
-        # Handle common SQLite errors with helpful messages
+        # Handle common PostgreSQL errors with helpful messages
         error_msg = str(e.orig) if hasattr(e, "orig") else str(e)
-        if "database is locked" in error_msg.lower():
-            raise OperationalError(
-                "Database is locked. This may be due to another process accessing the database. "
-                "Please try again or check for long-running database operations.",
-                None,
-                None,
+        if "connection" in error_msg.lower():
+            db_logger.error(
+                "Database connection failed. Please check if PostgreSQL is running and accessible."
             )
-        elif "no such table" in error_msg.lower():
-            raise OperationalError(
-                "Database table does not exist. Please run database migrations first.",
-                None,
-                None,
+            raise
+        elif "does not exist" in error_msg.lower():
+            db_logger.error(
+                "Database table does not exist. Please run database migrations first."
             )
+            raise
         else:
             raise
 
@@ -220,39 +233,36 @@ def init_database() -> bool:
 @log_function(logger_name="database", log_execution_time=True)
 def get_database_info() -> dict:
     """
-    Collects diagnostic information about the configured SQLite database and the SQLAlchemy engine.
+    Collects diagnostic information about the configured PostgreSQL database and the SQLAlchemy engine.
 
     Returns:
         dict: A mapping containing:
             - `database_url` (str): The configured DATABASE_URL.
-            - `database_path` (str): Filesystem path extracted from the URL.
+            - `database_info` (str): Connection string information from validation.
             - `engine_pool_class` (str): Engine pool class name.
-            - `file_exists` (bool): True if the database file exists, False otherwise.
-            - `file_size_bytes` (int): Size of the database file in bytes (present if `file_exists` is True).
-            - `file_size_mb` (float): Size of the database file in megabytes rounded to 2 decimals (present if `file_exists` is True).
-            - `last_modified` (float): Last modification time as POSIX timestamp (present if `file_exists` is True).
+            - `pool_size` (int): Current pool size.
+            - `pool_checked_in` (int): Number of checked-in connections.
+            - `pool_checked_out` (int): Number of checked-out connections.
+            - `pool_overflow` (int): Number of overflow connections.
         If an error occurs, returns a dict with an `error` key containing the error message.
     """
     try:
         info = {
             "database_url": DATABASE_URL,
-            "database_path": db_info,
+            "database_info": db_info,
             "engine_pool_class": engine.pool.__class__.__name__,
         }
 
-        # Add file-specific info for SQLite
-        if os.path.exists(db_info):
-            file_stats = os.stat(db_info)
+        # Add PostgreSQL pool-specific info
+        pool = engine.pool
+        if hasattr(pool, "_pool"):
             info.update(
                 {
-                    "file_exists": True,
-                    "file_size_bytes": file_stats.st_size,
-                    "file_size_mb": round(file_stats.st_size / (1024 * 1024), 2),
-                    "last_modified": file_stats.st_mtime,
+                    "pool_size": getattr(pool, "_pool_size", "unknown"),
+                    "pool_checked_in": len(getattr(pool, "_pool", [])),
+                    "pool_status": "active",
                 }
             )
-        else:
-            info["file_exists"] = False
 
         return info
 
@@ -352,9 +362,10 @@ def update_episode_in_db(
 
         # Update the episode in the database
         with get_db_session() as session:
-            session.query(Episode).filter(Episode.uuid == uuid).update(
-                update_data,
-            )
+            # Use individual field updates to avoid type issues
+            episode_query = session.query(Episode).filter(Episode.uuid == uuid)
+            for key, value in update_data.items():
+                episode_query.update({key: value}, synchronize_session=False)
             session.commit()
     except Exception as e:
         raise e
