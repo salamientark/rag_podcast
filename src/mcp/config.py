@@ -12,7 +12,9 @@ try:
     with open("public_key.pem", "r") as f:
         public_key = f.read()
 except FileNotFoundError:
-    logger.error("Public key file 'public_key.pem' not found. JWT authentication will fail.")
+    logger.error(
+        "Public key file 'public_key.pem' not found. JWT authentication will fail."
+    )
     raise
 except Exception as e:
     logger.error(f"Error reading public key: {e}")
