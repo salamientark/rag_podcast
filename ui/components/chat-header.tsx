@@ -14,7 +14,7 @@ import type { Session } from 'next-auth';
 import { AuthButton } from './auth-button';
 
 // Simple Mode = No model selection.
-const SIMPLE_MODE = false
+const SIMPLE_MODE = false;
 
 function PureChatHeader({
   chatId,
@@ -55,7 +55,6 @@ function PureChatHeader({
           <TooltipContent>New Chat</TooltipContent>
         </Tooltip>
       )}
-
 
       {!isReadonly && (
         <VisibilitySelector

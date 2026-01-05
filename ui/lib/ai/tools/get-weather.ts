@@ -4,7 +4,7 @@ import { z } from 'zod';
 const weatherParams = z.object({
   latitude: z.number(),
   longitude: z.number(),
-})
+});
 
 export const getWeather = tool({
   description: 'Get the current weather at a location',

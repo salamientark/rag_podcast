@@ -44,7 +44,8 @@ export async function POST(request: Request) {
 
     const session = await auth();
 
-    if (!session?.user) return new ChatSDKError('unauthorized:chat').toResponse();
+    if (!session?.user)
+      return new ChatSDKError('unauthorized:chat').toResponse();
 
     const userType: UserType = session.user.type;
 

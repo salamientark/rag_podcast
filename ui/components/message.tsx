@@ -226,7 +226,9 @@ const PurePreviewMessage = ({
                       ) : toolName === 'list_episodes' ? (
                         <ListEpisodesToolResult args={args} />
                       ) : (
-                        <pre>{JSON.stringify({ result, toolName }, null, 2)}</pre>
+                        <pre>
+                          {JSON.stringify({ result, toolName }, null, 2)}
+                        </pre>
                       )}
                     </div>
                   );
@@ -246,7 +248,7 @@ const PurePreviewMessage = ({
           </div>
         </div>
       </motion.div>
-    </AnimatePresence >
+    </AnimatePresence>
   );
 };
 

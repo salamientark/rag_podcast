@@ -12,7 +12,7 @@ export const myProvider = customProvider({
     // 'chat-model-reasoning': google('gemini-2.5-pro'),
     'title-model': anthropic('claude-4-sonnet-20250514'),
     'artifact-model': anthropic('claude-3-5-haiku-latest'),
-    'gpt': openai('gpt-4o'),
+    gpt: openai('gpt-4o'),
     // 'title-model': openai('gpt-4o'),
     // 'artifact-model': openai('gpt-3.5-turbo'),
   },

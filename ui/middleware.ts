@@ -13,10 +13,11 @@ export async function middleware(request: NextRequest) {
     return new Response('pong', { status: 200 });
   }
 
-  const skipMiddleware = pathname.startsWith('/api/auth') ||
-    pathname == "/privacy" || pathname == "/delete-account";
-  if (skipMiddleware)
-    return NextResponse.next();
+  const skipMiddleware =
+    pathname.startsWith('/api/auth') ||
+    pathname === '/privacy' ||
+    pathname === '/delete-account';
+  if (skipMiddleware) return NextResponse.next();
 
   const token = await getToken({
     req: request,
