@@ -45,7 +45,15 @@ if DATABASE_URL is None:
     logger_name="database", log_args=True, log_result=True, log_execution_time=True
 )
 def validate_database_url(url: str) -> tuple[bool, str]:
-    """Validate the PostgreSQL database URL format."""
+    """
+    Validate that a string is a PostgreSQL connection URL and return a normalized connection string on success.
+    
+    Parameters:
+        url (str): The database URL to validate.
+    
+    Returns:
+        tuple[bool, str]: `True` and a normalized `postgresql://host:port/dbname` URL on success; `False` and an error message on failure.
+    """
     try:
         parsed = urlparse(url)
         print("DEBUG: Parsed URL:", parsed)
@@ -138,16 +146,11 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 @contextmanager
 def get_db_session() -> Generator[Session, None, None]:
     """
-    Context manager for database sessions (session-per-operation pattern).
-
-    Provides automatic session cleanup, error handling, and logging.
-    Suitable for backend scripts and batch operations.
-
-    Usage:
-        with get_db_session() as session:
-            episode = Episode(title="Test", guid="123")
-            session.add(episode)
-            session.commit()
+    Provide a session-per-operation context manager that yields a SQLAlchemy Session.
+    
+    Yields a new Session for use within a with-statement, ensures rollback on errors, and always closes the session afterward. Creation, error conditions, and closure are logged.
+    Returns:
+        session (Session): A SQLAlchemy Session instance to use within the context.
     """
     session = SessionLocal()
     try:
@@ -309,25 +312,25 @@ def update_episode_in_db(
     transcript_confidence: Optional[float] = None,
 ):
     """
-    Update fields of an Episode record identified by its UUID.
-
-    Only parameters passed as non-None are written to the database; unspecified fields are left unchanged.
-
+    Update an Episode record identified by UUID with any provided fields.
+    
+    Only parameters provided as non-None are written to the database; unspecified fields are left unchanged.
+    
     Parameters:
-        uuid (str): UUID of the episode to update.
-        podcast (Optional[str]): New podcast name.
-        episode_id (Optional[int]): New episode identifier.
-        title (Optional[str]): New episode title.
-        description (Optional[str]): New episode description.
-        published_date (Optional[datetime]): New published date/time.
-        audio_url (Optional[str]): New audio file URL.
-        processing_stage (Optional[ProcessingStage]): New processing stage enum value.
-        audio_file_path (Optional[str]): Filesystem path to the stored audio file.
-        raw_transcript_path (Optional[str]): Filesystem path to the raw transcript.
-        speaker_mapping_path (Optional[str]): Filesystem path to the speaker mapping file.
-        formatted_transcript_path (Optional[str]): Filesystem path to the formatted transcript.
-        transcript_duration (Optional[int]): Transcript duration in seconds.
-        transcript_confidence (Optional[float]): Transcript confidence score.
+        uuid: UUID of the episode to update.
+        podcast: New podcast name (optional).
+        episode_id: New episode identifier (optional).
+        title: New episode title (optional).
+        description: New episode description (optional).
+        published_date: New published date/time (optional).
+        audio_url: New audio file URL (optional).
+        processing_stage: New processing stage enum value (optional).
+        audio_file_path: Filesystem path to the stored audio file (optional).
+        raw_transcript_path: Filesystem path to the raw transcript (optional).
+        speaker_mapping_path: Filesystem path to the speaker mapping file (optional).
+        formatted_transcript_path: Filesystem path to the formatted transcript (optional).
+        transcript_duration: Transcript duration in seconds (optional).
+        transcript_confidence: Transcript confidence score (optional).
     """
     try:
         # Create update dictionary
