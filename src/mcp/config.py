@@ -8,8 +8,18 @@ from fastmcp.server.auth.providers.jwt import JWTVerifier
 logger = logging.getLogger(__name__)
 
 # JWT auth setup
-with open("public_key.pem", "r") as f:
-    public_key = f.read()
+try:
+    with open("public_key.pem", "r") as f:
+        public_key = f.read()
+except FileNotFoundError:
+    logger.error(
+        "Public key file 'public_key.pem' not found. JWT authentication will fail."
+    )
+    raise
+except Exception as e:
+    logger.error(f"Error reading public key: {e}")
+    raise
+
 auth = JWTVerifier(
     public_key=public_key,
     issuer="urn:notpatrick:client",
