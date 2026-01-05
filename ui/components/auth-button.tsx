@@ -11,7 +11,7 @@ export function AuthButton() {
   const { data, status } = useSession();
 
   const isGuest = guestRegex.test(data?.user?.email ?? '');
-  const canLogin = isGuest || !data?.user?.email
+  const canLogin = isGuest || !data?.user?.email;
 
   const handleAuthAction = () => {
     if (status === 'loading') {
@@ -37,7 +37,9 @@ export function AuthButton() {
       size="sm"
       onClick={handleAuthAction}
       disabled={status === 'loading'}
-      className={canLogin ? 'dark:bg-white dark:text-black dark:hover:bg-white/90' : ''}
+      className={
+        canLogin ? 'dark:bg-white dark:text-black dark:hover:bg-white/90' : ''
+      }
     >
       {canLogin ? 'Login' : 'Sign out'}
     </Button>

@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { chatModels } from '@/lib/ai/models';
 import { expect, type Page } from '@playwright/test';
 
 export class ChatPage {
@@ -95,7 +94,6 @@ export class ChatPage {
 
     await this.page.getByTestId('attachments-button').click();
   }
-
 
   public async getSelectedVisibility() {
     const visibilityId = await this.page

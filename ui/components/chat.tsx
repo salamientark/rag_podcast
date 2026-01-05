@@ -2,7 +2,7 @@
 
 import type { Attachment, UIMessage } from 'ai';
 import { useChat } from '@ai-sdk/react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import { ChatHeader } from '@/components/chat-header';
 import type { Vote } from '@/lib/db/schema';
@@ -83,22 +83,25 @@ export function Chat({
     },
   });
 
-  const append: typeof originalAppend = (message, options) => {
-    if (!session) {
-      const url = new URL(window.location.href);
-      if (typeof message.content === 'string') {
-        url.searchParams.set('query', message.content);
+  const append: typeof originalAppend = useCallback(
+    (message, options) => {
+      if (!session) {
+        const url = new URL(window.location.href);
+        if (typeof message.content === 'string') {
+          url.searchParams.set('query', message.content);
+        }
+        const redirectUrl = encodeURIComponent(url.pathname + url.search);
+        window.location.href = `/api/auth/guest?redirectUrl=${redirectUrl}`;
+        return Promise.resolve(null);
+      } else {
+        if (window.location.pathname === '/') {
+          window.history.replaceState({}, '', `/chat/${id}`);
+        }
+        return originalAppend(message, options);
       }
-      const redirectUrl = encodeURIComponent(url.pathname + url.search);
-      window.location.href = `/api/auth/guest?redirectUrl=${redirectUrl}`;
-      return Promise.resolve(null);
-    } else {
-      if (window.location.pathname === '/') {
-        window.history.replaceState({}, '', `/chat/${id}`);
-      }
-      return originalAppend(message, options);
-    }
-  };
+    },
+    [session, id, originalAppend],
+  );
 
   const handleSubmit: typeof originalHandleSubmit = (...args) => {
     if (!session) {

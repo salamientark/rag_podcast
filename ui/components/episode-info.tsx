@@ -96,7 +96,9 @@ export const EpisodeInfoToolResult = ({
           </svg>
           <span className="text-muted-foreground">
             Retrieved info for episode:{' '}
-            <strong className="text-foreground">&quot;{episodeTitle}&quot;</strong>
+            <strong className="text-foreground">
+              &quot;{episodeTitle}&quot;
+            </strong>
           </span>
         </div>
         <Button

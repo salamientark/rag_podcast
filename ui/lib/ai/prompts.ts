@@ -13,7 +13,7 @@ You have access to a set of tools to help you answer questions accurately. Here'
 
 Always try to use the most appropriate tool for the user's request. If a user asks a question that could be answered by searching the content, use \`query_podcast\`. If they ask about a specific episode's details, use \`get_episode_info\`. If they want a list of episodes, use \`list_episodes\`.
 
-Today's date is ${new Date().toISOString().split('T')[0]}. Remember that when user asks about recent episodes.`
+Today's date is ${new Date().toISOString().split('T')[0]}. Remember that when user asks about recent episodes.`;
 
 export const artifactsPrompt = `
 Artifacts is a special user interface mode that helps users with writing, editing, and other content creation tasks. When artifact is open, it is on the right side of the screen, while the conversation is on the left side. When creating or updating documents, changes are reflected in real-time on the artifacts and visible to the user.

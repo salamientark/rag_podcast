@@ -1,7 +1,9 @@
 import {
-  Accordion, AccordionContent,
-  AccordionItem, AccordionTrigger,
-} from "@/components/ui/accordion"
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 import {
   Table,
   TableBody,
@@ -9,16 +11,16 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from '@/components/ui/table';
 
 export function PokerSolverUI({ result, args }: { result: any; args: any }) {
   if (typeof result === 'string' && result.toLowerCase().includes('error')) {
-    console.log("Error while calling solver:\n", result)
-    console.log("error args:\n", JSON.stringify({ args }))
-    return null
+    console.log('Error while calling solver:\n', result);
+    console.log('error args:\n', JSON.stringify({ args }));
+    return null;
   }
 
-  console.log("SOLVER:\n", JSON.stringify({ args, result }, null, 2))
+  console.log('SOLVER:\n', JSON.stringify({ args, result }, null, 2));
 
   // Check if result has policy data
   if (!result || !result.policy) return null;
@@ -38,21 +40,20 @@ export function PokerSolverUI({ result, args }: { result: any; args: any }) {
 
   // Parse percentage and filter out actions below 0.1%
   const parsePercentage = (percentStr: string): number => {
-    return parseFloat(percentStr.replace('%', ''));
+    return Number.parseFloat(percentStr.replace('%', ''));
   };
 
   // Convert policy to array and filter
-  const policyEntries = Object.entries(policy)
-    .map(([action, percentage]) => ({
-      action,
-      percentage: percentage as string,
-      numericPercentage: parsePercentage(percentage as string)
-    }));
-  const hasFoldA = policyEntries.map(e => e.action).includes('f');
+  const policyEntries = Object.entries(policy).map(([action, percentage]) => ({
+    action,
+    percentage: percentage as string,
+    numericPercentage: parsePercentage(percentage as string),
+  }));
+  const hasFoldA = policyEntries.map((e) => e.action).includes('f');
 
   // Sort: fold first, then check/call, then bets by size
   const sortedEntries = policyEntries
-    .filter(entry => entry.numericPercentage > 0.1)
+    .filter((entry) => entry.numericPercentage > 0.1)
     .sort((a, b) => {
       if (a.action === 'f') return -1;
       if (b.action === 'f') return 1;
@@ -61,8 +62,8 @@ export function PokerSolverUI({ result, args }: { result: any; args: any }) {
 
       // Both are bets, sort by bet size
       if (a.action.startsWith('b') && b.action.startsWith('b')) {
-        const aBetSize = parseFloat(a.action.substring(1));
-        const bBetSize = parseFloat(b.action.substring(1));
+        const aBetSize = Number.parseFloat(a.action.substring(1));
+        const bBetSize = Number.parseFloat(b.action.substring(1));
         return aBetSize - bBetSize;
       }
 
@@ -81,14 +82,20 @@ export function PokerSolverUI({ result, args }: { result: any; args: any }) {
             <TableHeader>
               <TableRow>
                 <TableHead className="h-8 px-2 py-1">Action</TableHead>
-                <TableHead className="text-right h-8 px-2 py-1">Probability</TableHead>
+                <TableHead className="text-right h-8 px-2 py-1">
+                  Probability
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {sortedEntries.map((entry) => (
                 <TableRow key={entry.action}>
-                  <TableCell className="font-medium px-2 py-1">{transformAction(entry.action, hasFoldA)}</TableCell>
-                  <TableCell className="text-right px-2 py-1">{entry.percentage}</TableCell>
+                  <TableCell className="font-medium px-2 py-1">
+                    {transformAction(entry.action, hasFoldA)}
+                  </TableCell>
+                  <TableCell className="text-right px-2 py-1">
+                    {entry.percentage}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
