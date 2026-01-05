@@ -197,6 +197,14 @@ uv run -m src.pipeline --stages raw_transcript,embedded --limit 5
 uv run -m src.pipeline --episode-id 672 --force
 ```
 
+### 4. UI
+
+**History database**
+```bash
+# Start the postrgesql server
+pg_ctl -D ./data/db_data -l logfile start
+```
+
 ### Database Management
 
 #### Apply Migrations

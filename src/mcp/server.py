@@ -22,4 +22,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Testing: Use HTTP transport to confirm SSE is necessary
-    mcp.run(transport="http", host=args.host, port=args.port)
+    mcp.run(transport="sse", host=args.host, port=args.port)
+    # mcp.run(transport="http", host=args.host, port=args.port)
