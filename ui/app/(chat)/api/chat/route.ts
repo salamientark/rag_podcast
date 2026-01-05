@@ -105,7 +105,10 @@ export async function POST(request: Request) {
       execute: async (dataStream) => {
         const authToken = await createAuthToken();
 
-        const serverUrl = process.env.MCP_SERVER_URL!;
+        const serverUrl = process.env.MCP_SERVER_URL;
+        if (!serverUrl) {
+          throw new Error('MCP_SERVER_URL environment variable is not set');
+        }
         const mcpClient = await createMCPClient({
           transport: {
             type: 'sse',

@@ -74,9 +74,9 @@ export default function CookieConsent({
                 agree to our use of cookies.
               </span>
               <br />
-              <a href="#" className="text-xs underline">
+              <button type="button" className="text-xs underline">
                 Learn more.
-              </a>
+              </button>
             </p>
           </div>
           <div className="flex gap-2 p-4 py-5 border-t border-border dark:bg-background/20">
