@@ -91,7 +91,9 @@ def _parse_optional_datetime(value: str | None) -> datetime | None:
     raise ValueError(f"Unsupported datetime format: {stripped}")
 
 
-def _parse_processing_stage(value: str | None, *, coerce_unknown: bool) -> ProcessingStage | None:
+def _parse_processing_stage(
+    value: str | None, *, coerce_unknown: bool
+) -> ProcessingStage | None:
     if value is None:
         return None
 
@@ -103,7 +105,9 @@ def _parse_processing_stage(value: str | None, *, coerce_unknown: bool) -> Proce
         return ProcessingStage(stripped)
     except ValueError:
         if coerce_unknown:
-            logger.warning("Unknown processing_stage '%s'; coercing to 'synced'", stripped)
+            logger.warning(
+                "Unknown processing_stage '%s'; coercing to 'synced'", stripped
+            )
             return ProcessingStage.SYNCED
         raise
 
@@ -202,8 +206,6 @@ def import_csv_to_postgresql(
     if not csv_path.exists():
         raise FileNotFoundError(f"CSV file not found: {csv_path}")
 
-    stats = ImportStats()
-
     with csv_path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle, delimiter=delimiter)
         if reader.fieldnames is None:
@@ -256,7 +258,9 @@ def import_csv_to_postgresql(
             else:
                 session.commit()
 
-    return ImportStats(processed=processed, inserted_or_updated=upserted, skipped=skipped)
+    return ImportStats(
+        processed=processed, inserted_or_updated=upserted, skipped=skipped
+    )
 
 
 def _build_parser() -> argparse.ArgumentParser:

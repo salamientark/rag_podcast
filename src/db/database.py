@@ -12,8 +12,7 @@ import os
 from datetime import datetime
 from dotenv import load_dotenv
 from contextlib import contextmanager
-from pathlib import Path
-from typing import Generator, Any, Optional, Dict, cast
+from typing import Generator, Any, Optional
 from urllib.parse import urlparse
 
 from sqlalchemy import create_engine, event, text

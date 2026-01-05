@@ -71,7 +71,7 @@ def export_table_to_csv(
             logger.warning(f"Table '{table_name}' is empty.")
             # Still write headers if possible, or just exit
             # If no rows, cursor.description might still work if select was valid
-        
+
         # Get column headers
         if cursor.description:
             headers = [description[0] for description in cursor.description]
@@ -80,10 +80,10 @@ def export_table_to_csv(
 
         # Write to CSV
         logger.info(f"Writing {len(rows)} rows to {csv_path}...")
-        
+
         # Ensure output directory exists
         csv_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             if headers:
@@ -110,24 +110,24 @@ def main():
         description="Export a SQLite database table to a CSV file.",
         epilog="Example: uv run scripts/sqlite_to_csv.py --db data/podcast.db --out data/episodes.csv",
     )
-    
+
     parser.add_argument(
-        "--db", 
-        type=Path, 
+        "--db",
+        type=Path,
         default=Path("data/podcast.db"),
-        help="Path to the SQLite database file (default: data/podcast.db)"
+        help="Path to the SQLite database file (default: data/podcast.db)",
     )
     parser.add_argument(
-        "--out", 
-        type=Path, 
+        "--out",
+        type=Path,
         default=Path("data/episodes.csv"),
-        help="Path to the output CSV file (default: data/episodes.csv)"
+        help="Path to the output CSV file (default: data/episodes.csv)",
     )
     parser.add_argument(
-        "--table", 
-        type=str, 
+        "--table",
+        type=str,
         default="episodes",
-        help="Name of the table to export (default: episodes)"
+        help="Name of the table to export (default: episodes)",
     )
 
     args = parser.parse_args()
