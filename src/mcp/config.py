@@ -4,6 +4,10 @@ from src.query.service import PodcastQueryService
 from .prompts import SERVER_PROMPT
 from fastmcp import FastMCP
 from fastmcp.server.auth.providers.jwt import JWTVerifier
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+
+HEALTH_PATH = "/health"
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +49,12 @@ def get_query_service() -> PodcastQueryService:
         _service_instance = PodcastQueryService(config=config)
         logger.info("PodcastQueryService initialized successfully")
     return _service_instance
+
+
+@mcp.custom_route(HEALTH_PATH, methods=["GET"])
+async def health_check(request: Request):
+    """Health check endpoint for monitoring."""
+    return JSONResponse({"status": "ok"})
 
 
 from .tools import query_db  # noqa
