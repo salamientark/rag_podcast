@@ -30,16 +30,10 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
-
-    This configures the context with just a URL
-    and not an Engine, though an Engine is acceptable
-    here as well.  By skipping the Engine creation
-    we don't even need a DBAPI to be available.
-
-    Calls to context.execute() here emit the given string to the
-    script output.
-
+    """
+    Configure Alembic to run migrations using a database URL without creating a DB engine.
+    
+    Loads environment variables from a .env file, reads the `DATABASE_URL` environment variable, configures the Alembic context for offline (script-output) migrations with batch rendering enabled, and executes the migrations.
     """
     load_dotenv(interpolate=True)
     url = getenv("DATABASE_URL")

@@ -43,6 +43,18 @@ class ImportStats:
 
 
 def _parse_optional_int(value: str | None) -> int | None:
+    """
+    Parse an optional integer from a string, returning None for empty or missing input.
+    
+    Parameters:
+        value (str | None): A string containing an integer, or None/whitespace to indicate absence.
+    
+    Returns:
+        int | None: The parsed integer, or `None` if `value` is `None` or contains only whitespace.
+    
+    Raises:
+        ValueError: If `value` is non-empty but cannot be parsed as an integer.
+    """
     if value is None:
         return None
 
@@ -54,6 +66,15 @@ def _parse_optional_int(value: str | None) -> int | None:
 
 
 def _parse_optional_float(value: str | None) -> float | None:
+    """
+    Convert a string containing a floating-point number to a float or return None for empty input.
+    
+    Parameters:
+        value (str | None): String to parse; may be None or contain only whitespace.
+    
+    Returns:
+        float | None: The parsed float when `value` contains a numeric representation, `None` if `value` is `None` or empty after trimming.
+    """
     if value is None:
         return None
 
@@ -65,6 +86,18 @@ def _parse_optional_float(value: str | None) -> float | None:
 
 
 def _parse_optional_datetime(value: str | None) -> datetime | None:
+    """
+    Parse a string into a datetime using multiple common formats.
+    
+    Parameters:
+        value (str | None): Input string to parse. If `None` or empty/whitespace, returns `None`.
+    
+    Returns:
+        datetime | None: A `datetime` object when parsing succeeds, or `None` for empty input.
+    
+    Raises:
+        ValueError: If the input is non-empty and does not match ISO format or any of the accepted patterns ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S").
+    """
     if value is None:
         return None
 
@@ -94,6 +127,19 @@ def _parse_optional_datetime(value: str | None) -> datetime | None:
 def _parse_processing_stage(
     value: str | None, *, coerce_unknown: bool
 ) -> ProcessingStage | None:
+    """
+    Convert a string to a ProcessingStage enum value, accepting case-insensitive and whitespace-padded input.
+    
+    Parameters:
+    	value: The input string to parse; leading/trailing whitespace is ignored. If `None` or empty after trimming, the function returns `None`.
+    	coerce_unknown: If `True`, unknown values are mapped to `ProcessingStage.SYNCED` with a warning; if `False`, unknown values raise `ValueError`.
+    
+    Returns:
+    	A `ProcessingStage` corresponding to the input string, or `None` when `value` is `None` or empty.
+    
+    Raises:
+    	ValueError: If the trimmed value does not match any `ProcessingStage` member and `coerce_unknown` is `False`.
+    """
     if value is None:
         return None
 
@@ -117,6 +163,19 @@ def _episode_kwargs_from_row(
     *,
     coerce_unknown_stage: bool,
 ) -> dict[str, Any]:
+    """
+    Builds a dictionary of keyword arguments for an Episode from a CSV row, validating required fields and converting optional string values to their parsed Python types.
+    
+    Parameters:
+        row (dict[str, str]): Mapping of CSV header names to string values for a single row.
+        coerce_unknown_stage (bool): If True, unknown processing stage values are coerced to a default stage instead of causing an error.
+    
+    Returns:
+        dict[str, Any]: Parsed and trimmed values suitable for constructing an Episode (includes required keys: `uuid`, `episode_id`, `title`, `podcast`, `published_date`, `audio_url`; optional keys include `description`, `processing_stage`, file path fields, `transcript_duration`, `transcript_confidence`, `created_at`, `updated_at`).
+    
+    Raises:
+        ValueError: If a required field is missing or if a field has an invalid format (for example, an unparsable datetime or missing numeric `episode_id`).
+    """
     uuid = (row.get("uuid") or "").strip()
     if not uuid:
         raise ValueError("Missing required field: uuid")
@@ -201,7 +260,26 @@ def import_csv_to_postgresql(
     fail_fast: bool,
     coerce_unknown_stage: bool,
 ) -> ImportStats:
-    """Import rows from `csv_path` into PostgreSQL."""
+    """
+    Import rows from a CSV file into PostgreSQL by upserting Episode records in batches.
+    
+    Processes the CSV at `csv_path`, parses each row into Episode fields, and performs upserts (via session.merge). Commits every `batch_size` upserts (or flushes and rolls back when `dry_run` is True). If `fail_fast` is True any parsing or database error will be re-raised; otherwise the row is counted as skipped and processing continues. When `coerce_unknown_stage` is True unknown processing stages are coerced to a default value instead of raising.
+    
+    Parameters:
+        csv_path (Path): Path to the CSV file to import.
+        delimiter (str): Field delimiter used by the CSV reader.
+        batch_size (int): Number of upserts between commits.
+        dry_run (bool): If True, perform database operations but roll back instead of committing.
+        fail_fast (bool): If True, raise on the first parse or database error; otherwise continue and count skipped rows.
+        coerce_unknown_stage (bool): If True, coerce unrecognized processing stage values instead of raising.
+    
+    Returns:
+        ImportStats: Counts of processed rows, inserted_or_updated rows, and skipped rows.
+    
+    Raises:
+        FileNotFoundError: If `csv_path` does not exist.
+        ValueError: If the CSV is missing header row.
+    """
 
     if not csv_path.exists():
         raise FileNotFoundError(f"CSV file not found: {csv_path}")
@@ -265,6 +343,15 @@ def import_csv_to_postgresql(
 
 
 def _build_parser() -> argparse.ArgumentParser:
+    """
+    Builds and returns an argparse.ArgumentParser configured for the CSV-to-PostgreSQL importer CLI.
+    
+    The parser defines arguments for the CSV path, delimiter, batch size, dry-run mode, fail-fast behavior,
+    coercing unknown processing stages, and log level, and includes usage examples in the epilog.
+    
+    Returns:
+        argparse.ArgumentParser: Parser configured with the importer command-line options.
+    """
     parser = argparse.ArgumentParser(
         description="Import Episode rows from a CSV file into PostgreSQL.",
         epilog=(
@@ -321,6 +408,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    """
+    Parse command-line arguments, configure logging, run the CSV-to-PostgreSQL import process, and log final processed/imported/skipped counts.
+    """
     parser = _build_parser()
     args = parser.parse_args()
 
