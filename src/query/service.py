@@ -148,8 +148,7 @@ class PodcastQueryService:
         )
 
         self.logger.info(
-            f"Query engine configured: top_k={self.config.similarity_top_k}, "
-            f"reranking={'enabled' if self.config.use_reranking else 'disabled'}"
+            f"Query engine configured: top_k={self.config.similarity_top_k}"
         )
 
     async def query(self, question: str, context: Optional[str] = None) -> str:
@@ -225,9 +224,6 @@ class PodcastQueryService:
             "qdrant_url": self.config.qdrant_url,
             "llm_model": self.config.llm_model,
             "embedding_model": self.config.embedding_model,
-            "reranking_enabled": self.config.use_reranking,
-            "rerank_model": self.config.rerank_model
-            if self.config.use_reranking
-            else None,
+            "reranking_enabled": False,
             "similarity_top_k": self.config.similarity_top_k,
         }

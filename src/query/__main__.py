@@ -26,7 +26,6 @@ from llama_index.embeddings.voyageai import VoyageEmbedding
 from qdrant_client import QdrantClient, AsyncQdrantClient
 
 from .config import QueryConfig, SYSTEM_PROMPT_FR
-from .postprocessors import get_reranker
 
 
 console = Console()
@@ -37,7 +36,7 @@ class PodcastQueryAgent:
     Main query agent for podcast content using LlamaIndex and VoyageAI.
 
     Integrates with existing Qdrant vector store containing VoyageAI embeddings
-    and provides a French chat interface with optional reranking.
+    and provides a French chat interface.
     """
 
     def __init__(self, config: QueryConfig):
@@ -139,15 +138,8 @@ class PodcastQueryAgent:
         # Build postprocessor pipeline (order matters!)
         postprocessors = []
 
-        # 1. Optional reranking with BGE-M3 (French-optimized)
-        if self.config.use_reranking:
-            reranker = get_reranker(
-                model_name=self.config.rerank_model, top_n=self.config.rerank_top_n
-            )
-            postprocessors.append(reranker)
-            self.logger.info(f"Reranking enabled with {self.config.rerank_model}")
-        else:
-            self.logger.info("Reranking disabled (faster responses)")
+        # Reranker would go here, removed to reduce image size
+        # See postprocessors.py for how to re-enable
 
         # Note: We'll handle metadata injection manually in the query method
 
@@ -206,10 +198,7 @@ class PodcastQueryAgent:
             "qdrant_url": self.config.qdrant_url,
             "llm_model": self.config.llm_model,
             "embedding_model": self.config.embedding_model,
-            "reranking_enabled": self.config.use_reranking,
-            "rerank_model": self.config.rerank_model
-            if self.config.use_reranking
-            else None,
+            "reranking_enabled": False,
             "memory_limit": self.config.memory_token_limit,
         }
 
@@ -361,8 +350,6 @@ async def interactive_chat(config: QueryConfig):
         status_text = (
             f"📊 Connecté à '{status['collection_name']}' avec {status['llm_model']}"
         )
-        if status["reranking_enabled"]:
-            status_text += f" + reranking {status['rerank_model']}"
         console.print(f"[dim]{status_text}[/dim]")
         console.print()
 
@@ -432,7 +419,6 @@ async def main():
         epilog="""
 Exemples:
   uv run -m src.query
-  uv run -m src.query --enable-reranking
   uv run -m src.query --mcp-server-url http://localhost:9000
   
 Variables d'environnement requises (mode direct):
@@ -446,12 +432,6 @@ Mode MCP:
   uv run -m src.mcp.server --host 127.0.0.1 --port 9000
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-
-    parser.add_argument(
-        "--enable-reranking",
-        action="store_true",
-        help="Activer le reranking pour une meilleure qualité des réponses (plus lent)",
     )
 
     parser.add_argument(
@@ -470,11 +450,6 @@ Mode MCP:
     else:
         # Create configuration for direct agent mode
         config = QueryConfig()
-
-        # Apply CLI overrides
-        if args.enable_reranking:
-            config.use_reranking = True
-            console.print("[dim]🔍 Mode qualité: reranking activé[/dim]")
 
         # Start interactive chat with direct agent
         await interactive_chat(config)
