@@ -61,35 +61,34 @@ def export_table_to_csv(
                 )
                 return False
 
-        # Fetch data
-        logger.info(f"Reading data from table '{table_name}'...")
-        cursor.execute(f"SELECT * FROM {table_name}")
-        rows = cursor.fetchall()
+            # Fetch data
+            logger.info(f"Reading data from table '{table_name}'...")
+            cursor.execute(f"SELECT * FROM {table_name}")
+            rows = cursor.fetchall()
 
-        if not rows:
-            logger.warning(f"Table '{table_name}' is empty.")
-            # Still write headers if possible, or just exit
-            # If no rows, cursor.description might still work if select was valid
+            if not rows:
+                logger.warning(f"Table '{table_name}' is empty.")
+                # Still write headers if possible, or just exit
+                # If no rows, cursor.description might still work if select was valid
 
-        # Get column headers
-        if cursor.description:
-            headers = [description[0] for description in cursor.description]
-        else:
-            headers = []
+            # Get column headers
+            if cursor.description:
+                headers = [description[0] for description in cursor.description]
+            else:
+                headers = []
 
-        # Write to CSV
-        logger.info(f"Writing {len(rows)} rows to {csv_path}...")
+            # Write to CSV
+            logger.info(f"Writing {len(rows)} rows to {csv_path}...")
 
-        # Ensure output directory exists
-        csv_path.parent.mkdir(parents=True, exist_ok=True)
+            # Ensure output directory exists
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(csv_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            if headers:
-                writer.writerow(headers)
-            writer.writerows(rows)
+            with open(csv_path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                if headers:
+                    writer.writerow(headers)
+                writer.writerows(rows)
 
-        conn.close()
         logger.info("Export completed successfully.")
         return True
 

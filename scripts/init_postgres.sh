@@ -1,4 +1,4 @@
- #!/bin/bash
+#!/bin/bash
 set -euo pipefail
  
 # Check if .env exists
@@ -18,7 +18,6 @@ mkdir -p ./data/db_data/sockets
 sed -i "/^#unix_socket_directories.*/c\\unix_socket_directories = '$PWD/data/db_data/sockets'" data/db_data/postgresql.conf
  
 # Start PostgreSQL server
-pg_ctl -D ./data/db_data/ -o "-p $POSTGRES_PORT" -l ./data/db_data/logfile start
 pg_ctl -D ./data/db_data/ -o "-p ${POSTGRES_PORT}" -l ./data/db_data/logfile start
  
 # Create user and tables
