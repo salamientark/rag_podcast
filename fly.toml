@@ -1,44 +1,57 @@
-app = "rag-podcast-mcp"
-primary_region = "cdg"
+# fly.toml app configuration file generated for rag-podcast-mcp on 2026-01-06T14:16:58+01:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'rag-podcast-mcp'
+primary_region = 'cdg'
 
 [build]
 
 [env]
-  PORT = "9000"
+  PORT = '9000'
+
+[http_service]
+  internal_port = 9000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
 
 [[services]]
+  protocol = 'tcp'
   internal_port = 9000
-  protocol = "tcp"
-  auto_stop_machines = true
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 1
 
   [[services.ports]]
     port = 80
-    handlers = ["http"]
+    handlers = ['http']
 
   [[services.ports]]
     port = 443
-    handlers = ["http", "tls"]
+    handlers = ['http', 'tls']
 
   [services.concurrency]
-    type = "connections"
+    type = 'connections'
     hard_limit = 100
     soft_limit = 80
 
   [[services.tcp_checks]]
-    interval = "15s"
-    timeout = "2s"
-    grace_period = "10s"
+    interval = '15s'
+    timeout = '2s'
+    grace_period = '10s'
 
   [[services.http_checks]]
-    interval = "30s"
-    timeout = "10s"
-    grace_period = "10s"
-    method = "get"
-    path = "/health"
+    interval = '30s'
+    timeout = '10s'
+    grace_period = '10s'
+    method = 'get'
+    path = '/health'
 
-[vm]
-  cpu_kind = "shared"
+[[vm]]
+  cpu_kind = 'shared'
   cpus = 1
   memory_mb = 512
