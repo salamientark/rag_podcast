@@ -44,7 +44,6 @@ Key directories (under `ui/`):
 - `hooks/` — Client hooks (artifact state, scroll, visibility, auto-resume)
 - `lib/` — Shared logic: AI tools, prompts, providers, DB schema/queries, utilities, errors
 - `lib/db/migrations/` — Drizzle migrations + snapshots
-- `tests/` — Playwright tests and helpers (not all files are included in chat, but referenced)
 
 ---
 
@@ -580,7 +579,6 @@ From `ui/package.json`:
 - `pnpm dev` — Next dev server (turbo)
 - `pnpm build` / `pnpm start`
 - `pnpm migrate` — runs Drizzle migrations via `tsx lib/db/migrate`
-- `pnpm test` — Playwright tests (requires env vars)
 
 Environment variables template: `ui/.env.example`
 
