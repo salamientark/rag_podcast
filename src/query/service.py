@@ -19,7 +19,7 @@ from llama_index.embeddings.voyageai import VoyageEmbedding
 from qdrant_client import QdrantClient, AsyncQdrantClient
 
 from .config import QueryConfig
-from .postprocessors import get_reranker, sort_nodes_temporally
+from .postprocessors import sort_nodes_temporally
 
 
 class PodcastQueryService:
@@ -128,15 +128,8 @@ class PodcastQueryService:
         # Build postprocessor pipeline (order matters!)
         postprocessors = []
 
-        # Optional reranking with BGE-M3 (French-optimized)
-        if self.config.use_reranking:
-            reranker = get_reranker(
-                model_name=self.config.rerank_model, top_n=self.config.rerank_top_n
-            )
-            postprocessors.append(reranker)
-            self.logger.info(f"Reranking enabled with {self.config.rerank_model}")
-        else:
-            self.logger.info("Reranking disabled (faster responses)")
+        # Reranker would go here, removed for now to reduce image size
+        # See get_reranker() in postprocessors.py if re-enabling
 
         # Create retriever
         self.retriever = VectorIndexRetriever(
