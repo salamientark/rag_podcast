@@ -33,15 +33,17 @@ def export_table_to_csv(
     db_path: Path, csv_path: Path, table_name: str = "episodes"
 ) -> bool:
     """
-    Export a SQLite table to a CSV file.
-
-    Args:
-        db_path: Path to the SQLite database file.
-        csv_path: Path to the output CSV file.
-        table_name: Name of the table to export.
-
+    Export a table from a SQLite database to a CSV file.
+    
+    Attempts to read all rows from `table_name` in the database at `db_path` and write them to `csv_path`. Creates the output directory if needed, writes column headers when available, and writes all data rows. If the table exists but has no rows, headers (if present) are still written.
+    
+    Parameters:
+        db_path (Path): Path to the SQLite database file.
+        csv_path (Path): Path to the target CSV file to create or overwrite.
+        table_name (str): Name of the table to export (default: "episodes").
+    
     Returns:
-        bool: True if export was successful, False otherwise.
+        bool: `True` if the export completed successfully, `False` otherwise.
     """
     if not db_path.exists():
         logger.error(f"Database file not found: {db_path}")
@@ -104,6 +106,11 @@ def export_table_to_csv(
 
 
 def main():
+    """
+    Parse command-line arguments, run the table export, and exit with a status code.
+    
+    Parses `--db`, `--out`, and `--table` command-line options (defaults: `data/podcast.db`, `data/episodes.csv`, `episodes`), invokes `export_table_to_csv` with the parsed values, and exits with status 0 on success or 1 on failure.
+    """
     parser = argparse.ArgumentParser(
         description="Export a SQLite database table to a CSV file.",
         epilog="Example: uv run scripts/sqlite_to_csv.py --db data/podcast.db --out data/episodes.csv",

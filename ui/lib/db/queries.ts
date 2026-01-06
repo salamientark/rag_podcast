@@ -42,6 +42,13 @@ import { ChatSDKError } from '../errors';
 const client = postgres(process.env.FRONTEND_URL!);
 const db = drizzle(client);
 
+/**
+ * Fetches users matching the provided email address.
+ *
+ * @param email - The email address to match
+ * @returns An array of users whose `email` equals the provided value (empty if none)
+ * @throws ChatSDKError when the database query fails with code `bad_request:database` and message `Failed to get user by email`
+ */
 export async function getUser(email: string): Promise<Array<User>> {
   try {
     return await db.select().from(user).where(eq(user.email, email));
