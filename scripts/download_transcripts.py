@@ -2,11 +2,13 @@ import argparse
 import os
 import sys
 import tempfile
+import zipfile
 from pathlib import Path
 from typing import Iterable
 
 from dotenv import load_dotenv
 import boto3
+from botocore.client import BaseClient
 from botocore.exceptions import ClientError
 
 
@@ -57,7 +59,7 @@ def is_transcript_key(key: str) -> bool:
     return key.startswith("transcripts/") or "/transcripts/" in key
 
 
-def iter_keys(client, bucket: str, prefix: str | None) -> Iterable[str]:
+def iter_keys(client: BaseClient, bucket: str, prefix: str | None) -> Iterable[str]:
     continuation = None
     while True:
         params = {"Bucket": bucket}
@@ -127,8 +129,6 @@ def main() -> int:
                 local_path = tmp_root / key
                 local_path.parent.mkdir(parents=True, exist_ok=True)
                 client.download_file(bucket_name, key, str(local_path))
-
-            import zipfile
 
             with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as zf:
                 for local_file in tmp_root.rglob("*"):
