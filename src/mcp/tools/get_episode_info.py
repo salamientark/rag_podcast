@@ -28,9 +28,8 @@ def get_episode_info_by_date(date_input: str) -> Optional[Dict]:
     for episode in episodes:
         if episode.published_date.date() == target_date.date():
             # Convert datetime to ISO string for JSON serialization
-            episode_copy = episode.copy()
-            episode_copy.published_date = episode.published_date.isoformat()
-            return episode_copy
+            episode_copy = episode
+            return episode_copy.to_dict()
 
     return None
 

@@ -188,7 +188,7 @@ const PurePreviewMessage = ({
                           args={args}
                           isReadonly={isReadonly}
                         />
-                      ) : toolName === 'query_db' ? (
+                      ) : toolName === 'ask_podcast' ? (
                         <QueryDbToolCall args={args} />
                       ) : null}
                       {/* ) : <p>UNSUPPORTED TOOL: {toolName}</p>} */}
@@ -228,7 +228,7 @@ const PurePreviewMessage = ({
                         <EpisodeInfoToolResult args={args} result={result} />
                       ) : toolName === 'list_episodes' ? (
                         <ListEpisodesToolResult args={args} />
-                      ) : toolName === 'query_db' ? (
+                      ) : toolName === 'ask_podcast' ? (
                         <QueryDbToolResult args={args} result={result} />
                       ) : (
                         <pre>
