@@ -34,7 +34,7 @@ db_logger = setup_logging(
 
 # Database configuration
 env = load_dotenv(interpolate=True)
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("BACKEND_URL")
 
 if DATABASE_URL is None:
     db_logger.error("DATABASE_URL environment variable is not set")

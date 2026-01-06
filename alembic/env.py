@@ -33,10 +33,10 @@ def run_migrations_offline() -> None:
     """
     Configure Alembic to run migrations using a database URL without creating a DB engine.
 
-    Loads environment variables from a .env file, reads the `DATABASE_URL` environment variable, configures the Alembic context for offline (script-output) migrations with batch rendering enabled, and executes the migrations.
+    Loads environment variables from a .env file, reads the `BACKEND_URL` environment variable, configures the Alembic context for offline (script-output) migrations with batch rendering enabled, and executes the migrations.
     """
     load_dotenv(interpolate=True)
-    url = getenv("DATABASE_URL")
+    url = getenv("BACKEND_URL")
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -57,7 +57,7 @@ def run_migrations_online() -> None:
     """
 
     load_dotenv(interpolate=True)
-    url = getenv("DATABASE_URL")
+    url = getenv("BACKEND_URL")
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         url=url,
