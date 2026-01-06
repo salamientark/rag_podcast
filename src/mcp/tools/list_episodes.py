@@ -113,9 +113,7 @@ def list_episodes(beginning: str, podcast: str) -> str:
             podcast=normalized_podcast,
             start_date_str=beginning,
         )
-        logger.info(
-            f"Found {len(episodes)} episodes for podcast: {normalized_podcast}"
-        )
+        logger.info(f"Found {len(episodes)} episodes for podcast: {normalized_podcast}")
         return json.dumps(episodes, indent=2, ensure_ascii=False)
     except ValueError as exc:
         return f"Erreur lors de la liste des épisodes : {exc}"

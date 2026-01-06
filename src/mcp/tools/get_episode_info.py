@@ -2,7 +2,6 @@ import logging
 from ..config import mcp
 from typing import Dict, Optional
 from .list_episodes import fetch_db_episodes, parse_date_input
-from src.db import fetch_db_episodes, Episode
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +33,7 @@ def get_episode_info_by_date(date_input: str) -> Optional[Dict]:
             return episode_copy
 
     return None
+
 
 @mcp.tool()
 def get_episode_info(date: str) -> str:
