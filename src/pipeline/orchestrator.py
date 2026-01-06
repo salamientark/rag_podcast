@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 
 from src.logger import log_function
-from src.db import get_db_session, Episode, ProcessingStage
+from src.db import Episode, ProcessingStage
 from .stages import (
     run_sync_stage,
     run_download_stage,
@@ -12,6 +12,7 @@ from .stages import (
     run_formatted_transcript_stage,
     run_embedding_stage,
 )
+from src.mcp.tools.list_episodes import fetch_db_episodes
 
 
 ARG_TO_PROCESSING_STAGE = {
@@ -21,21 +22,6 @@ ARG_TO_PROCESSING_STAGE = {
     "format_transcript": ProcessingStage.FORMATTED_TRANSCRIPT,
     "embed": ProcessingStage.EMBEDDED,
 }
-
-
-@log_function(logger_name="pipeline", log_execution_time=True)
-def fetch_db_episodes() -> list[Episode]:
-    """Fetch all episodes from the database.
-
-    Returns:
-        List of Episode objects from the database, sorted by published date descending.
-    """
-    logger = logging.getLogger("pipeline")
-    logger.info("Fetching episodes from database...")
-    with get_db_session() as session:
-        episodes = session.query(Episode).order_by(Episode.published_date.desc()).all()
-    logger.info(f"Fetched {len(episodes)} episodes from database.")
-    return episodes
 
 
 def get_last_requested_stage(stages: list[str]) -> ProcessingStage:
