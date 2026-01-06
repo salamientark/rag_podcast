@@ -1,4 +1,4 @@
-FROM python:3.13-slim as builder
+FROM python:3.13-slim
 
 RUN apt-get update && apt-get install -y \
     gcc \
@@ -14,19 +14,14 @@ COPY pyproject.toml uv.lock ./
 
 RUN uv sync --frozen --no-install-project --no-dev
 
-FROM python:3.13-slim
-
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
-
-WORKDIR /app
-
-COPY --from=builder /app/.venv /app/.venv
-
 COPY src/ ./src/
-COPY pyproject.toml ./
 COPY public_key.pem ./
 
 ENV PATH="/app/.venv/bin:$PATH"
+
+# Pre-download the BGE-M3 reranker model to avoid slow startup
+RUN python -c "from sentence_transformers import CrossEncoder; CrossEncoder('BAAI/bge-reranker-v2-m3')"
+
 ENV PORT=9000
 
 EXPOSE 9000
