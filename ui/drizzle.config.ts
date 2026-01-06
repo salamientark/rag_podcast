@@ -1,4 +1,4 @@
-import { config } from 'dotenv';
+import { config } from '@dotenvx/dotenvx';
 import { defineConfig } from 'drizzle-kit';
 
 config({
@@ -11,6 +11,6 @@ export default defineConfig({
   dialect: 'postgresql',
   dbCredentials: {
     // biome-ignore lint: Forbidden non-null assertion.
-    url: process.env.POSTGRES_URL!,
+    url: process.env.FRONTEND_URL!,
   },
 });
