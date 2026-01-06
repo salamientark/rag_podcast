@@ -47,10 +47,10 @@ if DATABASE_URL is None:
 def validate_database_url(url: str) -> tuple[bool, str]:
     """
     Validate that a string is a PostgreSQL connection URL and return a normalized connection string on success.
-    
+
     Parameters:
         url (str): The database URL to validate.
-    
+
     Returns:
         tuple[bool, str]: `True` and a normalized `postgresql://host:port/dbname` URL on success; `False` and an error message on failure.
     """
@@ -146,7 +146,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 def get_db_session() -> Generator[Session, None, None]:
     """
     Provide a session-per-operation context manager that yields a SQLAlchemy Session.
-    
+
     Yields a new Session for use within a with-statement, ensures rollback on errors, and always closes the session afterward. Creation, error conditions, and closure are logged.
     Returns:
         session (Session): A SQLAlchemy Session instance to use within the context.
@@ -313,9 +313,9 @@ def update_episode_in_db(
 ):
     """
     Update an Episode record identified by UUID with any provided fields.
-    
+
     Only parameters provided as non-None are written to the database; unspecified fields are left unchanged.
-    
+
     Parameters:
         uuid: UUID of the episode to update.
         podcast: New podcast name (optional).

@@ -32,7 +32,7 @@ target_metadata = Base.metadata
 def run_migrations_offline() -> None:
     """
     Configure Alembic to run migrations using a database URL without creating a DB engine.
-    
+
     Loads environment variables from a .env file, reads the `DATABASE_URL` environment variable, configures the Alembic context for offline (script-output) migrations with batch rendering enabled, and executes the migrations.
     """
     load_dotenv(interpolate=True)
