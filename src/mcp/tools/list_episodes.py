@@ -45,15 +45,15 @@ def list_episodes_in_range(podcast: str, start_date_str: str) -> List[Dict[str, 
     end_date = start_date + timedelta(days=365)
 
     episodes = get_episode_from_date(date.isoformat(start_date), days=365)
-    episodes.sort(key=lambda e: e['published_date'])
+    episodes.sort(key=lambda e: e["published_date"])
 
     filtered_episodes = []
     for episode in episodes:
-        episode_date = datetime.fromisoformat(episode['published_date']).date()
+        episode_date = datetime.fromisoformat(episode["published_date"]).date()
         if start_date <= episode_date <= end_date:
             filtered_episodes.append(
                 {
-                    "episode_name": episode['title'],
+                    "episode_name": episode["title"],
                     "date": episode_date.isoformat(),
                 }
             )

@@ -205,7 +205,9 @@ def fetch_db_episodes() -> list[Episode]:
     return episodes
 
 
-def get_episode_from_date(date_start_str: str, days: Optional[int] = 1) -> Optional[list[Dict[str, Any]]]:
+def get_episode_from_date(
+    date_start_str: str, days: Optional[int] = 1
+) -> Optional[list[Dict[str, Any]]]:
     """Fetch an episode by its published date.
 
     Args:
