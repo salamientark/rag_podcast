@@ -23,7 +23,7 @@ import { PokerSolverUI } from './poker';
 import { PodcastQueryToolResult } from './podcast-query';
 import { EpisodeInfoToolResult } from './episode-info';
 import { ListEpisodesToolResult } from './list-episodes';
-import { QueryDbToolCall, QueryDbToolResult } from './query-db';
+import { AskPodcastToolCall, AskPodcastToolResult } from './ask-podcast';
 
 const PurePreviewMessage = ({
   chatId,
@@ -189,7 +189,7 @@ const PurePreviewMessage = ({
                           isReadonly={isReadonly}
                         />
                       ) : toolName === 'ask_podcast' ? (
-                        <QueryDbToolCall args={args} />
+                        <AskPodcastToolCall args={args} />
                       ) : null}
                       {/* ) : <p>UNSUPPORTED TOOL: {toolName}</p>} */}
                     </div>
@@ -229,7 +229,7 @@ const PurePreviewMessage = ({
                       ) : toolName === 'list_episodes' ? (
                         <ListEpisodesToolResult args={args} />
                       ) : toolName === 'ask_podcast' ? (
-                        <QueryDbToolResult args={args} result={result} />
+                        <AskPodcastToolResult args={args} result={result} />
                       ) : (
                         <pre>
                           {JSON.stringify({ result, toolName }, null, 2)}

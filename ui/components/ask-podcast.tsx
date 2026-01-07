@@ -11,13 +11,13 @@ import { ChevronDownIcon } from './icons';
  * - `content`: Fallback MCP format as an array of content blocks (e.g., [{type: 'text', text: '...'}]).
  * - `isError`: Set to true when the query failed; in that case, content may contain error details.
  */
-interface QueryDbResult {
+interface AskPodcastResult {
   content?: Array<{ type: string; text: string }>;
   isError?: boolean;
   structuredContent?: { result: string };
 }
 
-export const QueryDbToolCall = ({ args }: { args: { question: string } }) => {
+export const AskPodcastToolCall = ({ args }: { args: { question: string } }) => {
   const question = args?.question ?? '...';
 
   return (
@@ -48,12 +48,12 @@ export const QueryDbToolCall = ({ args }: { args: { question: string } }) => {
   );
 };
 
-export const QueryDbToolResult = ({
+export const AskPodcastToolResult = ({
   args,
   result,
 }: {
   args: { question: string };
-  result: QueryDbResult;
+  result: AskPodcastResult;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const question = args?.question ?? '...';

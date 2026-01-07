@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 try:
     load_dotenv()
     public_key_path = os.getenv("JWT_PUBLIC_KEY_PATH")
-    if not public_key_path:
+    if public_key_path is None:
         raise ValueError("JWT_PUBLIC_KEY_PATH environment variable is not set.")
     with open(public_key_path, "r") as f:
         public_key = f.read()
