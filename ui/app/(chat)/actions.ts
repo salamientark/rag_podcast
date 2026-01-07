@@ -23,6 +23,7 @@ export async function generateTitleFromUserMessage({
     - Do not use quotes or colons.
     - Example: If a user asks "What were the key takeaways from the most recent episode?", a good title would be "Recent Episode Takeaways".`,
     prompt: JSON.stringify(message),
+    temperature: 1,
   });
 
   return title;
