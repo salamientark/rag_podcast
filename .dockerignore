@@ -81,7 +81,5 @@ qdrant_storage/
 
 # Alembic
 alembic/versions/
-
 # RSS feeds and temp files
 *.feed
-RSS.feed
