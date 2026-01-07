@@ -166,8 +166,6 @@ def run_pipeline(
             podcast=podcast,
         )
 
-        # episodes_to_process = [ep.to_dict() for ep in episodes_to_process]
-
         # Run download audio stage
         if stages is None or "download" in stages:
             episodes_to_process = run_download_stage(

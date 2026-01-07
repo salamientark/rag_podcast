@@ -303,7 +303,6 @@ def get_database_info() -> dict:
     """
     try:
         info = {
-            # "database_url": DATABASE_URL,
             "database_url": db_info,
             "engine_pool_class": engine.pool.__class__.__name__,
         }
