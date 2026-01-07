@@ -15,7 +15,8 @@ import logging
 from typing import Any
 
 from ..config import mcp
-from .list_episodes import fetch_db_episodes, parse_date_input
+from .list_episodes import parse_date_input
+from src.db import fetch_db_episodes
 
 logger = logging.getLogger(__name__)
 

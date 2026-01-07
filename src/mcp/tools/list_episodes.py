@@ -3,26 +3,12 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
-from src.db import Episode, get_db_session
+from src.db import fetch_db_episodes
 
 from ..config import mcp
 from ..prompts import ALLOWED_PODCASTS
 
 logger = logging.getLogger(__name__)
-
-def fetch_db_episodes() -> list[Episode]:
-    """Fetch all episodes from the database.
-
-    Returns:
-        List of Episode objects from the database, sorted by published date descending.
-    """
-    logger = logging.getLogger("pipeline")
-    logger.info("Fetching episodes from database...")
-    with get_db_session() as session:
-        episodes = session.query(Episode).order_by(Episode.published_date.desc()).all()
-    logger.info(f"Fetched {len(episodes)} episodes from database.")
-    return episodes
-
 
 def parse_date_input(date_input: str) -> Optional[datetime]:
     """Parse various date input formats into a datetime object."""
@@ -58,9 +44,6 @@ def list_episodes_in_range(podcast: str, start_date_str: str) -> List[Dict[str, 
 
     # Determine end date: 12 months after start
     end_date = start_date + timedelta(days=365)
-
-    if start_date > end_date:
-        return []
 
     all_episodes = fetch_db_episodes()
     podcast_episodes = [
@@ -111,8 +94,10 @@ def list_episodes(beginning: str, podcast: str) -> str:
         logger.info(f"Found {len(episodes)} episodes for podcast: {normalized_podcast}")
         return json.dumps(episodes, indent=2, ensure_ascii=False)
     except ValueError as exc:
+        logger.error(f"ValueError in list_episodes: {exc}")
         return f"Erreur lors de la liste des épisodes : {exc}"
     except Exception as exc:
+        logger.error(f"Unexpected error in list_episodes: {exc}")
         return (
             "Une erreur inattendue s'est produite lors de la liste des épisodes : "
             f"{exc}"

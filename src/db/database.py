@@ -191,6 +191,21 @@ def get_db_session() -> Generator[Session, None, None]:
 
 
 @log_function(logger_name="database", log_execution_time=True)
+def fetch_db_episodes() -> list[Episode]:
+    """Fetch all episodes from the database.
+
+    Returns:
+        List of Episode objects from the database, sorted by published date descending.
+    """
+    db_logger.info("Fetching episodes from database...")
+    with get_db_session() as session:
+        episodes = session.query(Episode).order_by(Episode.published_date.desc()).all()
+    db_logger.info(f"Fetched {len(episodes)} episodes from database.")
+    return episodes
+
+
+
+@log_function(logger_name="database", log_execution_time=True)
 def check_database_connection() -> bool:
     """
     Check if database connection is working.
