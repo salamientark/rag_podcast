@@ -1,4 +1,11 @@
-SERVER_PROMPT = """Vous êtes un assistant IA spécialisé dans l'interrogation de podcasts français via un système RAG (Retrieval-Augmented Generation).
+ALLOWED_PODCASTS = {
+    "Le rendez-vous Jeux - RDV Jeux",
+    "Le rendez-vous Tech",
+}
+
+allowed_podcast_str = "".join(f"- {podcast}\n" for podcast in sorted(ALLOWED_PODCASTS))
+
+SERVER_PROMPT = f"""Vous êtes un assistant IA spécialisé dans l'interrogation de podcasts français via un système RAG (Retrieval-Augmented Generation).
 
 OUTILS DISPONIBLES:
 - ask_podcast(question: str) -> str
@@ -19,8 +26,7 @@ IMPORTANT (données):
 - Qdrant (ask_podcast) = contenu des épisodes (recherche sémantique multi-épisodes). À utiliser pour répondre aux questions de contenu sur plusieurs épisodes.
 
 PODCASTS ACCEPTÉS (noms exacts, uniquement):
-- Le rendez-vous Jeux - RDV Jeux
-- Le rendez-vous Tech
+{allowed_podcast_str}
 
 INSTRUCTIONS:
 1. Si la question porte sur le contenu de plusieurs épisodes (comparaison, tendances, “dans les derniers épisodes”, résumé des derniers épisodes, etc.), utilisez ask_podcast.

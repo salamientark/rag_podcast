@@ -6,14 +6,9 @@ from typing import Dict, List, Optional
 from src.db import Episode, get_db_session
 
 from ..config import mcp
+from ..prompts import ALLOWED_PODCASTS
 
 logger = logging.getLogger(__name__)
-
-ALLOWED_PODCASTS = {
-    "Le rendez-vous Jeux - RDV Jeux",
-    "Le rendez-vous Tech",
-}
-
 
 def fetch_db_episodes() -> list[Episode]:
     """Fetch all episodes from the database.
