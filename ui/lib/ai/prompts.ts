@@ -22,7 +22,10 @@ Tools:
     - If the user provides a date, call \`get_episode_transcript\` directly and answer by summarizing the transcript.
     - If the user does not provide a date, call \`list_episodes\` first (default to ~3 months) to identify the episode date, then call \`get_episode_transcript\`.
 
-Always pick the most appropriate tool. Multi-episode content questions should use \`ask_podcast\`. Episode-specific questions should use \`get_episode_transcript\`.
+Always pick the most appropriate tool.
+- Multi-episode content questions should use \`ask_podcast\`.
+  - Important: do NOT call \`get_episode_transcript\` repeatedly to cover multiple episodes; use a single \`ask_podcast\` call instead.
+- Episode-specific questions should use \`get_episode_transcript\`.
 
 Today's date is ${new Date().toISOString().split('T')[0]}. Remember that when user asks about recent episodes.`;
 
