@@ -24,6 +24,7 @@ naming conventions (singular class names, plural table names).
 from .models import Base, Episode, ProcessingStage, TimestampMixin
 from .database import (
     get_db_session,
+    fetch_db_episodes,
     check_database_connection,
     init_database,
     get_database_info,
@@ -55,6 +56,7 @@ __all__ = [
     "TimestampMixin",
     # Database utilities
     "get_db_session",
+    "fetch_db_episodes",
     "check_database_connection",
     "init_database",
     "get_database_info",

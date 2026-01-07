@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 
 from src.logger import log_function
-from src.db import get_db_session, Episode, ProcessingStage
+from src.db import Episode, ProcessingStage
 from .stages import (
     run_sync_stage,
     run_download_stage,
@@ -12,6 +12,7 @@ from .stages import (
     run_formatted_transcript_stage,
     run_embedding_stage,
 )
+from src.mcp.tools.list_episodes import fetch_db_episodes
 
 
 ARG_TO_PROCESSING_STAGE = {
@@ -21,21 +22,6 @@ ARG_TO_PROCESSING_STAGE = {
     "format_transcript": ProcessingStage.FORMATTED_TRANSCRIPT,
     "embed": ProcessingStage.EMBEDDED,
 }
-
-
-@log_function(logger_name="pipeline", log_execution_time=True)
-def fetch_db_episodes() -> list[Episode]:
-    """Fetch all episodes from the database.
-
-    Returns:
-        List of Episode objects from the database, sorted by published date descending.
-    """
-    logger = logging.getLogger("pipeline")
-    logger.info("Fetching episodes from database...")
-    with get_db_session() as session:
-        episodes = session.query(Episode).order_by(Episode.published_date.desc()).all()
-    logger.info(f"Fetched {len(episodes)} episodes from database.")
-    return episodes
 
 
 def get_last_requested_stage(stages: list[str]) -> ProcessingStage:
@@ -95,12 +81,12 @@ def filter_episode(
         episodes = [ep for ep in episodes if ep.podcast.lower() == podcast.lower()]
         logger.info(f"Filtered to {len(episodes)} episodes from podcast: {podcast}")
 
-    filetered_episodes = []
+    filtered_episodes = []
     stage_order = list(ProcessingStage)
 
     # Select by IDs
     if episodes_id is not None:
-        filetered_episodes = [ep for ep in episodes if ep.episode_id in episodes_id]
+        filtered_episodes = [ep for ep in episodes if ep.episode_id in episodes_id]
     # Select by limit
     elif limit is not None:
         episode_left = limit
@@ -110,13 +96,13 @@ def filter_episode(
             current_stage_index = stage_order.index(ep.processing_stage)
             target_stage_index = stage_order.index(stage)
             if current_stage_index < target_stage_index:
-                filetered_episodes.append(ep)
+                filtered_episodes.append(ep)
                 episode_left -= 1
     else:
         # Full mode - return all episodes
-        filetered_episodes = episodes
+        filtered_episodes = episodes
 
-    return filetered_episodes
+    return filtered_episodes
 
 
 @log_function(logger_name="pipeline", log_execution_time=True)

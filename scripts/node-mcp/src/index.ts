@@ -9,7 +9,7 @@
  * 3. Build a CLI chat interface that:
  *    - Connects to the MCP server at http://localhost:9000/mcp
  *    - Uses AI SDK to interact with an LLM
- *    - Calls the query_db tool via MCP
+ *    - Calls the ask_podcast tool via MCP
  *
  * Resources:
  * - AI SDK docs: https://ai-sdk.dev/

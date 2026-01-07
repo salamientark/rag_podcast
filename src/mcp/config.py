@@ -1,3 +1,5 @@
+import os
+from dotenv import load_dotenv
 import logging
 from src.query.config import QueryConfig
 from src.query.service import PodcastQueryService
@@ -9,11 +11,15 @@ logger = logging.getLogger(__name__)
 
 # JWT auth setup
 try:
-    with open("public_key.pem", "r") as f:
+    load_dotenv()
+    public_key_path = os.getenv("JWT_PUBLIC_KEY_PATH")
+    if public_key_path is None:
+        raise ValueError("JWT_PUBLIC_KEY_PATH environment variable is not set.")
+    with open(public_key_path, "r") as f:
         public_key = f.read()
 except FileNotFoundError:
     logger.error(
-        "Public key file 'public_key.pem' not found. JWT authentication will fail."
+        f"Public key file '{public_key_path}' not found. JWT authentication will fail."
     )
     raise
 except Exception as e:
@@ -47,4 +53,4 @@ def get_query_service() -> PodcastQueryService:
     return _service_instance
 
 
-from .tools import query_db  # noqa
+from .tools import ask_podcast, get_episode_info, get_episode_transcript, list_episodes  # noqa: E402,F401
