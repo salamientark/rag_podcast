@@ -13,7 +13,7 @@ import logging
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from contextlib import contextmanager
-from typing import Generator, Any, Optional
+from typing import Generator, Any, Optional, Dict
 from urllib.parse import urlparse
 
 from sqlalchemy import create_engine, event, text
@@ -205,31 +205,35 @@ def fetch_db_episodes() -> list[Episode]:
     return episodes
 
 
-def get_episode_by_date(date_str: str) -> Optional[Episode]:
-    """Fetch an episode by its published date_str.
-    Args:
+def get_episode_from_date(date_start_str: str, days: Optional[int] = 1) -> Optional[list[Dict[str, Any]]]:
+    """Fetch an episode by its published date.
 
+    Args:
         date_str (str): The published date of the episode in 'YYYY-MM-DD' format.
+        days (int, optional): Number of days to include in the search range. Defaults to 1.
+
     Returns:
         Optional[Episode]: The Episode object if found, else None.
     """
     logger = logging.getLogger(__name__)
-    logger.info(f"Fetching episode with published date: {date_str}")
-    start = datetime.fromisoformat(date_str)
-    end = start + timedelta(days=1)
+    logger.info(f"Fetching episode with published date: {date_start_str}")
+    start = datetime.fromisoformat(date_start_str)
+    end = start + timedelta(days=days)
 
+    dict_episode = None
     with get_db_session() as session:
-        episode = (
+        episodes = (
             session.query(Episode)
             .filter(Episode.published_date >= start)
             .filter(Episode.published_date < end)
-            .first()
+            .all()
         )
-    if episode:
-        logger.info(f"Episode found: {episode.title}")
-    else:
-        logger.info("No episode found for the given date.")
-    return episode
+        if episodes:
+            logger.info(f"Episodes found: {len(episodes)}")
+            dict_episode = [episode.to_dict() for episode in episodes]
+        else:
+            logger.info("No episode found for the given date.")
+    return dict_episode
 
 
 @log_function(logger_name="database", log_execution_time=True)
@@ -291,8 +295,8 @@ def get_database_info() -> dict:
     """
     try:
         info = {
-            "database_url": DATABASE_URL,
-            "database_info": db_info,
+            # "database_url": DATABASE_URL,
+            "database_url": db_info,
             "engine_pool_class": engine.pool.__class__.__name__,
         }
 
