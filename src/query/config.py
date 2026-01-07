@@ -16,7 +16,7 @@ class QueryConfig:
     """Configuration for the podcast query agent"""
 
     # Models
-    llm_model: str = "claude-sonnet-4-20250514"  # Anthropic Claude Sonnet 4
+    llm_model: str = "claude-haiku-4-5"
     embedding_model: str = "voyage-3.5"  # VoyageAI model
     embedding_dimensions: int = 1024
 
