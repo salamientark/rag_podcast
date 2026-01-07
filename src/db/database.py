@@ -204,7 +204,6 @@ def fetch_db_episodes() -> list[Episode]:
     return episodes
 
 
-
 @log_function(logger_name="database", log_execution_time=True)
 def check_database_connection() -> bool:
     """

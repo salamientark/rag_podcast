@@ -10,6 +10,7 @@ from ..prompts import ALLOWED_PODCASTS
 
 logger = logging.getLogger(__name__)
 
+
 def parse_date_input(date_input: str) -> Optional[datetime]:
     """Parse various date input formats into a datetime object."""
     # Common date formats to try
