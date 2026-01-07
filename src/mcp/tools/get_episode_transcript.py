@@ -44,11 +44,12 @@ async def fetch_transcript(transcript_url: str) -> str:
         client = storage_engine.get_client()
         bucket_name = storage_engine.bucket_name
 
-        key = transcript_url.lstrip("/")
+        parsed_url = urlparse(transcript_url)
+        key = parsed_url.path.lstrip("/")
         with NamedTemporaryFile(suffix=".txt", delete=False) as tmp:
             tmp_path = Path(tmp.name)
         try:
-            client.download_file(transcript_url, key, str(tmp_path))
+            client.download_file(bucket_name, key, str(tmp_path))
             return tmp_path.read_text(encoding="utf-8")
         finally:
             tmp_path.unlink(missing_ok=True)
