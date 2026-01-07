@@ -3,7 +3,7 @@ import logging
 from typing import Optional, Dict, Any
 
 from src.logger import log_function
-from src.db import Episode, ProcessingStage, fetch_db_episodes
+from src.db import ProcessingStage, fetch_db_episodes
 from .stages import (
     run_sync_stage,
     run_download_stage,
@@ -77,7 +77,7 @@ def filter_episode(
 
     # Filter by podcast first (case-insensitive)
     if podcast is not None:
-        episodes = [ep for ep in episodes if ep['podcast'].lower() == podcast.lower()]
+        episodes = [ep for ep in episodes if ep["podcast"].lower() == podcast.lower()]
         logger.info(f"Filtered to {len(episodes)} episodes from podcast: {podcast}")
 
     filtered_episodes = []
@@ -92,7 +92,7 @@ def filter_episode(
         for ep in episodes:
             if episode_left <= 0:
                 break
-            current_stage_index = stage_order.index(ep['processing_stage'])
+            current_stage_index = stage_order.index(ep["processing_stage"])
             target_stage_index = stage_order.index(stage)
             if current_stage_index < target_stage_index:
                 filtered_episodes.append(ep)
