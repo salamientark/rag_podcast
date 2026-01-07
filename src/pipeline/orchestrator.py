@@ -81,12 +81,12 @@ def filter_episode(
         episodes = [ep for ep in episodes if ep.podcast.lower() == podcast.lower()]
         logger.info(f"Filtered to {len(episodes)} episodes from podcast: {podcast}")
 
-    filetered_episodes = []
+    filtered_episodes = []
     stage_order = list(ProcessingStage)
 
     # Select by IDs
     if episodes_id is not None:
-        filetered_episodes = [ep for ep in episodes if ep.episode_id in episodes_id]
+        filtered_episodes = [ep for ep in episodes if ep.episode_id in episodes_id]
     # Select by limit
     elif limit is not None:
         episode_left = limit
@@ -96,13 +96,13 @@ def filter_episode(
             current_stage_index = stage_order.index(ep.processing_stage)
             target_stage_index = stage_order.index(stage)
             if current_stage_index < target_stage_index:
-                filetered_episodes.append(ep)
+                filtered_episodes.append(ep)
                 episode_left -= 1
     else:
         # Full mode - return all episodes
-        filetered_episodes = episodes
+        filtered_episodes = episodes
 
-    return filetered_episodes
+    return filtered_episodes
 
 
 @log_function(logger_name="pipeline", log_execution_time=True)
