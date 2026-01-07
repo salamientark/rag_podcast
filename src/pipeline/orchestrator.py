@@ -59,7 +59,7 @@ def filter_episode(
     podcast: Optional[str] = None,
 ) -> list[Dict[str, Any]]:
     """
-    Filter a list of Episode objects by podcast name, specific episode IDs, a maximum count, and target processing stage.
+    Filter a list of Episode Dictionnaries by podcast name, specific episode IDs, a maximum count, and target processing stage.
 
     Podcast filtering is applied first and is case-insensitive. If `episodes_id` is provided, returns only episodes whose `episode_id` is in that list. If `episodes_id` is not provided and `limit` is provided, returns up to `limit` episodes whose current processing stage is earlier than the specified `stage`, preserving the input order. If neither `episodes_id` nor `limit` is provided, returns the (optionally podcast-filtered) input list.
 

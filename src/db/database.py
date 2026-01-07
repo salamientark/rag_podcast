@@ -195,7 +195,7 @@ def fetch_db_episodes() -> list[Dict[str, Any]]:
     """Fetch all episodes from the database.
 
     Returns:
-        List of Episode objects from the database, sorted by published date descending.
+        list[Dict[str, Any]]: list of episodes dictionnaries from the database, sorted by published date descending.
     """
     logger = logging.getLogger(__name__)
     logger.info("Fetching episodes from database...")
@@ -210,14 +210,14 @@ def fetch_db_episodes() -> list[Dict[str, Any]]:
 def get_episode_from_date(
     date_start_str: str, days: Optional[int] = 1
 ) -> Optional[list[Dict[str, Any]]]:
-    """Fetch an episode by published date range.
+    """Fetch episodes from the database by published date range.
 
     Args:
-        date_start_str (str): The published date of the episode in 'YYYY-MM-DD' format.
+        date_start_str (str): The start date of the range in 'YYYY-MM-DD' format.
         days (int, optional): Number of days to include in the search range. Defaults to 1.
 
     Returns:
-        Optional[list[Dict[str, Any]]]: The Episode dictionnaries if found, else None.
+        Optional[list[Dict[str, Any]]]: List of episodes dictionnaries if found, else None.
     """
     logger = logging.getLogger(__name__)
     logger.info(f"Fetching episode with published date: {date_start_str}")
@@ -228,7 +228,7 @@ def get_episode_from_date(
         logger.error(f"Invalid date format: {e}")
         return None
 
-    dict_episode = None
+    dict_episodes = None
     with get_db_session() as session:
         episodes = (
             session.query(Episode)
@@ -238,10 +238,10 @@ def get_episode_from_date(
         )
         if episodes:
             logger.info(f"Episodes found: {len(episodes)}")
-            dict_episode = [episode.to_dict() for episode in episodes]
+            dict_episodes = [episode.to_dict() for episode in episodes]
         else:
             logger.info("No episode found for the given date.")
-    return dict_episode
+    return dict_episodes
 
 
 @log_function(logger_name="database", log_execution_time=True)
