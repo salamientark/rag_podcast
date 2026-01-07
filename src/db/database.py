@@ -9,6 +9,7 @@ This module provides PostgreSQL-specific database connectivity with:
 """
 
 import os
+import logging
 from datetime import datetime
 from dotenv import load_dotenv
 from contextlib import contextmanager
@@ -190,17 +191,17 @@ def get_db_session() -> Generator[Session, None, None]:
         db_logger.debug("Database session closed")
 
 
-@log_function(logger_name="database", log_execution_time=True)
 def fetch_db_episodes() -> list[Episode]:
     """Fetch all episodes from the database.
 
     Returns:
         List of Episode objects from the database, sorted by published date descending.
     """
-    db_logger.info("Fetching episodes from database...")
+    logger = logging.getLogger(__name__)
+    logger.info("Fetching episodes from database...")
     with get_db_session() as session:
         episodes = session.query(Episode).order_by(Episode.published_date.desc()).all()
-    db_logger.info(f"Fetched {len(episodes)} episodes from database.")
+    logger.info(f"Fetched {len(episodes)} episodes from database.")
     return episodes
 
 
