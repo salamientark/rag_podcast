@@ -16,7 +16,6 @@ import logging
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from urllib.parse import urlparse
-from urllib.request import urlopen
 
 from src.storage.cloud import CloudStorage
 

@@ -1,3 +1,5 @@
+import os
+from dotenv import load_dotenv
 import logging
 from src.query.config import QueryConfig
 from src.query.service import PodcastQueryService
@@ -9,7 +11,11 @@ logger = logging.getLogger(__name__)
 
 # JWT auth setup
 try:
-    with open("public_key.pem", "r") as f:
+    load_dotenv()
+    public_key_path = os.getenv("JWT_PUBLIC_KEY_PATH")
+    if not public_key_path:
+        raise ValueError("JWT_PUBLIC_KEY_PATH environment variable is not set.")
+    with open(public_key_path, "r") as f:
         public_key = f.read()
 except FileNotFoundError:
     logger.error(
