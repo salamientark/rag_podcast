@@ -191,7 +191,7 @@ def get_db_session() -> Generator[Session, None, None]:
         db_logger.debug("Database session closed")
 
 
-def fetch_db_episodes() -> list[Episode]:
+def fetch_db_episodes() -> list[Dict[str, Any]]:
     """Fetch all episodes from the database.
 
     Returns:
@@ -199,10 +199,12 @@ def fetch_db_episodes() -> list[Episode]:
     """
     logger = logging.getLogger(__name__)
     logger.info("Fetching episodes from database...")
+    dict_episodes = None
     with get_db_session() as session:
         episodes = session.query(Episode).order_by(Episode.published_date.desc()).all()
+        dict_episodes = [episode.to_dict() for episode in episodes]
     logger.info(f"Fetched {len(episodes)} episodes from database.")
-    return episodes
+    return dict_episodes
 
 
 def get_episode_from_date(

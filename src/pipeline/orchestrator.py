@@ -1,9 +1,9 @@
 import logging
 
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from src.logger import log_function
-from src.db import Episode, ProcessingStage
+from src.db import Episode, ProcessingStage, fetch_db_episodes
 from .stages import (
     run_sync_stage,
     run_download_stage,
@@ -12,7 +12,6 @@ from .stages import (
     run_formatted_transcript_stage,
     run_embedding_stage,
 )
-from src.mcp.tools.list_episodes import fetch_db_episodes
 
 
 ARG_TO_PROCESSING_STAGE = {
@@ -53,32 +52,32 @@ def get_last_requested_stage(stages: list[str]) -> ProcessingStage:
 
 
 def filter_episode(
-    episodes: list[Episode],
+    episodes: list[Dict[str, Any]],
     episodes_id: Optional[list[int]] = None,
     limit: Optional[int] = None,
     stage: Optional[ProcessingStage] = ProcessingStage.EMBEDDED,
     podcast: Optional[str] = None,
-) -> list[Episode]:
+) -> list[Dict[str, Any]]:
     """
     Filter a list of Episode objects by podcast name, specific episode IDs, a maximum count, and target processing stage.
 
     Podcast filtering is applied first and is case-insensitive. If `episodes_id` is provided, returns only episodes whose `episode_id` is in that list. If `episodes_id` is not provided and `limit` is provided, returns up to `limit` episodes whose current processing stage is earlier than the specified `stage`, preserving the input order. If neither `episodes_id` nor `limit` is provided, returns the (optionally podcast-filtered) input list.
 
     Parameters:
-        episodes (list[Episode]): Episodes to filter.
+        episodes (list[Dict[str, Any]]): Episodes to filter.
         episodes_id (Optional[list[int]]): If provided, include only episodes with these IDs.
         limit (Optional[int]): If provided and `episodes_id` is not, include up to this many episodes that are before `stage`.
         stage (Optional[ProcessingStage]): Target processing stage used when applying `limit`.
         podcast (Optional[str]): If provided, include only episodes whose podcast name matches this value (case-insensitive).
 
     Returns:
-        list[Episode]: Episodes that match the provided filters.
+        list[Dict[str, Any]]: Episodes that match the provided filters.
     """
     logger = logging.getLogger("pipeline")
 
     # Filter by podcast first (case-insensitive)
     if podcast is not None:
-        episodes = [ep for ep in episodes if ep.podcast.lower() == podcast.lower()]
+        episodes = [ep for ep in episodes if ep['podcast'].lower() == podcast.lower()]
         logger.info(f"Filtered to {len(episodes)} episodes from podcast: {podcast}")
 
     filtered_episodes = []
@@ -93,7 +92,7 @@ def filter_episode(
         for ep in episodes:
             if episode_left <= 0:
                 break
-            current_stage_index = stage_order.index(ep.processing_stage)
+            current_stage_index = stage_order.index(ep['processing_stage'])
             target_stage_index = stage_order.index(stage)
             if current_stage_index < target_stage_index:
                 filtered_episodes.append(ep)
@@ -167,7 +166,7 @@ def run_pipeline(
             podcast=podcast,
         )
 
-        episodes_to_process = [ep.to_dict() for ep in episodes_to_process]
+        # episodes_to_process = [ep.to_dict() for ep in episodes_to_process]
 
         # Run download audio stage
         if stages is None or "download" in stages:
