@@ -20,7 +20,10 @@ import { DocumentPreview } from './document-preview';
 import { MessageReasoning } from './message-reasoning';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import { PokerSolverUI } from './poker';
-import { PodcastQueryToolResult } from './podcast-query';
+import {
+  EpisodeTranscriptToolCall,
+  EpisodeTranscriptToolResult,
+} from './episode-transcript';
 import { EpisodeInfoToolResult } from './episode-info';
 import { ListEpisodesToolResult } from './list-episodes';
 import { AskPodcastToolCall, AskPodcastToolResult } from './ask-podcast';
@@ -190,6 +193,8 @@ const PurePreviewMessage = ({
                         />
                       ) : toolName === 'ask_podcast' ? (
                         <AskPodcastToolCall args={args} />
+                      ) : toolName === 'get_episode_transcript' ? (
+                        <EpisodeTranscriptToolCall args={args} />
                       ) : null}
                       {/* ) : <p>UNSUPPORTED TOOL: {toolName}</p>} */}
                     </div>
@@ -222,8 +227,8 @@ const PurePreviewMessage = ({
                         />
                       ) : toolName === 'pokerSolver' ? (
                         <PokerSolverUI result={result} args={args} />
-                      ) : toolName === 'query_podcast' ? (
-                        <PodcastQueryToolResult args={args} result={result} />
+                      ) : toolName === 'get_episode_transcript' ? (
+                        <EpisodeTranscriptToolResult args={args} result={result} />
                       ) : toolName === 'get_episode_info' ? (
                         <EpisodeInfoToolResult args={args} result={result} />
                       ) : toolName === 'list_episodes' ? (
