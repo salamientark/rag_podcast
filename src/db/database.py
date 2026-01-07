@@ -210,19 +210,23 @@ def fetch_db_episodes() -> list[Dict[str, Any]]:
 def get_episode_from_date(
     date_start_str: str, days: Optional[int] = 1
 ) -> Optional[list[Dict[str, Any]]]:
-    """Fetch an episode by its published date.
+    """Fetch an episode by published date range.
 
     Args:
-        date_str (str): The published date of the episode in 'YYYY-MM-DD' format.
+        date_start_str (str): The published date of the episode in 'YYYY-MM-DD' format.
         days (int, optional): Number of days to include in the search range. Defaults to 1.
 
     Returns:
-        Optional[Episode]: The Episode object if found, else None.
+        Optional[list[Dict[str, Any]]]: The Episode dictionnaries if found, else None.
     """
     logger = logging.getLogger(__name__)
     logger.info(f"Fetching episode with published date: {date_start_str}")
-    start = datetime.fromisoformat(date_start_str)
-    end = start + timedelta(days=days)
+    try:
+        start = datetime.fromisoformat(date_start_str)
+        end = start + timedelta(days=days)
+    except ValueError as e:
+        logger.error(f"Invalid date format: {e}")
+        return None
 
     dict_episode = None
     with get_db_session() as session:
