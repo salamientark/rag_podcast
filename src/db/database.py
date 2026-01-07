@@ -10,7 +10,7 @@ This module provides PostgreSQL-specific database connectivity with:
 
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from contextlib import contextmanager
 from typing import Generator, Any, Optional
@@ -203,6 +203,33 @@ def fetch_db_episodes() -> list[Episode]:
         episodes = session.query(Episode).order_by(Episode.published_date.desc()).all()
     logger.info(f"Fetched {len(episodes)} episodes from database.")
     return episodes
+
+
+def get_episode_by_date(date_str: str) -> Optional[Episode]:
+    """Fetch an episode by its published date_str.
+    Args:
+
+        date_str (str): The published date of the episode in 'YYYY-MM-DD' format.
+    Returns:
+        Optional[Episode]: The Episode object if found, else None.
+    """
+    logger = logging.getLogger(__name__)
+    logger.info(f"Fetching episode with published date: {date_str}")
+    start = datetime.fromisoformat(date_str)
+    end = start + timedelta(days=1)
+
+    with get_db_session() as session:
+        episode = (
+            session.query(Episode)
+            .filter(Episode.published_date >= start)
+            .filter(Episode.published_date < end)
+            .first()
+        )
+    if episode:
+        logger.info(f"Episode found: {episode.title}")
+    else:
+        logger.info("No episode found for the given date.")
+    return episode
 
 
 @log_function(logger_name="database", log_execution_time=True)
