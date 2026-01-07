@@ -95,10 +95,10 @@ def list_episodes(beginning: str, podcast: str) -> str:
         logger.info(f"Found {len(episodes)} episodes for podcast: {normalized_podcast}")
         return json.dumps(episodes, indent=2, ensure_ascii=False)
     except ValueError as exc:
-        logger.error(f"ValueError in list_episodes: {exc}")
+        logger.error(f"ValueError in list_episodes: {exc}", exc_info=True)
         return f"Erreur lors de la liste des épisodes : {exc}"
     except Exception as exc:
-        logger.error(f"Unexpected error in list_episodes: {exc}")
+        logger.error(f"Unexpected error in list_episodes: {exc}", exc_info=True)
         return (
             "Une erreur inattendue s'est produite lors de la liste des épisodes : "
             f"{exc}"

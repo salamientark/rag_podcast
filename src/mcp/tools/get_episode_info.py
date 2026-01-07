@@ -64,4 +64,5 @@ def get_episode_info(date: str) -> str:
 
         return json.dumps(episode_info, indent=2, ensure_ascii=False)
     except Exception as exc:
+        logger.error(f"Error in get_episode_info: {exc}", exc_info=True)
         return f"error retrieving episode info: {exc}"
