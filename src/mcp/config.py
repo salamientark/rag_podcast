@@ -47,4 +47,4 @@ def get_query_service() -> PodcastQueryService:
     return _service_instance
 
 
-from .tools import ask_podcast, ask_podcast_episode, get_episode_info, list_episodes  # noqa: E402,F401
+from .tools import ask_podcast, get_episode_info, get_episode_transcript, list_episodes  # noqa: E402,F401

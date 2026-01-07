@@ -5,8 +5,9 @@ description, duration, link, etc.) for a given date.
 
 Important:
 - This tool does NOT search within episode content/transcripts.
-- For questions about what is said inside episodes, use Qdrant-backed tools like
-  `ask_podcast` or `ask_podcast_episode`.
+- For questions about what is said inside episodes, use:
+  - `ask_podcast` for multi-episode content search
+  - `get_episode_transcript` for a specific episode (by date)
 """
 
 import json
