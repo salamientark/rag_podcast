@@ -228,7 +228,10 @@ const PurePreviewMessage = ({
                       ) : toolName === 'pokerSolver' ? (
                         <PokerSolverUI result={result} args={args} />
                       ) : toolName === 'get_episode_transcript' ? (
-                        <EpisodeTranscriptToolResult args={args} result={result} />
+                        <EpisodeTranscriptToolResult
+                          args={args}
+                          result={result}
+                        />
                       ) : toolName === 'get_episode_info' ? (
                         <EpisodeInfoToolResult args={args} result={result} />
                       ) : toolName === 'list_episodes' ? (

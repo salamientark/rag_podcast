@@ -27,7 +27,8 @@ export const EpisodeInfoToolResult = ({
         episodeTitle = episodeInfo.title;
       } catch (e) {
         // If JSON parsing fails, treat the raw result as an error message
-        errorMessage = typeof rawResult === 'string' ? rawResult : 'Failed to parse result';
+        errorMessage =
+          typeof rawResult === 'string' ? rawResult : 'Failed to parse result';
       }
     }
   }
@@ -47,7 +48,13 @@ export const EpisodeInfoToolResult = ({
         </pre>
       );
     }
-    const { title, published_date, transcript_duration, description, audio_url } = episodeInfo;
+    const {
+      title,
+      published_date,
+      transcript_duration,
+      description,
+      audio_url,
+    } = episodeInfo;
 
     // Format duration from seconds to human-readable
     const formatDuration = (seconds: number | undefined) => {
@@ -79,7 +86,11 @@ export const EpisodeInfoToolResult = ({
         </div>
         <div>
           <p className="font-semibold text-foreground">Date</p>
-          <p>{published_date ? new Date(published_date).toLocaleDateString() : 'N/A'}</p>
+          <p>
+            {published_date
+              ? new Date(published_date).toLocaleDateString()
+              : 'N/A'}
+          </p>
         </div>
         <div>
           <p className="font-semibold text-foreground">Duration</p>
@@ -128,7 +139,11 @@ export const EpisodeInfoToolResult = ({
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className={errorMessage ? "lucide lucide-alert-circle text-destructive" : "lucide lucide-search text-muted-foreground"}
+            className={
+              errorMessage
+                ? 'lucide lucide-alert-circle text-destructive'
+                : 'lucide lucide-search text-muted-foreground'
+            }
           >
             {errorMessage ? (
               <>
@@ -143,7 +158,11 @@ export const EpisodeInfoToolResult = ({
               </>
             )}
           </svg>
-          <span className={errorMessage ? "text-destructive" : "text-muted-foreground"}>
+          <span
+            className={
+              errorMessage ? 'text-destructive' : 'text-muted-foreground'
+            }
+          >
             {errorMessage ? (
               'Failed to retrieve episode info'
             ) : (
