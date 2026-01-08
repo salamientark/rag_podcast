@@ -3,7 +3,7 @@ import logging
 from typing import Optional, Dict, Any
 
 from src.logger import log_function
-from src.db import ProcessingStage, fetch_db_episodes, get_db_session, Episode
+from src.db import ProcessingStage, get_db_session, Episode
 from .stages import (
     run_sync_stage,
     run_download_stage,
@@ -52,58 +52,6 @@ def get_last_requested_stage(stages: list[str]) -> ProcessingStage:
 
 
 def filter_episode(
-    episodes: list[Dict[str, Any]],
-    episodes_id: Optional[list[int]] = None,
-    limit: Optional[int] = None,
-    stage: Optional[ProcessingStage] = ProcessingStage.EMBEDDED,
-    podcast: Optional[str] = None,
-) -> list[Dict[str, Any]]:
-    """
-    Filter a list of Episode Dictionnaries by podcast name, specific episode IDs, a maximum count, and target processing stage.
-
-    Podcast filtering is applied first and is case-insensitive. If `episodes_id` is provided, returns only episodes whose `episode_id` is in that list. If `episodes_id` is not provided and `limit` is provided, returns up to `limit` episodes whose current processing stage is earlier than the specified `stage`, preserving the input order. If neither `episodes_id` nor `limit` is provided, returns the (optionally podcast-filtered) input list.
-
-    Parameters:
-        episodes (list[Dict[str, Any]]): Episodes to filter.
-        episodes_id (Optional[list[int]]): If provided, include only episodes with these IDs.
-        limit (Optional[int]): If provided and `episodes_id` is not, include up to this many episodes that are before `stage`.
-        stage (Optional[ProcessingStage]): Target processing stage used when applying `limit`.
-        podcast (Optional[str]): If provided, include only episodes whose podcast name matches this value (case-insensitive).
-
-    Returns:
-        list[Dict[str, Any]]: Episodes that match the provided filters.
-    """
-    logger = logging.getLogger("pipeline")
-
-    # Filter by podcast first (case-insensitive)
-    if podcast is not None:
-        episodes = [ep for ep in episodes if ep["podcast"].lower() == podcast.lower()]
-        logger.info(f"Filtered to {len(episodes)} episodes from podcast: {podcast}")
-
-    filtered_episodes = []
-    stage_order = list(ProcessingStage)
-
-    # Select by IDs
-    if episodes_id is not None:
-        filtered_episodes = [ep for ep in episodes if ep.episode_id in episodes_id]
-    # Select by limit
-    elif limit is not None:
-        episode_left = limit
-        for ep in episodes:
-            if episode_left <= 0:
-                break
-            current_stage_index = stage_order.index(ep["processing_stage"])
-            target_stage_index = stage_order.index(stage)
-            if current_stage_index < target_stage_index:
-                filtered_episodes.append(ep)
-                episode_left -= 1
-    else:
-        # Full mode - return all episodes
-        filtered_episodes = episodes
-
-    return filtered_episodes
-
-def new_filter_episode(
     podcast: str,
     episodes_id: Optional[list[int]] = None,
     limit: Optional[int] = None,
@@ -121,16 +69,29 @@ def new_filter_episode(
     Returns:
         list[Dict[str, Any]]: Episodes that match the provided filters.
     """
-    logger = logging.getLogger("pipeline")
-
     if limit is None and episodes_id is None:
         limit = 5
 
     with get_db_session() as session:
         if limit is not None:
-            episodes = session.query(Episode).filter(Episode.podcast.ilike(podcast), Episode.processing_stage != "EMBEDDED").order_by(Episode.published_date.desc()).limit(limit).all()
+            episodes = (
+                session.query(Episode)
+                .filter(
+                    Episode.podcast.ilike(podcast),
+                    Episode.processing_stage != "EMBEDDED",
+                )
+                .order_by(Episode.published_date.desc())
+                .limit(limit)
+                .all()
+            )
         else:
-            episodes = session.query(Episode).filter(Episode.podcast.ilike(podcast), Episode.episode_id.in_(episodes_id)).all()
+            episodes = (
+                session.query(Episode)
+                .filter(
+                    Episode.podcast.ilike(podcast), Episode.episode_id.in_(episodes_id)
+                )
+                .all()
+            )
         filtered_episodes = [ep.to_dict() for ep in episodes]
 
     return filtered_episodes
@@ -165,11 +126,6 @@ def run_pipeline(
     logger = logging.getLogger("pipeline")
 
     try:
-        # Get last requested stage if exist
-        last_stage = ProcessingStage.EMBEDDED
-        if stages is not None:
-            last_stage = get_last_requested_stage(stages)
-
         # Run sync Stage
         logger.info("=== PIPELINE STARTED ===")
 
@@ -189,9 +145,8 @@ def run_pipeline(
             logger.error("Either feed_url or podcast must be provided")
             raise ValueError("Either feed_url or podcast must be provided")
 
-
         # Filter episodes to process
-        episodes_to_process = new_filter_episode(podcast, episodes_id, limit)
+        episodes_to_process = filter_episode(podcast, episodes_id, limit)
 
         # Run download audio stage
         if stages is None or "download" in stages:
