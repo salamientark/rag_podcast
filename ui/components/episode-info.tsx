@@ -11,19 +11,36 @@ export const EpisodeInfoToolResult = ({
   result: any;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   let episodeTitle = '...';
   let episodeInfo: any = null;
+  let errorMessage: string | null = null;
 
-  if (result?.structuredContent?.result) {
-    try {
-      episodeInfo = JSON.parse(result.structuredContent.result);
-      episodeTitle = episodeInfo.title;
-    } catch (e) {
-      console.error('Failed to parse episode info result', e);
+  const rawResult = result?.structuredContent?.result;
+  if (rawResult) {
+    // Check if result is an error string
+    if (typeof rawResult === 'string' && rawResult.startsWith('error:')) {
+      errorMessage = rawResult;
+    } else {
+      try {
+        episodeInfo = JSON.parse(rawResult);
+        episodeTitle = episodeInfo.title;
+      } catch (e) {
+        // If JSON parsing fails, treat the raw result as an error message
+        errorMessage =
+          typeof rawResult === 'string' ? rawResult : 'Failed to parse result';
+      }
     }
   }
 
   const renderDetails = () => {
+    if (errorMessage) {
+      return (
+        <div className="mt-2 p-3 bg-destructive/10 border border-destructive/20 rounded-md text-xs text-destructive">
+          {errorMessage}
+        </div>
+      );
+    }
     if (!episodeInfo) {
       return (
         <pre className="mt-2 p-2 bg-muted rounded-md overflow-x-auto text-xs">
@@ -31,16 +48,35 @@ export const EpisodeInfoToolResult = ({
         </pre>
       );
     }
-    const { title, date, duration, description, link } = episodeInfo;
+    const {
+      title,
+      published_date,
+      transcript_duration,
+      description,
+      audio_url,
+    } = episodeInfo;
+
+    // Format duration from seconds to human-readable
+    const formatDuration = (seconds: number | undefined) => {
+      if (!seconds) return 'N/A';
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+      }
+      return `${minutes}m`;
+    };
+
     const cleanDescription =
       description
         ?.replace(/<[^>]+>/g, ' ')
         .replace(/&nbsp;/g, ' ')
         .replace(/\s\s+/g, ' ')
         .trim() || '';
-    const descriptionSnippet =
-      cleanDescription.substring(0, 250) +
-      (cleanDescription.length > 250 ? '...' : '');
+    const isLongDescription = cleanDescription.length > 250;
+    const displayDescription = isDescriptionExpanded
+      ? cleanDescription
+      : cleanDescription.substring(0, 250) + (isLongDescription ? '...' : '');
 
     return (
       <div className="mt-2 p-3 bg-muted rounded-md text-xs flex flex-col gap-3">
@@ -50,27 +86,41 @@ export const EpisodeInfoToolResult = ({
         </div>
         <div>
           <p className="font-semibold text-foreground">Date</p>
-          <p>{new Date(date).toLocaleDateString()}</p>
+          <p>
+            {published_date
+              ? new Date(published_date).toLocaleDateString()
+              : 'N/A'}
+          </p>
         </div>
         <div>
           <p className="font-semibold text-foreground">Duration</p>
-          <p>{duration}</p>
+          <p>{formatDuration(transcript_duration)}</p>
         </div>
         <div>
           <p className="font-semibold text-foreground">Description</p>
-          <p className="whitespace-pre-wrap">{descriptionSnippet}</p>
+          <p className="whitespace-pre-wrap">{displayDescription}</p>
+          {isLongDescription && (
+            <button
+              onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+              className="text-blue-500 hover:text-blue-600 mt-1"
+            >
+              {isDescriptionExpanded ? 'Show less' : 'Show more'}
+            </button>
+          )}
         </div>
-        <div>
-          <p className="font-semibold text-foreground">Link</p>
-          <a
-            href={link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-500 underline hover:text-blue-600"
-          >
-            {link}
-          </a>
-        </div>
+        {audio_url && (
+          <div>
+            <p className="font-semibold text-foreground">Audio</p>
+            <a
+              href={audio_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-500 underline hover:text-blue-600 break-all"
+            >
+              {audio_url}
+            </a>
+          </div>
+        )}
       </div>
     );
   };
@@ -89,16 +139,40 @@ export const EpisodeInfoToolResult = ({
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="lucide lucide-search text-muted-foreground"
+            className={
+              errorMessage
+                ? 'lucide lucide-alert-circle text-destructive'
+                : 'lucide lucide-search text-muted-foreground'
+            }
           >
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
+            {errorMessage ? (
+              <>
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" x2="12" y1="8" y2="12" />
+                <line x1="12" x2="12.01" y1="16" y2="16" />
+              </>
+            ) : (
+              <>
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+              </>
+            )}
           </svg>
-          <span className="text-muted-foreground">
-            Retrieved info for episode:{' '}
-            <strong className="text-foreground">
-              &quot;{episodeTitle}&quot;
-            </strong>
+          <span
+            className={
+              errorMessage ? 'text-destructive' : 'text-muted-foreground'
+            }
+          >
+            {errorMessage ? (
+              'Failed to retrieve episode info'
+            ) : (
+              <>
+                Retrieved info for episode:{' '}
+                <strong className="text-foreground">
+                  &quot;{episodeTitle}&quot;
+                </strong>
+              </>
+            )}
           </span>
         </div>
         <Button
