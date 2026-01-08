@@ -11,6 +11,7 @@ export const EpisodeInfoToolResult = ({
   result: any;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   let episodeTitle = '...';
   let episodeInfo: any = null;
   let errorMessage: string | null = null;
@@ -46,16 +47,29 @@ export const EpisodeInfoToolResult = ({
         </pre>
       );
     }
-    const { title, date, duration, description, link } = episodeInfo;
+    const { title, published_date, transcript_duration, description, audio_url } = episodeInfo;
+
+    // Format duration from seconds to human-readable
+    const formatDuration = (seconds: number | undefined) => {
+      if (!seconds) return 'N/A';
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+      }
+      return `${minutes}m`;
+    };
+
     const cleanDescription =
       description
         ?.replace(/<[^>]+>/g, ' ')
         .replace(/&nbsp;/g, ' ')
         .replace(/\s\s+/g, ' ')
         .trim() || '';
-    const descriptionSnippet =
-      cleanDescription.substring(0, 250) +
-      (cleanDescription.length > 250 ? '...' : '');
+    const isLongDescription = cleanDescription.length > 250;
+    const displayDescription = isDescriptionExpanded
+      ? cleanDescription
+      : cleanDescription.substring(0, 250) + (isLongDescription ? '...' : '');
 
     return (
       <div className="mt-2 p-3 bg-muted rounded-md text-xs flex flex-col gap-3">
@@ -65,27 +79,37 @@ export const EpisodeInfoToolResult = ({
         </div>
         <div>
           <p className="font-semibold text-foreground">Date</p>
-          <p>{new Date(date).toLocaleDateString()}</p>
+          <p>{published_date ? new Date(published_date).toLocaleDateString() : 'N/A'}</p>
         </div>
         <div>
           <p className="font-semibold text-foreground">Duration</p>
-          <p>{duration}</p>
+          <p>{formatDuration(transcript_duration)}</p>
         </div>
         <div>
           <p className="font-semibold text-foreground">Description</p>
-          <p className="whitespace-pre-wrap">{descriptionSnippet}</p>
+          <p className="whitespace-pre-wrap">{displayDescription}</p>
+          {isLongDescription && (
+            <button
+              onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+              className="text-blue-500 hover:text-blue-600 mt-1"
+            >
+              {isDescriptionExpanded ? 'Show less' : 'Show more'}
+            </button>
+          )}
         </div>
-        <div>
-          <p className="font-semibold text-foreground">Link</p>
-          <a
-            href={link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-500 underline hover:text-blue-600"
-          >
-            {link}
-          </a>
-        </div>
+        {audio_url && (
+          <div>
+            <p className="font-semibold text-foreground">Audio</p>
+            <a
+              href={audio_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-500 underline hover:text-blue-600 break-all"
+            >
+              {audio_url}
+            </a>
+          </div>
+        )}
       </div>
     );
   };
