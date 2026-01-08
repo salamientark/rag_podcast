@@ -1,5 +1,5 @@
 ALLOWED_PODCASTS = {
-    "Le rendez-vous Jeux - RDV Jeux",
+    "Le rendez-vous Jeux",
     "Le rendez-vous Tech",
 }
 
