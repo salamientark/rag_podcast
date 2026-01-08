@@ -19,9 +19,10 @@ interface EpisodeTranscriptResult {
 export const EpisodeTranscriptToolCall = ({
   args,
 }: {
-  args: { date: string };
+  args: { date: string; podcast: string };
 }) => {
   const date = args?.date ?? '...';
+  const podcast = args?.podcast ?? '...';
 
   return (
     <div className="border rounded-xl p-3 text-sm flex flex-col gap-2 animate-pulse">
@@ -47,6 +48,7 @@ export const EpisodeTranscriptToolCall = ({
         <span className="text-muted-foreground">
           Fetching transcript for{' '}
           <strong className="text-foreground">{date}</strong>
+          <span className="text-muted-foreground"> (podcast: {podcast})</span>
         </span>
       </div>
     </div>
@@ -57,11 +59,12 @@ export const EpisodeTranscriptToolResult = ({
   args,
   result,
 }: {
-  args: { date: string };
+  args: { date: string; podcast: string };
   result: EpisodeTranscriptResult;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const date = args?.date ?? '...';
+  const podcast = args?.podcast ?? '...';
 
   const transcriptText =
     result?.structuredContent?.result ?? result?.content?.[0]?.text ?? '';
@@ -94,6 +97,7 @@ export const EpisodeTranscriptToolResult = ({
           <span className="text-muted-foreground">
             {isError ? 'Transcript retrieval failed: ' : 'Retrieved transcript for: '}
             <strong className="text-foreground">{date}</strong>
+            <span className="text-muted-foreground"> (podcast: {podcast})</span>
           </span>
         </div>
         {hasContent && (

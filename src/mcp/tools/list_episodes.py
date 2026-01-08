@@ -32,8 +32,8 @@ def parse_date_input(date_input: str) -> Optional[datetime]:
 
 
 def list_episodes_in_range(podcast: str, start_date_str: str) -> List[Dict[str, str]]:
-    """
-    Lists podcast episodes starting from a given date.
+    """List podcast episodes starting from a given date.
+
     - The range is up to 12 months from the start date.
     - If start date is invalid, it defaults to 3 months ago.
     """
@@ -44,10 +44,11 @@ def list_episodes_in_range(podcast: str, start_date_str: str) -> List[Dict[str, 
     start_date = parsed_start.date() if parsed_start else three_months_ago
     end_date = start_date + timedelta(days=365)
 
-    episodes = get_episode_from_date(date.isoformat(start_date), days=365)
-    episodes.sort(key=lambda e: e["published_date"])
+    episodes = get_episode_from_date(date.isoformat(start_date), days=365) or []
+    episodes = [episode for episode in episodes if episode.get("podcast") == podcast]
+    episodes.sort(key=lambda episode: episode["published_date"])
 
-    filtered_episodes = []
+    filtered_episodes: list[dict[str, str]] = []
     for episode in episodes:
         episode_date = datetime.fromisoformat(episode["published_date"]).date()
         if start_date <= episode_date <= end_date:
@@ -59,7 +60,7 @@ def list_episodes_in_range(podcast: str, start_date_str: str) -> List[Dict[str, 
             )
 
     # Sort by date ascending
-    filtered_episodes.sort(key=lambda e: e["date"])
+    filtered_episodes.sort(key=lambda episode: episode["date"])
 
     return filtered_episodes
 

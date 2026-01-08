@@ -20,6 +20,7 @@ from urllib.parse import urlparse
 from src.storage.cloud import CloudStorage
 
 from ..config import mcp
+from ..prompts import ALLOWED_PODCASTS
 from .get_episode_info import get_episode_info_by_date
 
 logger = logging.getLogger(__name__)
@@ -60,11 +61,12 @@ async def fetch_transcript(transcript_url: str) -> str:
 
 
 @mcp.tool()
-async def get_episode_transcript(date: str) -> str:
+async def get_episode_transcript(date: str, podcast: str) -> str:
     """Return the full transcript for the episode published on the given date.
 
     Args:
         date: Date string in various formats (YYYY-MM-DD, YYYY-MM-DDTHH:MM:SS, etc.).
+        podcast: Podcast name (must match one of the accepted podcast names exactly).
 
     Returns:
         Transcript text, or an error message.
@@ -73,20 +75,28 @@ async def get_episode_transcript(date: str) -> str:
         Exception: Re-raises any unexpected runtime errors.
     """
     try:
+        normalized_podcast = podcast.strip()
+        if normalized_podcast not in ALLOWED_PODCASTS:
+            accepted = " | ".join(sorted(ALLOWED_PODCASTS))
+            return f"Podcast invalide. Noms acceptés (exactement): {accepted}."
+
         logger.info(
-            f"[get_episode_transcript] Looking for episode published on {date}..."
+            f"[get_episode_transcript] Looking for episode published on {date} (podcast={normalized_podcast})..."
         )
 
-        episode_info = get_episode_info_by_date(date)
+        episode_info = get_episode_info_by_date(date, normalized_podcast)
         if episode_info is None:
             return (
-                f"error: no episode found for date '{date}'. please check the date format "
-                "(yyyy-mm-dd) and try again."
+                f"error: no episode found for date '{date}' and podcast '{normalized_podcast}'. "
+                "please check the date format (yyyy-mm-dd) and try again."
             )
 
         transcript_location = episode_info.get("formatted_transcript_path")
         if not transcript_location:
-            return f"error: no formatted transcript found for episode on date '{date}'."
+            return (
+                "error: no formatted transcript found for episode on date "
+                f"'{date}' and podcast '{normalized_podcast}'."
+            )
 
         return await fetch_transcript(transcript_location)
     except Exception as exc:
