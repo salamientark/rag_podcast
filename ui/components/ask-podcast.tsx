@@ -17,8 +17,13 @@ interface AskPodcastResult {
   structuredContent?: { result: string };
 }
 
-export const AskPodcastToolCall = ({ args }: { args: { question: string } }) => {
+export const AskPodcastToolCall = ({
+  args,
+}: {
+  args: { question: string; podcast?: string };
+}) => {
   const question = args?.question ?? '...';
+  const podcast = args?.podcast?.trim();
 
   return (
     <div className="border rounded-xl p-3 text-sm flex flex-col gap-2 animate-pulse">
@@ -40,7 +45,7 @@ export const AskPodcastToolCall = ({ args }: { args: { question: string } }) => 
           <path d="M3 12A9 3 0 0 0 21 12" />
         </svg>
         <span className="text-muted-foreground">
-          Searching:{' '}
+          Searching{podcast ? ` in ${podcast}` : ''}:{' '}
           <strong className="text-foreground">&quot;{question}&quot;</strong>
         </span>
       </div>
@@ -52,11 +57,12 @@ export const AskPodcastToolResult = ({
   args,
   result,
 }: {
-  args: { question: string };
+  args: { question: string; podcast?: string };
   result: AskPodcastResult;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const question = args?.question ?? '...';
+  const podcast = args?.podcast?.trim();
 
   // Extract the text content from the result
   const textContent =
@@ -88,6 +94,9 @@ export const AskPodcastToolResult = ({
           <span className="text-muted-foreground">
             {isError ? 'Query failed: ' : 'Queried: '}
             <strong className="text-foreground">&quot;{question}&quot;</strong>
+            {podcast ? (
+              <span className="text-muted-foreground"> (podcast: {podcast})</span>
+            ) : null}
           </span>
         </div>
         {hasContent && (

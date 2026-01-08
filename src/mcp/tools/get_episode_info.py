@@ -39,12 +39,6 @@ def get_episode_info_by_date(date_input: str) -> dict[str, Any] | None:
         return None
     return episodes[0]
 
-    for episode in episodes:
-        if episode.published_date.date() == target_date.date():
-            return episode.to_dict()
-
-    return None
-
 
 @mcp.tool()
 def get_episode_info(date: str) -> str:
