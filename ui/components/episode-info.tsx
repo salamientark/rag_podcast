@@ -13,17 +13,32 @@ export const EpisodeInfoToolResult = ({
   const [isOpen, setIsOpen] = useState(false);
   let episodeTitle = '...';
   let episodeInfo: any = null;
+  let errorMessage: string | null = null;
 
-  if (result?.structuredContent?.result) {
-    try {
-      episodeInfo = JSON.parse(result.structuredContent.result);
-      episodeTitle = episodeInfo.title;
-    } catch (e) {
-      console.error('Failed to parse episode info result', e);
+  const rawResult = result?.structuredContent?.result;
+  if (rawResult) {
+    // Check if result is an error string
+    if (typeof rawResult === 'string' && rawResult.startsWith('error:')) {
+      errorMessage = rawResult;
+    } else {
+      try {
+        episodeInfo = JSON.parse(rawResult);
+        episodeTitle = episodeInfo.title;
+      } catch (e) {
+        // If JSON parsing fails, treat the raw result as an error message
+        errorMessage = typeof rawResult === 'string' ? rawResult : 'Failed to parse result';
+      }
     }
   }
 
   const renderDetails = () => {
+    if (errorMessage) {
+      return (
+        <div className="mt-2 p-3 bg-destructive/10 border border-destructive/20 rounded-md text-xs text-destructive">
+          {errorMessage}
+        </div>
+      );
+    }
     if (!episodeInfo) {
       return (
         <pre className="mt-2 p-2 bg-muted rounded-md overflow-x-auto text-xs">
@@ -89,16 +104,32 @@ export const EpisodeInfoToolResult = ({
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="lucide lucide-search text-muted-foreground"
+            className={errorMessage ? "lucide lucide-alert-circle text-destructive" : "lucide lucide-search text-muted-foreground"}
           >
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
+            {errorMessage ? (
+              <>
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" x2="12" y1="8" y2="12" />
+                <line x1="12" x2="12.01" y1="16" y2="16" />
+              </>
+            ) : (
+              <>
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+              </>
+            )}
           </svg>
-          <span className="text-muted-foreground">
-            Retrieved info for episode:{' '}
-            <strong className="text-foreground">
-              &quot;{episodeTitle}&quot;
-            </strong>
+          <span className={errorMessage ? "text-destructive" : "text-muted-foreground"}>
+            {errorMessage ? (
+              'Failed to retrieve episode info'
+            ) : (
+              <>
+                Retrieved info for episode:{' '}
+                <strong className="text-foreground">
+                  &quot;{episodeTitle}&quot;
+                </strong>
+              </>
+            )}
           </span>
         </div>
         <Button
