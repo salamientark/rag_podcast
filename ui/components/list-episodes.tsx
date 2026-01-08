@@ -3,9 +3,10 @@
 export const ListEpisodesToolResult = ({
   args,
 }: {
-  args: { beginning: string };
+  args: { beginning: string; podcast: string };
 }) => {
   const beginningDate = args?.beginning ?? '...';
+  const podcast = args?.podcast ?? '...';
 
   return (
     <div className="border rounded-xl p-3 text-sm flex flex-col gap-2">
@@ -29,6 +30,7 @@ export const ListEpisodesToolResult = ({
           <span className="text-muted-foreground">
             Listed episodes from{' '}
             <strong className="text-foreground">{beginningDate}</strong>
+            <span className="text-muted-foreground"> (podcast: {podcast})</span>
           </span>
         </div>
       </div>

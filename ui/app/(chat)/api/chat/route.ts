@@ -24,6 +24,7 @@ import { entitlementsByUserType } from '@/lib/ai/entitlements';
 import { postRequestBodySchema, type PostRequestBody } from './schema';
 import { ChatSDKError } from '@/lib/errors';
 import { createAuthToken } from '@/lib/mcp/auth';
+// eslint-disable-next-line import/namespace -- prompts module is a plain-string prompt, not a namespace.
 import { podcastSystemPrompt } from '@/lib/ai/prompts';
 
 export const maxDuration = 60;

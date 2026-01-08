@@ -17,7 +17,7 @@ class QueryConfig:
 
     # Models
     llm_model: str = "claude-haiku-4-5"
-    embedding_model: str = "voyage-3.5"  # VoyageAI model
+    embedding_model: str = "voyage-3"  # VoyageAI model
     embedding_dimensions: int = 1024
 
     # Retrieval settings (optimized for Claude's 200k context window)

@@ -10,13 +10,15 @@ This module provides the PodcastQueryService class that handles:
 
 import logging
 from typing import Optional
-from llama_index.core import VectorStoreIndex, Settings
-from llama_index.core.retrievers import VectorIndexRetriever
+
+from llama_index.core import Settings, VectorStoreIndex
 from llama_index.core.query_engine import RetrieverQueryEngine
-from llama_index.vector_stores.qdrant import QdrantVectorStore
-from llama_index.llms.anthropic import Anthropic
+from llama_index.core.retrievers import VectorIndexRetriever
+from llama_index.core.vector_stores.types import MetadataFilter, MetadataFilters
 from llama_index.embeddings.voyageai import VoyageEmbedding
-from qdrant_client import QdrantClient, AsyncQdrantClient
+from llama_index.llms.anthropic import Anthropic
+from llama_index.vector_stores.qdrant import QdrantVectorStore
+from qdrant_client import AsyncQdrantClient, QdrantClient
 
 from .config import QueryConfig
 from .postprocessors import sort_nodes_temporally
@@ -151,13 +153,20 @@ class PodcastQueryService:
             f"Query engine configured: top_k={self.config.similarity_top_k}"
         )
 
-    async def query(self, question: str, context: Optional[str] = None) -> str:
+    async def query(
+        self,
+        question: str,
+        context: Optional[str] = None,
+        *,
+        podcast: Optional[str] = None,
+    ) -> str:
         """
         Process a single query without conversation memory.
 
         Args:
             question: User's question in French
             context: Optional context from external conversation management
+            podcast: Optional podcast name to filter retrieval (exact match on Qdrant payload `podcast`). If omitted, searches across all podcasts.
 
         Returns:
             Generated response in French
@@ -165,6 +174,10 @@ class PodcastQueryService:
         Raises:
             Exception: If query processing fails
         """
+        normalized_podcast = (podcast or "").strip() or None
+        podcast_filter_applied = False
+        retriever = self.retriever
+
         try:
             self.logger.debug(f"Processing query: {question[:50]}...")
 
@@ -174,8 +187,20 @@ class PodcastQueryService:
             else:
                 enhanced_question = question
 
+            if normalized_podcast:
+                self.logger.debug(f"Applying podcast filter: {normalized_podcast}")
+                retriever_filters = MetadataFilters(
+                    filters=[MetadataFilter(key="podcast", value=normalized_podcast)]
+                )
+                retriever = VectorIndexRetriever(
+                    index=self.index,
+                    similarity_top_k=self.config.similarity_top_k,
+                    filters=retriever_filters,
+                )
+                podcast_filter_applied = True
+
             # First retrieve nodes
-            retrieved_nodes = await self.retriever.aretrieve(enhanced_question)
+            retrieved_nodes = await retriever.aretrieve(enhanced_question)
 
             # Apply temporal sorting if needed
             sorted_nodes = sort_nodes_temporally(retrieved_nodes, enhanced_question)
@@ -206,7 +231,13 @@ class PodcastQueryService:
                     enhanced_question = f"Context: {context}\n\nQuestion: {question}"
                 else:
                     enhanced_question = question
-                response = await self.query_engine.aquery(enhanced_question)
+                query_engine = self.query_engine
+                if podcast_filter_applied:
+                    query_engine = RetrieverQueryEngine.from_args(
+                        retriever=retriever,
+                        node_postprocessors=self.postprocessors,
+                    )
+                response = await query_engine.aquery(enhanced_question)
                 return str(response)
             except Exception:
                 raise e
