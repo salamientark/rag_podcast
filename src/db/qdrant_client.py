@@ -381,9 +381,14 @@ def ensure_payload_indexes(
     collection_name: str,
 ) -> None:
     """
-    Ensure the collection has payload indexes for episode lookup by numeric ID and UUID.
+    Ensure the collection has payload indexes for common filters.
 
-    Creates an INTEGER index for `episode_id` and a KEYWORD index for `db_uuid` when they are missing; does nothing if the collection does not exist or the indexes are already present.
+    Creates payload indexes when missing:
+    - `podcast` (KEYWORD)
+    - `episode_id` (INTEGER)
+    - `db_uuid` (KEYWORD)
+
+    Does nothing if the collection does not exist or the indexes are already present.
 
     Parameters:
         client (QdrantClient): Active Qdrant client instance.
@@ -402,7 +407,25 @@ def ensure_payload_indexes(
 
         # Get current payload schema
         collection_info = client.get_collection(collection_name)
-        existing_indexes = collection_info.payload_schema
+        existing_indexes = collection_info.payload_schema or {}
+
+        # Create podcast index if it doesn't exist
+        if "podcast" not in existing_indexes:
+            qdrant_logger.info(
+                f"Creating podcast index for collection '{collection_name}'"
+            )
+            client.create_payload_index(
+                collection_name=collection_name,
+                field_name="podcast",
+                field_schema=PayloadSchemaType.KEYWORD,
+            )
+            qdrant_logger.info(
+                f"Created podcast index for collection '{collection_name}'"
+            )
+        else:
+            qdrant_logger.debug(
+                f"podcast index already exists for collection '{collection_name}'"
+            )
 
         # Create episode_id index if it doesn't exist
         if "episode_id" not in existing_indexes:
