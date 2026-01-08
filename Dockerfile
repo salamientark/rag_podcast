@@ -1,6 +1,6 @@
 FROM python:3.13-slim
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     libpq-dev \
@@ -17,12 +17,17 @@ RUN uv sync --frozen --no-install-project --no-dev
 COPY src/ ./src/
 COPY public_key.pem ./
 
+RUN groupadd -r appuser && useradd -r -g appuser appuser \
+    && chown -R appuser:appuser /app
+
+USER appuser
+
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PORT=9000
 
 EXPOSE 9000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/health' % (int(__import__('os').environ.get('PORT', 9000))), timeout=5)" || exit 1
+    CMD python -c "import urllib.request,os; urllib.request.urlopen(f'http://127.0.0.1:{os.getenv(\"PORT\",9000)}/health', timeout=5)" || exit 1
 
 CMD ["sh", "-c", "python -m src.mcp.server --host 0.0.0.0 --port ${PORT}"]
