@@ -15,7 +15,6 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-install-project --no-dev
 
 COPY src/ ./src/
-COPY public_key.pem ./
 
 RUN groupadd -r appuser && useradd -r -g appuser appuser \
     && chown -R appuser:appuser /app
@@ -30,4 +29,4 @@ EXPOSE 9000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request,os; urllib.request.urlopen(f'http://127.0.0.1:{os.getenv(\"PORT\",9000)}/health', timeout=5)" || exit 1
 
-CMD ["sh", "-c", "python -m src.mcp.server --host 0.0.0.0 --port ${PORT}"]
+CMD ["sh", "-c", "echo \"$PUBLIC_KEY_PEM\" > public_key.pem && python -m src.mcp.server --host 0.0.0.0 --port ${PORT}"]

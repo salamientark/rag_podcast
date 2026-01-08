@@ -10,6 +10,7 @@ primary_region = 'cdg'
 
 [env]
   PORT = '9000'
+  JWT_PUBLIC_KEY_PATH = './public_key.pem'
 
 [http_service]
   internal_port = 9000
