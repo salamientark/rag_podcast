@@ -44,14 +44,14 @@ Create a chat loop that:
 - Connects to the MCP server at `http://localhost:9000/mcp`
 - Takes user input from the terminal
 - Uses AI SDK to interact with an LLM (OpenAI)
-- Calls the `query_db` tool via MCP when needed
+- Calls the `ask_podcast` tool via MCP when needed
 - Displays responses to the user
 
 ### 3. MCP Server Information
 
 - **Server URL**: `http://localhost:9000/mcp`
 - **Transport**: HTTP (Streamable HTTP protocol)
-- **Available Tool**: `query_db(question: string)`
+- **Available Tool**: `ask_podcast(question: string)`
   - Queries a French podcast database
   - Returns relevant information about episodes
 
@@ -68,7 +68,7 @@ User: Resume moi les 2 derniers episodes
   ↓
 AI SDK processes query
   ↓
-Calls MCP tool: query_db("Resume moi les 2 derniers episodes")
+Calls MCP tool: ask_podcast("Resume moi les 2 derniers episodes")
   ↓
 MCP Server responds with podcast summaries
   ↓

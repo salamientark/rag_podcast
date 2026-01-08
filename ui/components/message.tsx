@@ -20,10 +20,13 @@ import { DocumentPreview } from './document-preview';
 import { MessageReasoning } from './message-reasoning';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import { PokerSolverUI } from './poker';
-import { PodcastQueryToolResult } from './podcast-query';
+import {
+  EpisodeTranscriptToolCall,
+  EpisodeTranscriptToolResult,
+} from './episode-transcript';
 import { EpisodeInfoToolResult } from './episode-info';
 import { ListEpisodesToolResult } from './list-episodes';
-import { QueryDbToolCall, QueryDbToolResult } from './query-db';
+import { AskPodcastToolCall, AskPodcastToolResult } from './ask-podcast';
 
 const PurePreviewMessage = ({
   chatId,
@@ -188,8 +191,10 @@ const PurePreviewMessage = ({
                           args={args}
                           isReadonly={isReadonly}
                         />
-                      ) : toolName === 'query_db' ? (
-                        <QueryDbToolCall args={args} />
+                      ) : toolName === 'ask_podcast' ? (
+                        <AskPodcastToolCall args={args} />
+                      ) : toolName === 'get_episode_transcript' ? (
+                        <EpisodeTranscriptToolCall args={args} />
                       ) : null}
                       {/* ) : <p>UNSUPPORTED TOOL: {toolName}</p>} */}
                     </div>
@@ -222,14 +227,14 @@ const PurePreviewMessage = ({
                         />
                       ) : toolName === 'pokerSolver' ? (
                         <PokerSolverUI result={result} args={args} />
-                      ) : toolName === 'query_podcast' ? (
-                        <PodcastQueryToolResult args={args} result={result} />
+                      ) : toolName === 'get_episode_transcript' ? (
+                        <EpisodeTranscriptToolResult args={args} result={result} />
                       ) : toolName === 'get_episode_info' ? (
                         <EpisodeInfoToolResult args={args} result={result} />
                       ) : toolName === 'list_episodes' ? (
                         <ListEpisodesToolResult args={args} />
-                      ) : toolName === 'query_db' ? (
-                        <QueryDbToolResult args={args} result={result} />
+                      ) : toolName === 'ask_podcast' ? (
+                        <AskPodcastToolResult args={args} result={result} />
                       ) : (
                         <pre>
                           {JSON.stringify({ result, toolName }, null, 2)}

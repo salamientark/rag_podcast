@@ -24,7 +24,6 @@ __version__ = "0.1.0"
 # Main pipeline functions
 from .orchestrator import (
     run_pipeline,
-    fetch_db_episodes,
     get_last_requested_stage,
     filter_episode,
 )
@@ -41,7 +40,6 @@ from .stages import (
 __all__ = [
     # Main pipeline orchestration
     "run_pipeline",
-    "fetch_db_episodes",
     "get_last_requested_stage",
     "filter_episode",
     # Stage functions
