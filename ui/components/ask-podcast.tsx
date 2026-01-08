@@ -17,7 +17,9 @@ interface AskPodcastResult {
   structuredContent?: { result: string };
 }
 
-export const AskPodcastToolCall = ({ args }: { args: { question: string } }) => {
+export const AskPodcastToolCall = ({
+  args,
+}: { args: { question: string } }) => {
   const question = args?.question ?? '...';
 
   return (
@@ -62,7 +64,10 @@ export const AskPodcastToolResult = ({
   const textContent =
     result?.structuredContent?.result ?? result?.content?.[0]?.text ?? '';
 
-  const isError = result?.isError ?? false;
+  // Detect errors from explicit flag or error-prefixed content
+  const isError =
+    result?.isError ??
+    (typeof textContent === 'string' && textContent.startsWith('error:'));
   const hasContent = textContent.length > 0;
 
   return (

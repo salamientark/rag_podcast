@@ -66,7 +66,10 @@ export const EpisodeTranscriptToolResult = ({
   const transcriptText =
     result?.structuredContent?.result ?? result?.content?.[0]?.text ?? '';
 
-  const isError = result?.isError ?? false;
+  // Detect errors from explicit flag or error-prefixed content
+  const isError =
+    result?.isError ??
+    (typeof transcriptText === 'string' && transcriptText.startsWith('error:'));
   const hasContent = transcriptText.length > 0;
 
   return (
@@ -92,7 +95,9 @@ export const EpisodeTranscriptToolResult = ({
             <path d="M3 10h18" />
           </svg>
           <span className="text-muted-foreground">
-            {isError ? 'Transcript retrieval failed: ' : 'Retrieved transcript for: '}
+            {isError
+              ? 'Transcript retrieval failed: '
+              : 'Retrieved transcript for: '}
             <strong className="text-foreground">{date}</strong>
           </span>
         </div>
