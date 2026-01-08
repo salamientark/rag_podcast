@@ -13,6 +13,7 @@ from .stages import (
     run_embedding_stage,
 )
 
+DEFAULT_LIMIT_NBR = 5
 
 ARG_TO_PROCESSING_STAGE = {
     "sync": ProcessingStage.SYNCED,
@@ -57,20 +58,20 @@ def filter_episode(
     limit: Optional[int] = None,
 ) -> list[Dict[str, Any]]:
     """
-    Filter a list of Episode Dictionnaries by podcast name, specific episode IDs, a maximum count, and target processing stage.
+    Query episodes from the database by podcast name, specific episode IDs, or maximum count.
 
-    Podcast filtering is applied first and is case-insensitive. If `episodes_id` is provided, returns only episodes whose `episode_id` is in that list. If `episodes_id` is not provided and `limit` is provided, returns up to `limit` episodes whose current processing stage is earlier than the specified `stage`, preserving the input order. If neither `episodes_id` nor `limit` is provided, returns the (optionally podcast-filtered) input list.
+    Podcast filtering is case-insensitive. If `episodes_id` is provided, returns only episodes whose `episode_id` is in that list. If `limit` is provided (or defaults to 5), returns up to `limit` non-EMBEDDED episodes ordered by publication date descending.
 
     Parameters:
         podcast (str): Include only episodes whose podcast name matches this value (case-insensitive).
         episodes_id (Optional[list[int]]): If provided, include only episodes with these IDs.
-        limit (Optional[int]): If provided and `episodes_id` is not, include up to this many episodes that are before `stage`.
+        limit (Optional[int]): If provided and `episodes_id` is not, include up to this many non-EMBEDDED episodes (defaults to 5).
 
     Returns:
         list[Dict[str, Any]]: Episodes that match the provided filters.
     """
     if limit is None and episodes_id is None:
-        limit = 5
+        limit = DEFAULT_LIMIT_NBR
 
     with get_db_session() as session:
         if limit is not None:
@@ -78,7 +79,7 @@ def filter_episode(
                 session.query(Episode)
                 .filter(
                     Episode.podcast.ilike(podcast),
-                    Episode.processing_stage != "EMBEDDED",
+                    Episode.processing_stage != ProcessingStage.EMBEDDED,
                 )
                 .order_by(Episode.published_date.desc())
                 .limit(limit)
