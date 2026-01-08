@@ -16,7 +16,7 @@ from typing import Any
 
 from ..config import mcp
 from .list_episodes import parse_date_input
-from src.db import fetch_db_episodes
+from src.db import get_episode_from_date
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,10 @@ def get_episode_info_by_date(date_input: str) -> dict[str, Any] | None:
     if not target_date:
         return None
 
-    episodes = fetch_db_episodes()
+    episodes = get_episode_from_date(date_input)
+    if episodes is None:
+        return None
+    return episodes[0]
 
     for episode in episodes:
         if episode.published_date.date() == target_date.date():

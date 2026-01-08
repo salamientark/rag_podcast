@@ -1,9 +1,9 @@
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import Dict, List, Optional
 
-from src.db import fetch_db_episodes
+from src.db import get_episode_from_date
 
 from ..config import mcp
 from ..prompts import ALLOWED_PODCASTS
@@ -42,24 +42,18 @@ def list_episodes_in_range(podcast: str, start_date_str: str) -> List[Dict[str, 
     # Determine start date
     parsed_start = parse_date_input(start_date_str)
     start_date = parsed_start.date() if parsed_start else three_months_ago
-
-    # Determine end date: 12 months after start
     end_date = start_date + timedelta(days=365)
 
-    all_episodes = fetch_db_episodes()
-    podcast_episodes = [
-        episode
-        for episode in all_episodes
-        if episode.podcast.lower() == podcast.lower()
-    ]
+    episodes = get_episode_from_date(date.isoformat(start_date), days=365)
+    episodes.sort(key=lambda e: e["published_date"])
 
     filtered_episodes = []
-    for episode in podcast_episodes:
-        episode_date = episode.published_date.date()
+    for episode in episodes:
+        episode_date = datetime.fromisoformat(episode["published_date"]).date()
         if start_date <= episode_date <= end_date:
             filtered_episodes.append(
                 {
-                    "episode_name": episode.title,
+                    "episode_name": episode["title"],
                     "date": episode_date.isoformat(),
                 }
             )

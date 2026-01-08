@@ -10,10 +10,10 @@ This module provides PostgreSQL-specific database connectivity with:
 
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from contextlib import contextmanager
-from typing import Generator, Any, Optional
+from typing import Generator, Any, Optional, Dict
 from urllib.parse import urlparse
 
 from sqlalchemy import create_engine, event, text
@@ -191,18 +191,57 @@ def get_db_session() -> Generator[Session, None, None]:
         db_logger.debug("Database session closed")
 
 
-def fetch_db_episodes() -> list[Episode]:
+def fetch_db_episodes() -> list[Dict[str, Any]]:
     """Fetch all episodes from the database.
 
     Returns:
-        List of Episode objects from the database, sorted by published date descending.
+        list[Dict[str, Any]]: list of episodes dictionnaries from the database, sorted by published date descending.
     """
     logger = logging.getLogger(__name__)
     logger.info("Fetching episodes from database...")
+    dict_episodes = None
     with get_db_session() as session:
         episodes = session.query(Episode).order_by(Episode.published_date.desc()).all()
+        dict_episodes = [episode.to_dict() for episode in episodes]
     logger.info(f"Fetched {len(episodes)} episodes from database.")
-    return episodes
+    return dict_episodes
+
+
+def get_episode_from_date(
+    date_start_str: str, days: Optional[int] = 1
+) -> Optional[list[Dict[str, Any]]]:
+    """Fetch episodes from the database by published date range.
+
+    Args:
+        date_start_str (str): The start date of the range in 'YYYY-MM-DD' format.
+        days (int, optional): Number of days to include in the search range. Defaults to 1.
+
+    Returns:
+        Optional[list[Dict[str, Any]]]: List of episodes dictionnaries if found, else None.
+    """
+    logger = logging.getLogger(__name__)
+    logger.info(f"Fetching episode with published date: {date_start_str}")
+    try:
+        start = datetime.fromisoformat(date_start_str)
+        end = start + timedelta(days=days)
+    except ValueError as e:
+        logger.error(f"Invalid date format: {e}")
+        return None
+
+    dict_episodes = None
+    with get_db_session() as session:
+        episodes = (
+            session.query(Episode)
+            .filter(Episode.published_date >= start)
+            .filter(Episode.published_date < end)
+            .all()
+        )
+        if episodes:
+            logger.info(f"Episodes found: {len(episodes)}")
+            dict_episodes = [episode.to_dict() for episode in episodes]
+        else:
+            logger.info("No episode found for the given date.")
+    return dict_episodes
 
 
 @log_function(logger_name="database", log_execution_time=True)
@@ -264,8 +303,7 @@ def get_database_info() -> dict:
     """
     try:
         info = {
-            "database_url": DATABASE_URL,
-            "database_info": db_info,
+            "database_url": db_info,
             "engine_pool_class": engine.pool.__class__.__name__,
         }
 
