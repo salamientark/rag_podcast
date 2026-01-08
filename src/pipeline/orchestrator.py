@@ -89,7 +89,9 @@ def filter_episode(
             episodes = (
                 session.query(Episode)
                 .filter(
-                    Episode.podcast.ilike(podcast), Episode.episode_id.in_(episodes_id)
+                    Episode.podcast.ilike(podcast),
+                    Episode.episode_id.in_(episodes_id),
+                    Episode.processing_stage != ProcessingStage.EMBEDDED,
                 )
                 .all()
             )
