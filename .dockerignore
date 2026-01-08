@@ -77,12 +77,7 @@ temp/
 # Large data files (already in qdrant_storage/)
 qdrant_storage/
 
-# uv lock file (will be regenerated)
-uv.lock
-
 # Alembic
 alembic/versions/
-
 # RSS feeds and temp files
 *.feed
-RSS.feed

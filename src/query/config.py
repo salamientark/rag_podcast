@@ -16,17 +16,15 @@ class QueryConfig:
     """Configuration for the podcast query agent"""
 
     # Models
-    llm_model: str = "claude-sonnet-4-20250514"  # Anthropic Claude Sonnet 4
+    llm_model: str = "claude-haiku-4-5"
     embedding_model: str = "voyage-3.5"  # VoyageAI model
     embedding_dimensions: int = 1024
 
     # Retrieval settings (optimized for Claude's 200k context window)
-    similarity_top_k: int = 5  # Initial retrieval from Qdrant (reduced from 10)
-    rerank_top_n: int = 3  # After reranking (use top 3 for large chunks)
+    similarity_top_k: int = 5  # Initial retrieval from Qdrant
 
-    # Reranking (enabled for better quality with fewer chunks)
-    use_reranking: bool = True  # Enable to get best chunks and reduce token count
-    rerank_model: str = "BAAI/bge-reranker-v2-m3"  # Free multilingual reranker
+    # Reranking removed to reduce image size
+    # To re-enable: add sentence-transformers to deps and see postprocessors.py
 
     # Chat memory (3000 tokens = ~8-12 exchanges)
     memory_token_limit: int = 3000

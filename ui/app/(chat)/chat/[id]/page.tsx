@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
+import { connection } from 'next/server';
 
 import { auth } from '@/app/(auth)/auth';
 import { Chat } from '@/components/chat';
@@ -9,6 +10,7 @@ import type { DBMessage } from '@/lib/db/schema';
 import type { Attachment, UIMessage } from 'ai';
 
 export default async function Page(props: { params: Promise<{ id: string }> }) {
+  await connection();
   const params = await props.params;
   const { id } = params;
   const chat = await getChatById({ id });

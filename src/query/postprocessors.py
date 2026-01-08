@@ -2,30 +2,16 @@
 Postprocessors for the podcast query system.
 
 This module provides:
-- HiddenMetadataProcessor: Injects episode metadata into chunks for LLM context
-- get_reranker: Creates BGE-M3 multilingual reranker for better French results
+- process_nodes_with_metadata: Injects episode metadata into chunks for LLM context
+- sort_nodes_temporally: Sorts nodes by episode recency for temporal queries
+
+Reranking removed to reduce image size. To re-enable:
+1. Add sentence-transformers>=2.2.0 to pyproject.toml
+2. Use SentenceTransformerRerank from llama_index.core.postprocessor
 """
 
 from typing import List
-from llama_index.core.postprocessor import SentenceTransformerRerank
 from llama_index.core.schema import NodeWithScore
-
-
-def get_reranker(model_name: str, top_n: int) -> SentenceTransformerRerank:
-    """
-    Get French-optimized reranker using sentence-transformers.
-
-    Args:
-        model_name: Model name (e.g., "BAAI/bge-reranker-v2-m3")
-        top_n: Number of top chunks to return after reranking
-
-    Returns:
-        Configured SentenceTransformerRerank postprocessor
-    """
-    return SentenceTransformerRerank(
-        model=model_name,
-        top_n=top_n,
-    )
 
 
 def process_nodes_with_metadata(nodes: List[NodeWithScore]) -> List[NodeWithScore]:

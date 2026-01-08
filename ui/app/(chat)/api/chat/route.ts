@@ -184,9 +184,14 @@ export async function POST(request: Request) {
 
     return new Response(stream);
   } catch (error) {
+    console.error('Chat API error:', error);
     if (error instanceof ChatSDKError) {
       return error.toResponse();
     }
+    return new Response(
+      JSON.stringify({ error: 'Internal server error' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 }
 
