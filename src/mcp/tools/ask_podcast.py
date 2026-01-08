@@ -28,9 +28,7 @@ async def ask_podcast(question: str, podcast: str | None = None) -> str:
         Relevant information from the podcast database
     """
     try:
-        normalized_podcast = podcast.strip() if podcast else None
-        if normalized_podcast == "":
-            normalized_podcast = None
+        normalized_podcast = (podcast or "").strip() or None
 
         if (
             normalized_podcast is not None
