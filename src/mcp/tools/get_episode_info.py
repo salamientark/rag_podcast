@@ -7,7 +7,7 @@ Important:
 - This tool does NOT search within episode content/transcripts.
 - For questions about what is said inside episodes, use:
   - `ask_podcast` for multi-episode content search
-  - `get_episode_transcript` for a specific episode (by date)
+  - `get_episode_summary` for a specific episode summary (by date)
 """
 
 import json

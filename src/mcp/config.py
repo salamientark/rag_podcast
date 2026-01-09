@@ -63,4 +63,4 @@ async def health_check(request: Request):
     return JSONResponse({"status": "ok"})
 
 
-from .tools import ask_podcast, get_episode_info, get_episode_transcript, list_episodes  # noqa: E402,F401
+from .tools import ask_podcast, get_episode_info, get_episode_summary, list_episodes  # noqa: E402,F401

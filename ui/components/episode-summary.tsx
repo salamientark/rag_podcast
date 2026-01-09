@@ -5,21 +5,21 @@ import { Button } from './ui/button';
 import { ChevronDownIcon } from './icons';
 
 /**
- * MCP tool response for get_episode_transcript.
- * - `structuredContent.result`: Primary response format with the transcript as a string.
+ * MCP tool response for get_episode_summary.
+ * - `structuredContent.result`: Primary response format with the summary as a string.
  * - `content`: Fallback MCP format as an array of content blocks (e.g., [{type: 'text', text: '...'}]).
- * - `isError`: Set to true when transcript retrieval failed.
+ * - `isError`: Set to true when summary retrieval failed.
  */
-interface EpisodeTranscriptResult {
+interface EpisodeSummaryResult {
   content?: Array<{ type: string; text: string }>;
   isError?: boolean;
   structuredContent?: { result: string };
 }
 
-export const EpisodeTranscriptToolCall = ({
+export const EpisodeSummaryToolCall = ({
   args,
 }: {
-  args: { date: string; podcast: string };
+  args: { date: string; podcast: string; language?: string };
 }) => {
   const date = args?.date ?? '...';
   const podcast = args?.podcast ?? '...';
@@ -46,7 +46,7 @@ export const EpisodeTranscriptToolCall = ({
           <path d="M3 10h18" />
         </svg>
         <span className="text-muted-foreground">
-          Fetching transcript for{' '}
+          Generating summary for{' '}
           <strong className="text-foreground">{date}</strong>
           <span className="text-muted-foreground"> (podcast: {podcast})</span>
         </span>
@@ -55,25 +55,26 @@ export const EpisodeTranscriptToolCall = ({
   );
 };
 
-export const EpisodeTranscriptToolResult = ({
+export const EpisodeSummaryToolResult = ({
   args,
   result,
 }: {
-  args: { date: string; podcast: string };
-  result: EpisodeTranscriptResult;
+  args: { date: string; podcast: string; language?: string };
+  result: EpisodeSummaryResult;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const date = args?.date ?? '...';
   const podcast = args?.podcast ?? '...';
 
-  const transcriptText =
-    result?.structuredContent?.result ?? result?.content?.[0]?.text ?? '';
+  const summaryText =
+    result?.structuredContent?.result ??
+	result?.content?.map((b) => b.text).join('') ?? '';
 
   // Detect errors from explicit flag or error-prefixed content
   const isError =
     result?.isError ??
-    (typeof transcriptText === 'string' && transcriptText.startsWith('error:'));
-  const hasContent = transcriptText.length > 0;
+    (typeof summaryText === 'string' && summaryText.startsWith('error:'));
+  const hasContent = summaryText.length > 0;
 
   return (
     <div className="border rounded-xl p-3 text-sm flex flex-col gap-2">
@@ -99,8 +100,8 @@ export const EpisodeTranscriptToolResult = ({
           </svg>
           <span className="text-muted-foreground">
             {isError
-              ? 'Transcript retrieval failed: '
-              : 'Retrieved transcript for: '}
+               ? 'Summary generation failed: '
+               : 'Generated summary for: '}
             <strong className="text-foreground">{date}</strong>
             <span className="text-muted-foreground"> (podcast: {podcast})</span>
           </span>
@@ -112,7 +113,7 @@ export const EpisodeTranscriptToolResult = ({
             onClick={() => setIsOpen(!isOpen)}
             className="text-xs gap-1"
           >
-            {isOpen ? 'Hide' : 'Show transcript'}
+             {isOpen ? 'Hide' : 'Show summary'}
             <span
               className={`transition-transform ${isOpen ? 'rotate-180' : ''}`}
             >
@@ -123,7 +124,7 @@ export const EpisodeTranscriptToolResult = ({
       </div>
       {isOpen && hasContent && (
         <pre className="mt-2 p-3 bg-muted/50 rounded-lg border whitespace-pre-wrap text-xs max-h-[50vh] overflow-auto">
-          {transcriptText}
+        {summaryText}
         </pre>
       )}
     </div>
