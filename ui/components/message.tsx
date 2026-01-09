@@ -21,9 +21,9 @@ import { MessageReasoning } from './message-reasoning';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import { PokerSolverUI } from './poker';
 import {
-  EpisodeTranscriptToolCall,
-  EpisodeTranscriptToolResult,
-} from './episode-transcript';
+  EpisodeSummaryToolCall,
+  EpisodeSummaryToolResult,
+} from './episode-summary';
 import { EpisodeInfoToolResult } from './episode-info';
 import { ListEpisodesToolResult } from './list-episodes';
 import { AskPodcastToolCall, AskPodcastToolResult } from './ask-podcast';
@@ -194,7 +194,7 @@ const PurePreviewMessage = ({
                       ) : toolName === 'ask_podcast' ? (
                         <AskPodcastToolCall args={args} />
                       ) : toolName === 'get_episode_summary' ? (
-                        <EpisodeTranscriptToolCall args={args} />
+                        <EpisodeSummaryToolCall args={args} />
                       ) : null}
                       {/* ) : <p>UNSUPPORTED TOOL: {toolName}</p>} */}
                     </div>
@@ -228,7 +228,7 @@ const PurePreviewMessage = ({
                       ) : toolName === 'pokerSolver' ? (
                         <PokerSolverUI result={result} args={args} />
                       ) : toolName === 'get_episode_summary' ? (
-                        <EpisodeTranscriptToolResult
+                        <EpisodeSummaryToolResult
                           args={args}
                           result={result}
                         />

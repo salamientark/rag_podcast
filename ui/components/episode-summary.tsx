@@ -6,17 +6,17 @@ import { ChevronDownIcon } from './icons';
 
 /**
  * MCP tool response for get_episode_summary.
- * - `structuredContent.result`: Primary response format with the transcript as a string.
+ * - `structuredContent.result`: Primary response format with the summary as a string.
  * - `content`: Fallback MCP format as an array of content blocks (e.g., [{type: 'text', text: '...'}]).
- * - `isError`: Set to true when transcript retrieval failed.
+ * - `isError`: Set to true when summary retrieval failed.
  */
-interface EpisodeTranscriptResult {
+interface EpisodeSummaryResult {
   content?: Array<{ type: string; text: string }>;
   isError?: boolean;
   structuredContent?: { result: string };
 }
 
-export const EpisodeTranscriptToolCall = ({
+export const EpisodeSummaryToolCall = ({
   args,
 }: {
   args: { date: string; podcast: string; language?: string };
@@ -55,12 +55,12 @@ export const EpisodeTranscriptToolCall = ({
   );
 };
 
-export const EpisodeTranscriptToolResult = ({
+export const EpisodeSummaryToolResult = ({
   args,
   result,
 }: {
   args: { date: string; podcast: string; language?: string };
-  result: EpisodeTranscriptResult;
+  result: EpisodeSummaryResult;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const date = args?.date ?? '...';
