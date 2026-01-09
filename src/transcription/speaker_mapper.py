@@ -3,11 +3,8 @@ import logging
 from pathlib import Path
 from typing import Optional, Dict
 
-from src.llm import _speaker_identification_prompt, get_openai_sync_client
+from src.llm import _speaker_identification_prompt, get_openai_sync_client, OPENAI_MODEL
 from src.logger import setup_logging, log_function
-
-
-OPENAI_MODEL = "gpt-5"
 
 
 def _apply_speaker_mapping(
