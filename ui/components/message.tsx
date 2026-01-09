@@ -193,7 +193,7 @@ const PurePreviewMessage = ({
                         />
                       ) : toolName === 'ask_podcast' ? (
                         <AskPodcastToolCall args={args} />
-                      ) : toolName === 'get_episode_transcript' ? (
+                      ) : toolName === 'get_episode_summary' ? (
                         <EpisodeTranscriptToolCall args={args} />
                       ) : null}
                       {/* ) : <p>UNSUPPORTED TOOL: {toolName}</p>} */}
@@ -227,7 +227,7 @@ const PurePreviewMessage = ({
                         />
                       ) : toolName === 'pokerSolver' ? (
                         <PokerSolverUI result={result} args={args} />
-                      ) : toolName === 'get_episode_transcript' ? (
+                      ) : toolName === 'get_episode_summary' ? (
                         <EpisodeTranscriptToolResult
                           args={args}
                           result={result}

@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import { ChevronDownIcon } from './icons';
 
 /**
- * MCP tool response for get_episode_transcript.
+ * MCP tool response for get_episode_summary.
  * - `structuredContent.result`: Primary response format with the transcript as a string.
  * - `content`: Fallback MCP format as an array of content blocks (e.g., [{type: 'text', text: '...'}]).
  * - `isError`: Set to true when transcript retrieval failed.
@@ -19,7 +19,7 @@ interface EpisodeTranscriptResult {
 export const EpisodeTranscriptToolCall = ({
   args,
 }: {
-  args: { date: string; podcast: string };
+  args: { date: string; podcast: string; language?: string };
 }) => {
   const date = args?.date ?? '...';
   const podcast = args?.podcast ?? '...';
@@ -46,7 +46,7 @@ export const EpisodeTranscriptToolCall = ({
           <path d="M3 10h18" />
         </svg>
         <span className="text-muted-foreground">
-          Fetching transcript for{' '}
+          Generating summary for{' '}
           <strong className="text-foreground">{date}</strong>
           <span className="text-muted-foreground"> (podcast: {podcast})</span>
         </span>
@@ -59,7 +59,7 @@ export const EpisodeTranscriptToolResult = ({
   args,
   result,
 }: {
-  args: { date: string; podcast: string };
+  args: { date: string; podcast: string; language?: string };
   result: EpisodeTranscriptResult;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -99,8 +99,8 @@ export const EpisodeTranscriptToolResult = ({
           </svg>
           <span className="text-muted-foreground">
             {isError
-              ? 'Transcript retrieval failed: '
-              : 'Retrieved transcript for: '}
+               ? 'Summary generation failed: '
+               : 'Generated summary for: '}
             <strong className="text-foreground">{date}</strong>
             <span className="text-muted-foreground"> (podcast: {podcast})</span>
           </span>
@@ -112,7 +112,7 @@ export const EpisodeTranscriptToolResult = ({
             onClick={() => setIsOpen(!isOpen)}
             className="text-xs gap-1"
           >
-            {isOpen ? 'Hide' : 'Show transcript'}
+             {isOpen ? 'Hide' : 'Show summary'}
             <span
               className={`transition-transform ${isOpen ? 'rotate-180' : ''}`}
             >

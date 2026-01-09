@@ -2,6 +2,8 @@ import os
 from dotenv import load_dotenv
 from openai import OpenAI
 
+OPENAI_MODEL = "gpt-5.2"
+
 
 def init_llm_openai() -> OpenAI | None:
     """
