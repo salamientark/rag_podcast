@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 from typing import Optional, Dict
 
-from src.llm import _speaker_identification_prompt, init_llm_openai
+from src.llm import _speaker_identification_prompt, get_openai_sync_client
 from src.logger import setup_logging, log_function
 
 
@@ -130,7 +130,7 @@ def map_speakers_with_llm(
 
     try:
         # Init llm client
-        llm = init_llm_openai()
+        llm = get_openai_sync_client()
         if llm is None:
             raise ValueError("LLM client initialization failed.")
 
