@@ -32,7 +32,7 @@ def init_llm_openai() -> OpenAI | None:
         return None
 
 
-def init_llm_openai_async() -> OpenAI | None:
+def init_llm_openai_async() -> AsyncOpenAI | None:
     """
     Initialize OpenAI LLM client.
 
@@ -44,7 +44,6 @@ def init_llm_openai_async() -> OpenAI | None:
         openai_api_key = os.environ.get("OPENAI_API_KEY")
         if not env or not openai_api_key:
             raise ValueError("OPENAI_API_KEY not found in environment variables.")
-        global async_client
         async_client = AsyncOpenAI(
             api_key=openai_api_key,
         )
@@ -57,14 +56,14 @@ def init_llm_openai_async() -> OpenAI | None:
         return None
 
 
-def get_openai_async_client() -> AsyncOpenAI:
+def get_openai_async_client() -> AsyncOpenAI | None:
     global _async_client
     if _async_client is None:
         _async_client = init_llm_openai_async()
     return _async_client
 
 
-def get_openai_sync_client() -> OpenAI:
+def get_openai_sync_client() -> OpenAI | None:
     global _sync_client
     if _sync_client is None:
         _sync_client = init_llm_openai()
