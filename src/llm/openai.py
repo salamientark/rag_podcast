@@ -31,6 +31,7 @@ def init_llm_openai() -> OpenAI | None:
         print(f"Failed to load environment file: {e}")
         return None
 
+
 def init_llm_openai_async() -> OpenAI | None:
     """
     Initialize OpenAI LLM client.
@@ -55,15 +56,16 @@ def init_llm_openai_async() -> OpenAI | None:
         print(f"Failed to load environment file: {e}")
         return None
 
+
 def get_openai_async_client() -> AsyncOpenAI:
     global _async_client
     if _async_client is None:
         _async_client = init_llm_openai_async()
     return _async_client
 
+
 def get_openai_sync_client() -> OpenAI:
     global _sync_client
     if _sync_client is None:
         _sync_client = init_llm_openai()
     return _sync_client
-    
