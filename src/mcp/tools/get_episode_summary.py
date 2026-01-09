@@ -13,7 +13,6 @@ Use it when:
 For content questions across multiple episodes, use `ask_podcast`.
 """
 
-import asyncio
 import logging
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -21,7 +20,7 @@ from typing import Optional
 from urllib.parse import urlparse
 
 from src.storage.cloud import CloudStorage
-from src.llm.openai import init_llm_openai, OPENAI_MODEL
+from src.llm.openai import get_openai_async_client, OPENAI_MODEL
 
 from ..config import mcp
 from ..prompts import ALLOWED_PODCASTS
@@ -64,12 +63,12 @@ async def fetch_transcript(transcript_url: str) -> str:
         raise
 
 
-def make_resume(text: str, language: str = "en") -> str:
+async def make_resume(text: str, language: str = "en") -> str:
     """Generate a structured episode summary from transcript text.
 
     Args:
         text: Transcript text to summarize.
-        language: Output language (ISO-ish, e.g. "fr", "en").
+        language: Output language (ISO-ish, e.g. "fr", "en"). Should be normalized.
 
     Returns:
         A Markdown summary with sections (Summary, Key points, Topics).
@@ -82,19 +81,15 @@ def make_resume(text: str, language: str = "en") -> str:
 
     try:
         # Init llm client
-        llm = init_llm_openai()
+        llm = get_openai_async_client()
         if llm is None:
             raise ValueError("LLM client initialization failed.")
 
-        normalized_language = (language or "en").strip().lower() or "en"
-        if "-" in normalized_language:
-            normalized_language = normalized_language.split("-", 1)[0]
-
         # Ask for summary
         logger.info("Calling OpenAI for transcript summarization")
-        response = llm.responses.create(
-            model="gpt-4.1-nano-2025-04-14",
-            instructions=agent_prompt.format(language=normalized_language),
+        response = await llm.responses.create(
+            model=OPENAI_MODEL,
+            instructions=agent_prompt.format(language=language),
             input=text,
             max_output_tokens=500,
         )
@@ -155,7 +150,7 @@ async def get_episode_summary(
         if "-" in normalized_language:
             normalized_language = normalized_language.split("-", 1)[0]
 
-        return make_resume(transcript_content, language=normalized_language)
+        return await make_resume(transcript_content, language=normalized_language)
 
     except Exception as exc:
         logger.error(
