@@ -66,14 +66,15 @@ export const EpisodeSummaryToolResult = ({
   const date = args?.date ?? '...';
   const podcast = args?.podcast ?? '...';
 
-  const transcriptText =
-    result?.structuredContent?.result ?? result?.content?.[0]?.text ?? '';
+  const summaryText =
+    result?.structuredContent?.result ??
+	result?.content?.map((b) => b.text).join('') ?? '';
 
   // Detect errors from explicit flag or error-prefixed content
   const isError =
     result?.isError ??
-    (typeof transcriptText === 'string' && transcriptText.startsWith('error:'));
-  const hasContent = transcriptText.length > 0;
+    (typeof summaryText === 'string' && summaryText.startsWith('error:'));
+  const hasContent = summaryText.length > 0;
 
   return (
     <div className="border rounded-xl p-3 text-sm flex flex-col gap-2">
@@ -123,7 +124,7 @@ export const EpisodeSummaryToolResult = ({
       </div>
       {isOpen && hasContent && (
         <pre className="mt-2 p-3 bg-muted/50 rounded-lg border whitespace-pre-wrap text-xs max-h-[50vh] overflow-auto">
-          {transcriptText}
+        {summaryText}
         </pre>
       )}
     </div>
