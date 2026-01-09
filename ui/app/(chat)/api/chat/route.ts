@@ -3,6 +3,7 @@ import {
   appendResponseMessages,
   createDataStream,
   experimental_createMCPClient as createMCPClient,
+  generateText,
   smoothStream,
   streamText,
 } from 'ai';
@@ -21,13 +22,86 @@ import { generateTitleFromUserMessage } from '../../actions';
 import { isProductionEnvironment } from '@/lib/constants';
 import { myProvider } from '@/lib/ai/providers';
 import { entitlementsByUserType } from '@/lib/ai/entitlements';
+import { z } from 'zod';
 import { postRequestBodySchema, type PostRequestBody } from './schema';
 import { ChatSDKError } from '@/lib/errors';
 import { createAuthToken } from '@/lib/mcp/auth';
 // eslint-disable-next-line import/namespace -- prompts module is a plain-string prompt, not a namespace.
-import { podcastSystemPrompt } from '@/lib/ai/prompts';
+import { ALLOWED_PODCASTS, podcastSystemPrompt } from '@/lib/ai/prompts';
 
 export const maxDuration = 60;
+
+const gateSchema = z.object({
+  scope: z.enum(['single', 'multi']),
+  confidence: z.number().min(0).max(1).optional(),
+});
+
+type GateDecision = z.infer<typeof gateSchema>;
+
+type PodcastName = (typeof ALLOWED_PODCASTS)[number];
+
+function getTextFromParts(parts: Array<{ type: string; text?: string }> | undefined) {
+  return (
+    parts
+      ?.filter((part) => part.type === 'text')
+      .map((part) => part.text ?? '')
+      .join('\n')
+      .trim() ?? ''
+  );
+}
+
+function getMessageText(message: { parts?: Array<{ type: string; text?: string }> }) {
+  return getTextFromParts(message.parts);
+}
+
+function findPodcastInConversation(messages: Array<{ parts?: Array<{ type: string; text?: string }> }>):
+  | PodcastName
+  | null {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const text = getMessageText(messages[i]);
+    for (const podcast of ALLOWED_PODCASTS) {
+      if (text.includes(podcast)) return podcast;
+    }
+  }
+  return null;
+}
+
+function extractFirstJsonObject(text: string): unknown {
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+    throw new Error('No JSON object found');
+  }
+  const jsonText = text.slice(firstBrace, lastBrace + 1);
+  return JSON.parse(jsonText);
+}
+
+async function classifyScope(userText: string): Promise<GateDecision> {
+  const system = `You are a strict classifier. Return JSON only.
+
+Classify the user's request as:
+- scope: "single" if answering requires content from one specific episode.
+- scope: "multi" if answering requires content from multiple episodes.
+
+Output format (JSON): {"scope":"single"|"multi","confidence":number}
+Do not add any extra keys, prose, or code fences.`;
+
+  const { text } = await generateText({
+    model: myProvider.languageModel('classifier-model'),
+    system,
+    prompt: userText,
+    temperature: 0,
+    maxTokens: 50,
+  });
+
+  const parsed = gateSchema.safeParse(extractFirstJsonObject(text));
+  if (!parsed.success) {
+    // Safe fallback: treat as multi to avoid transcript spam.
+    return { scope: 'multi', confidence: 0 };
+  }
+
+  return parsed.data;
+}
 
 export async function POST(request: Request) {
   let requestBody: PostRequestBody;
@@ -99,6 +173,11 @@ export async function POST(request: Request) {
       ],
     });
 
+    const userText = getMessageText(message);
+    const gateDecision = await classifyScope(userText);
+    const conversationPodcast =
+      findPodcastInConversation(messages) ?? 'Le rendez-vous Tech';
+
     const streamId = generateUUID();
     await createStreamId({ streamId, chatId: id });
 
@@ -121,13 +200,33 @@ export async function POST(request: Request) {
         });
 
         const tools = await mcpClient.tools();
+
+        const allowedToolNames =
+          gateDecision.scope === 'multi'
+            ? ['ask_podcast', 'list_episodes', 'get_episode_info']
+            : ['get_episode_transcript', 'list_episodes', 'get_episode_info'];
+
+        const gatedTools = Object.fromEntries(
+          Object.entries(tools).filter(([toolName]) =>
+            allowedToolNames.includes(toolName),
+          ),
+        );
+
+		const systemPrompt = `${podcastSystemPrompt}
+
+IMPORTANT: For this scope you will only have access to the following tools:
+${Object.keys(gatedTools).map((name) => `- ${name}`).join('\n')}
+
+Dont't try to use any other tools as those mentionned above.
+`
+
         const result = streamText({
           model: myProvider.languageModel(selectedChatModel),
           messages,
           maxSteps: 15,
-          system: podcastSystemPrompt,
-          tools,
-          experimental_activeTools: Object.keys(tools),
+          system: systemPrompt,
+          tools: gatedTools,
+          experimental_activeTools: Object.keys(gatedTools),
           experimental_transform: smoothStream({ chunking: 'word' }),
           experimental_generateMessageId: generateUUID,
           onFinish: async ({ response }) => {

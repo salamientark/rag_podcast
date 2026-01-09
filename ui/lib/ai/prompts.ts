@@ -1,10 +1,10 @@
 import type { ArtifactKind } from '@/components/artifact';
 import type { Geo } from '@vercel/functions';
 
-const ALLOWED_PODCASTS = [
+export const ALLOWED_PODCASTS = [
     "Le rendez-vous Jeux",
     "Le rendez-vous Tech",
-]
+] as const
 
 export const podcastSystemPrompt = `You are an AI assistant for the 'Not Patrick' podcast. Your primary role is to answer user questions based on the podcast's content. You should be friendly, conversational, and helpful.
 

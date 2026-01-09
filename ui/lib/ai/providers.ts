@@ -13,6 +13,7 @@ export const myProvider = customProvider({
     'chat-model-reasoning': anthropic('claude-haiku-4-5'),
     'title-model': anthropic('claude-haiku-4-5'),
     'artifact-model': anthropic('claude-haiku-4-5'),
+	'classifier-model': anthropic('claude-haiku-4-5'),
   },
   imageModels: {
     'small-model': openai.image('dall-e-3'),
