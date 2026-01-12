@@ -516,14 +516,12 @@ async def run_summarization_stage(
 
         storage_engine = get_cloud_storage()
         client = storage_engine.get_client()
-        print(f"DEBUG episodes: {episodes}")
         for episode in episodes:
             podcast = episode["podcast"]
             episode_id = episode["episode_id"]
             transcript_path = episode["formatted_transcript_path"]
             bucket_name = storage_engine.bucket_name
             transcript_key = f"{podcast}/" + transcript_path.split(f"{podcast}/")[1]
-            print(f"DEBUG transcript_key: {transcript_key}")
             summary_key = f"{podcast}/summaries/episode_{episode_id:03d}_summary.txt"
 
             # Generate summary
