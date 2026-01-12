@@ -31,7 +31,7 @@ def get_transcript_content(transcript_url: str) -> str:
 
         parsed_url = urlparse(transcript_url)
         bucket_name = storage_engine.bucket_name
-        key = parsed_url.path.lstrip("/").split("/", 1)[1]
+        key = parsed_url.path.lstrip("/")
         response = client.get_object(Bucket=bucket_name, Key=key)
         return response["Body"].read().decode()
     except Exception as exc:
