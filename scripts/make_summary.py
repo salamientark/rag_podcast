@@ -45,7 +45,7 @@ def get_episode_info() -> list[tuple[str, str, str, str]]:
     """
     Retrieve episode information from the database.
     Returns:
-        list[tuple[str, str, str]]: A list of tuples containing episode ID, podcast name, and formatted transcript path.
+        list[tuple[str, str, str, str]]: A list of tuples containing episode uuid, ID, podcast name, and formatted transcript path.
     """
     episodes_info = []
     with get_db_session() as session:

@@ -240,7 +240,7 @@ def embed_file_to_db(
         with get_db_session() as session:
             episode = session.query(Episode).filter_by(uuid=episode_uuid).first()
             if not episode:
-                raise ValueError(f"Episode ID {episode_id} not found in database")
+                raise ValueError(f"Episode ID {episode_id:03d} not found in database")
 
         # Create payload metadata
         payload = {
@@ -251,7 +251,7 @@ def embed_file_to_db(
         }
 
         logger.info(
-            f"Storing embeddings for episode ID {episode_id} in collection '{collection_name}'"
+            f"Storing embeddings for episode ID {episode_id:03d} in collection '{collection_name}'"
         )
         # Insert embeddings into Qdrant
         with get_qdrant_client() as client:
@@ -261,7 +261,7 @@ def embed_file_to_db(
                 vector=embeddings,
                 payload=payload,
             )
-        logger.info(f"Embeddings stored in database for episode ID {episode_id}")
+        logger.info(f"Embeddings stored in database for episode ID {episode_id:03d}")
 
         # Update episode processing stage
         update_episode_processing_stage(episode_uuid)

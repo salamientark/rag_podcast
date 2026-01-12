@@ -279,12 +279,12 @@ def run_raw_transcript_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, A
             if raw_file_path.exists():
                 # Load existing transcript to extract metadata
                 logger.info(
-                    f"Raw transcript already exists for episode ID {episode_id}, loading metadata."
+                    f"Raw transcript already exists for episode ID {episode_id:03d}, loading metadata."
                 )
             else:
                 # Call transcription function here
                 logger.info(
-                    f"Transcribing episode ID {episode_id} from file {episode['audio_path']}..."
+                    f"Transcribing episode ID {episode_id:03d} from file {episode['audio_path']}..."
                 )
                 raw_transcript = transcribe_with_diarization(
                     Path(episode["audio_path"]), language="fr"
@@ -312,7 +312,7 @@ def run_raw_transcript_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, A
                     logger.info(f"Saved raw transcription to {raw_file_path}")
                 except OSError as e:
                     logger.error(
-                        f"Failed to save raw transcript for episode ID {episode_id}: {e}"
+                        f"Failed to save raw transcript for episode ID {episode_id:03d}: {e}"
                     )
                     continue
 
@@ -366,11 +366,11 @@ def run_speaker_mapping_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, 
             mapping_result = {}
             if mapping_file_path.exists():
                 logger.info(
-                    f"Speaker mapping already exists for episode ID {episode_id}, loading from cache."
+                    f"Speaker mapping already exists for episode ID {episode_id:03d}, loading from cache."
                 )
             else:
                 logger.info(
-                    f"Generating speaker mapping for episode ID {episode_id} from file {episode['raw_transcript_path']}..."
+                    f"Generating speaker mapping for episode ID {episode_id:03d} from file {episode['raw_transcript_path']}..."
                 )
                 raw_formatted_text = format_transcript(
                     Path(episode["raw_transcript_path"]), max_tokens=10000
@@ -439,7 +439,7 @@ def run_formatted_transcript_stage(
             )
             # local_workspace = local_storage.create_episode_workspace(episode_id)
             logger.info(
-                f"transcribing episode id {episode_id} from file {transcript_path}..."
+                f"transcribing episode id {episode_id:03d} from file {transcript_path}..."
             )
 
             # Load speaker mapping from JSON file
@@ -475,7 +475,7 @@ def run_formatted_transcript_stage(
                 )
                 if storage.file_exist(workspace, filename):
                     logger.info(
-                        f"Formatted transcript already exists for episode ID {episode_id}, skipping transcription."
+                        f"Formatted transcript already exists for episode ID {episode_id:03d}, skipping transcription."
                     )
                     formatted_file_path = storage._get_absolute_filename(
                         workspace, filename
@@ -524,11 +524,11 @@ async def run_summarization_stage(
             bucket_name = storage_engine.bucket_name
             transcript_key = f"{podcast}/" + transcript_path.split(f"{podcast}/")[1]
             print(f"DEBUG transcript_key: {transcript_key}")
-            summary_key = f"{podcast}/summaries/episode_{episode_id}_summary.txt"
+            summary_key = f"{podcast}/summaries/episode_{episode_id:03d}_summary.txt"
 
             # Generate summary
             logger.info(
-                f"Generating summary for episode ID {episode_id} from file {transcript_path}..."
+                f"Generating summary for episode ID {episode_id:03d} from file {transcript_path}..."
             )
 
             response = client.get_object(Bucket=bucket_name, Key=transcript_key)
@@ -585,7 +585,7 @@ def run_embedding_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
         for episode in episodes:
             episode_id = episode["episode_id"]
             logger.info(
-                f"Processing embedding for episode ID {episode_id} from file {episode['formatted_transcript_path']}..."
+                f"Processing embedding for episode ID {episode_id:03d} from file {episode['formatted_transcript_path']}..."
             )
 
             # Use new 3-tier caching function
@@ -603,19 +603,19 @@ def run_embedding_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
 
                 if action == "retrieved_from_qdrant":
                     logger.info(
-                        f"Episode {episode_id}: Retrieved from Qdrant, saved to local cache"
+                        f"Episode {episode_id:03d}: Retrieved from Qdrant, saved to local cache"
                     )
                 elif action == "loaded_from_file":
                     logger.info(
-                        f"Episode {episode_id}: Loaded from local file, uploaded to Qdrant"
+                        f"Episode {episode_id:03d}: Loaded from local file, uploaded to Qdrant"
                     )
                 elif action == "embedded_fresh":
                     logger.info(
-                        f"Episode {episode_id}: Embedded fresh, saved to both locations"
+                        f"Episode {episode_id:03d}: Embedded fresh, saved to both locations"
                     )
             else:
                 logger.error(
-                    f"Failed to process embedding for episode {episode_id}: {result.get('error')}"
+                    f"Failed to process embedding for episode {episode_id:03d}: {result.get('error')}"
                 )
 
         logger.info(
