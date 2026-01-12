@@ -8,9 +8,10 @@ from logging import getLogger
 
 sys.path.insert(1, str(Path(__file__).resolve().parent.parent))
 
-from src.db import get_db_session, Episode, ProcessingStage
+from src.db import get_db_session, Episode, ProcessingStage, update_episode_in_db
 from src.storage.cloud import CloudStorage
 from src.mcp.tools.get_episode_summary import summarize
+from src.transcription.summarize import save_summary_to_cloud
 
 logger = getLogger(__name__)
 
@@ -60,7 +61,7 @@ def save_summary_to_file(summary: str, file_path: str) -> None:
         raise
 
 
-def get_episode_info() -> list[tuple[str, str, str]]:
+def get_episode_info() -> list[tuple[str, str, str, str]]:
     """
     Retrieve episode information from the database.
     Returns:
@@ -75,47 +76,22 @@ def get_episode_info() -> list[tuple[str, str, str]]:
         )
         for episode in response:
             episodes_info.append(
-                (episode.episode_id, episode.podcast, episode.formatted_transcript_path)
+                (episode.uuid, episode.episode_id, episode.podcast, episode.formatted_transcript_path)
             )
     return episodes_info
-
-
-def save_summary_to_cloud(bucket_name: str, key: str, summary: str) -> None:
-    """
-    Save the summary to cloud storage.
-    Parameters:
-        bucket_name (str): The name of the cloud storage bucket.
-        key (str): The key (path) in the bucket where the summary will be saved.
-        summary (str): The summary text to save.
-    """
-    try:
-        # Get S3 client
-        storage_engine = CloudStorage()
-        client = storage_engine.get_client()
-
-        # Create io.BytesIO object from summary
-        file_stream = io.BytesIO(summary.encode("utf-8"))
-
-        # Upload to cloud storage
-        client.upload_fileobj(file_stream, bucket_name, key)
-
-    except Exception as exc:
-        logger.error(
-            f"[save_summary_to_cloud] Error saving summary: {exc}", exc_info=True
-        )
-        raise
 
 
 async def main():
     try:
         episodes_infos = get_episode_info()
         cloud_storage = CloudStorage()
-        for episode_id, episode_podcast, transcript_url in episodes_infos:
+        for uuid, episode_id, episode_podcast, transcript_url in episodes_infos:
             bucket_name = cloud_storage.bucket_name
             key = f"{episode_podcast}/summarys/episode_{episode_id}_summary.txt"
             content = get_transcript_content(transcript_url)
             summary = await summarize(content, language="fr")
-            save_summary_to_cloud(bucket_name, key, summary)
+            link = save_summary_to_cloud(bucket_name, key, summary)
+            update_episode_in_db(uuid, podcast=episode_podcast, episode_id=episode_id, summary_path=link)
     except Exception as exc:
         logger.error(f"[main] Error in main execution: {exc}", exc_info=True)
         exit(1)

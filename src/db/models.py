@@ -1,6 +1,5 @@
 """
 SQLAlchemy ORM models for the podcast RAG system.
-
 This module defines the database schema using SQLAlchemy's declarative base.
 All models inherit from Base and use consistent naming conventions.
 
@@ -110,7 +109,7 @@ class Episode(Base, TimestampMixin):
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     published_date = Column(DateTime, nullable=False)
-    summary = Column(Text, nullable=True)
+    summary_path = Column(Text, nullable=True)
     audio_url = Column(String, nullable=False)
 
     # Processing tracking
@@ -153,7 +152,7 @@ class Episode(Base, TimestampMixin):
             "published_date": self.published_date.isoformat()
             if self.published_date
             else None,
-            "summary": self.summary,
+            "summary_path": self.summary,
             "audio_url": self.audio_url,
             "processing_stage": self.processing_stage.value,
             "audio_file_path": self.audio_file_path,

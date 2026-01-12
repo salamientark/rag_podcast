@@ -361,6 +361,7 @@ def update_episode_in_db(
     raw_transcript_path: Optional[str] = None,
     speaker_mapping_path: Optional[str] = None,
     formatted_transcript_path: Optional[str] = None,
+    summary_path: Optional[str] = None,
     transcript_duration: Optional[int] = None,
     transcript_confidence: Optional[float] = None,
 ):
@@ -382,6 +383,7 @@ def update_episode_in_db(
         raw_transcript_path: Filesystem path to the raw transcript (optional).
         speaker_mapping_path: Filesystem path to the speaker mapping file (optional).
         formatted_transcript_path: Filesystem path to the formatted transcript (optional).
+        summary_path: Link to the episode summary (optional).
         transcript_duration: Transcript duration in seconds (optional).
         transcript_confidence: Transcript confidence score (optional).
     """
@@ -410,6 +412,8 @@ def update_episode_in_db(
             update_data["speaker_mapping_path"] = speaker_mapping_path
         if formatted_transcript_path is not None:
             update_data["formatted_transcript_path"] = formatted_transcript_path
+        if summary_path is not None:
+            update_data["summary_path"] = summary_path
         if transcript_duration is not None:
             update_data["transcript_duration"] = transcript_duration
         if transcript_confidence is not None:
