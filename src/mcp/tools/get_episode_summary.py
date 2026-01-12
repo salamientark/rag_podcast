@@ -63,7 +63,7 @@ async def fetch_transcript(transcript_url: str) -> str:
         raise
 
 
-async def make_resume(text: str, language: str = "en") -> str:
+async def summarize(text: str, language: str = "en") -> str:
     """Generate a structured episode summary from transcript text.
 
     Args:
@@ -98,7 +98,7 @@ async def make_resume(text: str, language: str = "en") -> str:
         return response.output_text
     except Exception as exc:
         logger.error(
-            f"[make_resume] Error during text summarization: {exc}", exc_info=True
+            f"[summarize] Error during text summarization: {exc}", exc_info=True
         )
         raise
 
@@ -150,7 +150,7 @@ async def get_episode_summary(
         if "-" in normalized_language:
             normalized_language = normalized_language.split("-", 1)[0]
 
-        return await make_resume(transcript_content, language=normalized_language)
+        return await summarize(transcript_content, language=normalized_language)
 
     except Exception as exc:
         logger.error(
