@@ -9,8 +9,6 @@ from src.llm.openai import get_openai_async_client, OPENAI_MODEL
 
 
 logger = getLogger(__name__)
-load_dotenv()
-
 
 def make_file_url(bucket_name: str, key: str) -> str:
     """
@@ -22,6 +20,7 @@ def make_file_url(bucket_name: str, key: str) -> str:
     Returns:
         The constructed file URL.
     """
+    load_dotenv()
     # Format bucket name and key
     if bucket_name.endswith("/"):
         bucket_name = bucket_name[:-1]

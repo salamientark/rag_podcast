@@ -503,7 +503,7 @@ def run_formatted_transcript_stage(
 @log_function(logger_name="pipeline", log_execution_time=True)
 async def run_summarization_stage(
     episodes: list[Dict[str, Any]],
-) -> list[Dict[str, Any]]:
+    ) -> None:
     """
     Create summaries for each episode's formatted transcript and attach their paths to each episode.
 
@@ -512,10 +512,12 @@ async def run_summarization_stage(
                 keys `podcast`, `episode_id`, `transcript_path`
     """
     try:
+        logger = logging.getLogger("pipeline")
+        logger.info("Starting summarization stage...")
+
         storage_engine = get_cloud_storage()
+        client = storage_engine.get_client()
         for episode in episodes:
-            logger = logging.getLogger("pipeline")
-            logger.info("Starting summarization stage...")
             podcast = episode["podcast"]
             episode_id = episode["episode_id"]
             transcript_path = episode["formatted_transcript_path"]
@@ -526,7 +528,10 @@ async def run_summarization_stage(
             logger.info(
                 f"Generating summary for episode ID {episode_id} from file {transcript_path}..."
             )
-            summary = await summarize(transcript_path, language="fr")
+
+            response = client.get_object(Bucket=bucket_name, Key=transcript_path)
+            transcript_content = response["Body"].read().decode('utf-8')
+            summary = await summarize(transcript_content, language="fr")
             link = save_summary_to_cloud(bucket_name, key, summary)
             update_episode_in_db(
                 episode["uuid"],
