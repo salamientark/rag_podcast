@@ -34,7 +34,7 @@ def process_nodes_with_metadata(nodes: List[NodeWithScore]) -> List[NodeWithScor
         total_chunks = metadata.get("total_chunks", 1)
 
         # Build hidden context prefix for LLM
-        context_prefix = f"[Episode {episode_id}: {title}"
+        context_prefix = f"[Episode {episode_id:03d}: {title}"
 
         # Add chunk information for multi-chunk episodes
         if total_chunks > 1:

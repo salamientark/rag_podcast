@@ -1,6 +1,7 @@
 import os
 from typing import Optional
 from dotenv import load_dotenv
+from functools import lru_cache
 
 import boto3
 from botocore.exceptions import ClientError
@@ -152,3 +153,13 @@ class CloudStorage(BaseStorage):
                 except OSError:
                     pass  # Directory not empty or doesn't exist
             raise RuntimeError(f"Error saving file to cloud storage: {e}")
+
+
+@lru_cache(maxsize=1)
+def get_cloud_storage() -> CloudStorage:
+    """
+    Get a cached instance of CloudStorage.
+    Returns:
+        CloudStorage: An instance of CloudStorage.
+    """
+    return CloudStorage()

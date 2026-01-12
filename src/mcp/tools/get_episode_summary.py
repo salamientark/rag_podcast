@@ -14,93 +14,16 @@ For content questions across multiple episodes, use `ask_podcast`.
 """
 
 import logging
-from pathlib import Path
-from tempfile import NamedTemporaryFile
 from typing import Optional
 from urllib.parse import urlparse
 
-from src.storage.cloud import CloudStorage
-from src.llm.openai import get_openai_async_client, OPENAI_MODEL
+from src.storage.cloud import get_cloud_storage
 
 from ..config import mcp
 from ..prompts import ALLOWED_PODCASTS
 from .get_episode_info import get_episode_info_by_date
 
 logger = logging.getLogger(__name__)
-
-
-async def fetch_transcript(transcript_url: str) -> str:
-    """Fetch episode transcript text from cloud storage.
-
-    Args:
-        transcript_url: Absolute URL to the transcript object.
-
-    Returns:
-        Transcript content as UTF-8 text.
-
-    Raises:
-        Exception: Re-raises any unexpected runtime errors.
-    """
-    try:
-        # Get Client
-        storage_engine = CloudStorage()
-        client = storage_engine.get_client()
-        bucket_name = storage_engine.bucket_name
-
-        parsed_url = urlparse(transcript_url)
-        key = parsed_url.path.lstrip("/")
-        with NamedTemporaryFile(suffix=".txt", delete=False) as tmp:
-            tmp_path = Path(tmp.name)
-        try:
-            client.download_file(bucket_name, key, str(tmp_path))
-            return tmp_path.read_text(encoding="utf-8")
-        finally:
-            tmp_path.unlink(missing_ok=True)
-    except Exception as exc:
-        logger.error(
-            f"[fetch_transcript] Error during transcript fetch: {exc}", exc_info=True
-        )
-        raise
-
-
-async def summarize(text: str, language: str = "en") -> str:
-    """Generate a structured episode summary from transcript text.
-
-    Args:
-        text: Transcript text to summarize.
-        language: Output language (ISO-ish, e.g. "fr", "en"). Should be normalized.
-
-    Returns:
-        A Markdown summary with sections (Summary, Key points, Topics).
-
-    Raises:
-        ValueError: If the OpenAI client cannot be initialized.
-        Exception: Re-raises unexpected runtime errors from the LLM call.
-    """
-    agent_prompt = "Summarize this podcast transcript in {language}. Markdown: Summary, Key points, Topics (bullets). No inventions."
-
-    try:
-        # Init llm client
-        llm = get_openai_async_client()
-        if llm is None:
-            raise ValueError("LLM client initialization failed.")
-
-        # Ask for summary
-        logger.info("Calling OpenAI for transcript summarization")
-        response = await llm.responses.create(
-            model=OPENAI_MODEL,
-            instructions=agent_prompt.format(language=language),
-            input=text,
-            max_output_tokens=500,
-        )
-
-        logger.info("OpenAI returned summary")
-        return response.output_text
-    except Exception as exc:
-        logger.error(
-            f"[summarize] Error during text summarization: {exc}", exc_info=True
-        )
-        raise
 
 
 @mcp.tool()
@@ -137,20 +60,18 @@ async def get_episode_summary(
                 "please check the date format (yyyy-mm-dd) and try again."
             )
 
-        transcript_location = episode_info.get("formatted_transcript_path")
-        if not transcript_location:
-            return (
-                "error: no formatted transcript found for episode on date "
-                f"'{date}' and podcast '{normalized_podcast}'."
-            )
-
-        transcript_content = await fetch_transcript(transcript_location)
-
-        normalized_language = (language or "en").strip().lower() or "en"
-        if "-" in normalized_language:
-            normalized_language = normalized_language.split("-", 1)[0]
-
-        return await summarize(transcript_content, language=normalized_language)
+        # Get summary
+        storage_engine = get_cloud_storage()
+        client = storage_engine.get_client()
+        summary_url = episode_info.get("summary_path")
+        if summary_url is None:
+            return f"error: no summary found for episode on '{date}' for podcast '{normalized_podcast}'."
+        parsed_url = urlparse(summary_url)
+        bucket_name = storage_engine.bucket_name
+        key = parsed_url.path.lstrip("/").split("/", 1)[1]
+        response = client.get_object(Bucket=bucket_name, Key=key)
+        summary_content = response["Body"].read().decode("utf-8")
+        return summary_content
 
     except Exception as exc:
         logger.error(
