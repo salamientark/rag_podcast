@@ -31,7 +31,7 @@ def get_transcript_content(transcript_url: str) -> str:
 
         parsed_url = urlparse(transcript_url)
         bucket_name = storage_engine.bucket_name
-        key = parsed_url.path.lstrip("/").strip("/", 1)[1]
+        key = parsed_url.path.lstrip("/").split("/", 1)[1]
         response = client.get_object(Bucket=bucket_name, Key=key)
         return response["Body"].read().decode()
     except Exception as exc:
@@ -72,7 +72,7 @@ async def main():
         cloud_storage = get_cloud_storage()
         for uuid, episode_id, episode_podcast, transcript_url in episodes_infos:
             bucket_name = cloud_storage.bucket_name
-            key = f"{episode_podcast}/summaries/episode_{episode_id}_summary.txt"
+            key = f"{episode_podcast}/summaries/episode_{episode_id:03d}_summary.txt"
             content = get_transcript_content(transcript_url)
             summary = await summarize(content, language="fr")
             link = save_summary_to_cloud(bucket_name, key, summary)

@@ -69,8 +69,6 @@ async def get_episode_summary(
         parsed_url = urlparse(summary_url)
         bucket_name = storage_engine.bucket_name
         key = parsed_url.path.lstrip("/").split("/", 1)[1]
-        print(f"bucket_name: {bucket_name}, key: {key}")
-        print("Parsed URL:", parsed_url)
         response = client.get_object(Bucket=bucket_name, Key=key)
         summary_content = response["Body"].read().decode("utf-8")
         return summary_content
