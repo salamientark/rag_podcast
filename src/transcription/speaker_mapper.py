@@ -111,14 +111,13 @@ def format_transcript(
 
 
 @log_function(logger_name="speaker_mapper", log_execution_time=True)
-def map_speakers_with_llm(
-    formatted_text: str,
-) -> Dict[str, str]:
+def map_speakers_with_llm(formatted_text: str, description: str) -> Dict[str, str]:
     """
     Use openai llm to map generic speaker labels to real names.
 
     Args:
         formatted_text: Text with generic labels "Speaker A: ..."
+        description: Description of the podcast episode content for better context.
 
     Returns:
         Mapping like {"A": "Patrick", "B": "Cédric"}
@@ -133,9 +132,12 @@ def map_speakers_with_llm(
 
         # Ask for speaker mapping
         logger.info("Calling LLM for speaker identification")
+        instruction_prompt = (
+            _speaker_identification_prompt() + f"\n\nEpisode Description: {description}"
+        )
         response = llm.responses.create(
             model=OPENAI_MODEL,
-            instructions=_speaker_identification_prompt(),
+            instructions=instruction_prompt,
             input=formatted_text,
         )
 
