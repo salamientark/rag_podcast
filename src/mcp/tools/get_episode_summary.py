@@ -20,7 +20,7 @@ from typing import Optional
 from urllib.parse import urlparse
 
 from src.storage.cloud import CloudStorage
-from src.llm.openai import get_openai_async_client, OPENAI_MODEL
+from src.transcription.summarize import summarize
 
 from ..config import mcp
 from ..prompts import ALLOWED_PODCASTS
@@ -59,46 +59,6 @@ async def fetch_transcript(transcript_url: str) -> str:
     except Exception as exc:
         logger.error(
             f"[fetch_transcript] Error during transcript fetch: {exc}", exc_info=True
-        )
-        raise
-
-
-async def summarize(text: str, language: str = "en") -> str:
-    """Generate a structured episode summary from transcript text.
-
-    Args:
-        text: Transcript text to summarize.
-        language: Output language (ISO-ish, e.g. "fr", "en"). Should be normalized.
-
-    Returns:
-        A Markdown summary with sections (Summary, Key points, Topics).
-
-    Raises:
-        ValueError: If the OpenAI client cannot be initialized.
-        Exception: Re-raises unexpected runtime errors from the LLM call.
-    """
-    agent_prompt = "Summarize this podcast transcript in {language}. Markdown: Summary, Key points, Topics (bullets). No inventions. Keep it under 500 tokens long."
-
-    try:
-        # Init llm client
-        llm = get_openai_async_client()
-        if llm is None:
-            raise ValueError("LLM client initialization failed.")
-
-        # Ask for summary
-        logger.info("Calling OpenAI for transcript summarization")
-        response = await llm.responses.create(
-            model=OPENAI_MODEL,
-            instructions=agent_prompt.format(language=language),
-            input=text,
-            max_output_tokens=900,
-        )
-
-        logger.info("OpenAI returned summary")
-        return response.output_text
-    except Exception as exc:
-        logger.error(
-            f"[summarize] Error during text summarization: {exc}", exc_info=True
         )
         raise
 

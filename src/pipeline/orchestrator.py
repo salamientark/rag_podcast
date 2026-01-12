@@ -10,6 +10,7 @@ from .stages import (
     run_raw_transcript_stage,
     run_speaker_mapping_stage,
     run_formatted_transcript_stage,
+    run_summarization_stage,
     run_embedding_stage,
 )
 
@@ -101,7 +102,7 @@ def filter_episode(
 
 
 @log_function(logger_name="pipeline", log_execution_time=True)
-def run_pipeline(
+async def run_pipeline(
     episodes_id: Optional[list[int]] = None,
     limit: Optional[int] = None,
     stages: Optional[list[str]] = None,
@@ -167,6 +168,7 @@ def run_pipeline(
             episodes_to_process = run_formatted_transcript_stage(
                 episodes_to_process, use_cloud_storage
             )
+            await run_summarization_stage(episodes_to_process)
 
         # Run embedding stage
         if stages is None or "embed" in stages:

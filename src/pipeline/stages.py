@@ -41,6 +41,7 @@ from src.transcription import (
 from src.transcription.transcript import transcribe_with_diarization
 from src.embedder.embed import process_episode_embedding
 from src.storage import CloudStorage, LocalStorage
+from src.transcription.summarize import summarize, save_summary_to_cloud
 
 
 AUDIO_DIR = "data/audio"
@@ -496,6 +497,39 @@ def run_formatted_transcript_stage(
 
     except Exception as e:
         logger.error(f"Failed to complete formatted transcript pipeline : {e}")
+        raise
+
+
+@log_function(logger_name="pipeline", log_execution_time=True)
+async def run_summarization_stage(
+    episodes: list[Dict[str, Any]],
+) -> list[Dict[str, Any]]:
+    """
+    Create summaries for each episode's formatted transcript and attach their paths to each episode.
+
+    Parameters:
+        episodes (list[dict]): List of episode dictionaries. Each dictionary must include the
+                keys `podcast`, `episode_id`, `transcript_path`
+    """
+    try:
+        storage_engine = CloudStorage()
+        for episode in episodes:
+            logger = logging.getLogger("pipeline")
+            logger.info("Starting summarization stage...")
+            podcast = episode["podcast"]
+            episode_id = episode["episode_id"]
+            transcript_path = episode["formatted_transcript_path"]
+            bucket_name = storage_engine.bucket_name
+            key = f"{podcast}/summarys/episode_{episode_id}_summary.txt"
+
+            # Generate summary
+            logger.info(
+                f"Generating summary for episode ID {episode_id} from file {transcript_path}..."
+            )
+            summary = await summarize(transcript_path, language="fr")
+            save_summary_to_cloud(bucket_name, key, summary)
+    except Exception as e:
+        logger.error(f"Failed to complete summarization pipeline : {e}")
         raise
 
 

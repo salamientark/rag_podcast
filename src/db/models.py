@@ -152,7 +152,7 @@ class Episode(Base, TimestampMixin):
             "published_date": self.published_date.isoformat()
             if self.published_date
             else None,
-            "summary_path": self.summary,
+            "summary_path": self.summary_path,
             "audio_url": self.audio_url,
             "processing_stage": self.processing_stage.value,
             "audio_file_path": self.audio_file_path,

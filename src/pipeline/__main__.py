@@ -34,6 +34,7 @@ Examples:
 
 import sys
 import argparse
+import asyncio
 from typing import List, Optional
 
 from src.logger import setup_logging
@@ -439,7 +440,7 @@ Notes:
     return parser.parse_args()
 
 
-def main():
+async def main():
     """Main entry point for the pipeline CLI."""
     args = parse_arguments()
 
@@ -534,7 +535,7 @@ def main():
         # For --full mode, both remain None
 
         # Call the orchestrator
-        run_pipeline(
+        await run_pipeline(
             episodes_id=episodes_id,
             limit=limit,
             stages=args.stages,
@@ -557,4 +558,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
