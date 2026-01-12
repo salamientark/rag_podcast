@@ -412,6 +412,7 @@ def run_speaker_mapping_stage(
 def run_formatted_transcript_stage(
     episodes: list[Dict[str, str]],
     cloud_storage: bool = False,
+    force: bool = False,
 ) -> list[Dict[str, Any]]:
     """
     Create speaker-attributed, human-readable transcripts from raw transcripts and attach their paths to each episode.
@@ -420,6 +421,7 @@ def run_formatted_transcript_stage(
         episodes (list[dict]): List of episode dictionaries. Each dictionary must include the keys
             `uuid`, `podcast`, `episode_id`, `title`, `raw_transcript_path`, and `mapping_path`.
         cloud_storage (bool): If True, upload the formatted transcript to configured cloud storage.
+        force (bool): If True, regenerate formatted transcripts even if they already exist.
 
     Returns:
         list[dict]: The same episode dictionaries with a `formatted_transcript_path` key added (path to the saved formatted transcript).
@@ -479,7 +481,7 @@ def run_formatted_transcript_stage(
                 workspace = (
                     f"{episodes[0]['podcast']}/transcripts/episode_{episode_id:03d}/"
                 )
-                if storage.file_exist(workspace, filename):
+                if storage.file_exist(workspace, filename) and not force:
                     logger.info(
                         f"Formatted transcript already exists for episode ID {episode_id:03d}, skipping transcription."
                     )

@@ -193,7 +193,7 @@ async def run_pipeline(
         if force or stages is None or "format_transcript" in stages:
             episodes_to_process = run_speaker_mapping_stage(episodes_to_process, force)
             episodes_to_process = run_formatted_transcript_stage(
-                episodes_to_process, use_cloud_storage
+                episodes_to_process, use_cloud_storage, force
             )
             await run_summarization_stage(episodes_to_process)
 
