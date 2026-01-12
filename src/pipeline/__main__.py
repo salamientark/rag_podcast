@@ -544,6 +544,7 @@ async def main():
             use_cloud_storage=args.cloud,
             podcast=args.podcast,
             feed_url=args.feed_url,
+            force=args.force,
         )
 
         logger.info("Pipeline execution completed successfully")

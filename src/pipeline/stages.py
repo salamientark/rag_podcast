@@ -527,7 +527,14 @@ async def run_summarization_stage(
                 f"Generating summary for episode ID {episode_id} from file {transcript_path}..."
             )
             summary = await summarize(transcript_path, language="fr")
-            save_summary_to_cloud(bucket_name, key, summary)
+            link = save_summary_to_cloud(bucket_name, key, summary)
+            update_episode_in_db(
+                episode["uuid"],
+                podcast=podcast,
+                episode_id=episode_id,
+                summary_path=link,
+            )
+
     except Exception as e:
         logger.error(f"Failed to complete summarization pipeline : {e}")
         raise

@@ -57,6 +57,7 @@ def filter_episode(
     podcast: str,
     episodes_id: Optional[list[int]] = None,
     limit: Optional[int] = None,
+    force: bool = False,
 ) -> list[Dict[str, Any]]:
     """
     Query episodes from the database by podcast name, specific episode IDs, or maximum count.
@@ -76,26 +77,47 @@ def filter_episode(
 
     with get_db_session() as session:
         if limit is not None:
-            episodes = (
-                session.query(Episode)
-                .filter(
-                    Episode.podcast.ilike(podcast),
-                    Episode.processing_stage != ProcessingStage.EMBEDDED,
+            if not force:
+                episodes = (
+                    session.query(Episode)
+                    .filter(
+                        Episode.podcast.ilike(podcast),
+                        Episode.processing_stage != ProcessingStage.EMBEDDED,
+                    )
+                    .order_by(Episode.published_date.desc())
+                    .limit(limit)
+                    .all()
                 )
-                .order_by(Episode.published_date.desc())
-                .limit(limit)
-                .all()
-            )
+            else:
+                episodes = (
+                    session.query(Episode)
+                    .filter(
+                        Episode.podcast.ilike(podcast),
+                    )
+                    .order_by(Episode.published_date.desc())
+                    .limit(limit)
+                    .all()
+                )
         else:
-            episodes = (
-                session.query(Episode)
-                .filter(
-                    Episode.podcast.ilike(podcast),
-                    Episode.episode_id.in_(episodes_id),
-                    Episode.processing_stage != ProcessingStage.EMBEDDED,
+            if not force:
+                episodes = (
+                    session.query(Episode)
+                    .filter(
+                        Episode.podcast.ilike(podcast),
+                        Episode.episode_id.in_(episodes_id),
+                        Episode.processing_stage != ProcessingStage.EMBEDDED,
+                    )
+                    .all()
                 )
-                .all()
-            )
+            else:
+                episodes = (
+                    session.query(Episode)
+                    .filter(
+                        Episode.podcast.ilike(podcast),
+                        Episode.episode_id.in_(episodes_id),
+                    )
+                    .all()
+                )
         filtered_episodes = [ep.to_dict() for ep in episodes]
 
     return filtered_episodes
@@ -111,6 +133,7 @@ async def run_pipeline(
     use_cloud_storage: bool = False,
     podcast: Optional[str] = None,
     feed_url: Optional[str] = None,
+    force: bool = False,
 ):
     """
     Orchestrates the end-to-end podcast processing pipeline across configurable stages.
@@ -150,20 +173,24 @@ async def run_pipeline(
             raise ValueError("Either feed_url or podcast must be provided")
 
         # Filter episodes to process
-        episodes_to_process = filter_episode(podcast, episodes_id, limit)
+        episodes_to_process = filter_episode(podcast, episodes_id, limit, force)
+        if len(episodes_to_process) == 0:
+            logger.info("No episodes found to process. Exiting pipeline.")
+            logger.info("=== PIPELINE COMPLETED SUCCESSFULLY ===")
+            return
 
         # Run download audio stage
-        if stages is None or "download" in stages:
+        if force or stages is None or "download" in stages:
             episodes_to_process = run_download_stage(
                 episodes_to_process, use_cloud_storage
             )
 
         # Run raw transcript stage
-        if stages is None or "raw_transcript" in stages:
+        if force or stages is None or "raw_transcript" in stages:
             episodes_to_process = run_raw_transcript_stage(episodes_to_process)
 
         # Run formatted transcript stage (Speaker mapping included)
-        if stages is None or "format_transcript" in stages:
+        if force or stages is None or "format_transcript" in stages:
             episodes_to_process = run_speaker_mapping_stage(episodes_to_process)
             episodes_to_process = run_formatted_transcript_stage(
                 episodes_to_process, use_cloud_storage
@@ -171,7 +198,7 @@ async def run_pipeline(
             await run_summarization_stage(episodes_to_process)
 
         # Run embedding stage
-        if stages is None or "embed" in stages:
+        if force or stages is None or "embed" in stages:
             run_embedding_stage(episodes_to_process)
 
         logger.info("=== PIPELINE COMPLETED SUCCESSFULLY ===")
