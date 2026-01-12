@@ -25,6 +25,7 @@ from .get_episode_info import get_episode_info_by_date
 
 logger = logging.getLogger(__name__)
 
+
 @mcp.tool()
 async def get_episode_summary(
     date: str, podcast: str, language: Optional[str] = "en"

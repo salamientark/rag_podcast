@@ -10,6 +10,7 @@ from src.llm.openai import get_openai_async_client, OPENAI_MODEL
 
 logger = getLogger(__name__)
 
+
 def make_file_url(bucket_name: str, key: str) -> str:
     """
     Construct a cloud storage file URL.
