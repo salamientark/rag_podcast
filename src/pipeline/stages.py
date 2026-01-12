@@ -153,7 +153,6 @@ def run_download_stage(
             if cloud_save:
                 storage = get_cloud_storage()
                 for episode in episodes_list:
-                    # for i, episode in enumerate(episodes):
                     filename = os.path.basename(episode["audio_path"])
                     if storage.file_exist(workspace, filename):
                         logger.info(
@@ -473,7 +472,6 @@ def run_formatted_transcript_stage(
             )
             episode["formatted_transcript_path"] = str(formatted_file_path)
             updated_episodes.append(episode)
-            # local_formatted_path.append(str(formatted_file_path))
 
             # Cloud save
             if cloud_storage:

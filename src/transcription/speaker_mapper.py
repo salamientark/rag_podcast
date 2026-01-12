@@ -138,7 +138,6 @@ def map_speakers_with_llm(formatted_text: str, description: str) -> Dict[str, st
         response = llm.responses.create(
             model=OPENAI_MODEL,
             instructions=instruction_prompt,
-            # instructions=_speaker_identification_prompt(),
             input=formatted_text,
         )
 
