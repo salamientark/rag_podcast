@@ -520,7 +520,7 @@ async def run_summarization_stage(
             episode_id = episode["episode_id"]
             transcript_path = episode["formatted_transcript_path"]
             bucket_name = storage_engine.bucket_name
-            key = f"{podcast}/summarys/episode_{episode_id}_summary.txt"
+            key = f"{podcast}/summaries/episode_{episode_id}_summary.txt"
 
             # Generate summary
             logger.info(

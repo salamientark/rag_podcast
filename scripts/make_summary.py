@@ -9,8 +9,7 @@ sys.path.insert(1, str(Path(__file__).resolve().parent.parent))
 
 from src.db import get_db_session, Episode, ProcessingStage, update_episode_in_db
 from src.storage.cloud import get_cloud_storage
-from src.mcp.tools.get_episode_summary import summarize
-from src.transcription.summarize import save_summary_to_cloud
+from src.transcription.summarize import save_summary_to_cloud, summarize
 
 logger = getLogger(__name__)
 
@@ -32,30 +31,12 @@ def get_transcript_content(transcript_url: str) -> str:
 
         parsed_url = urlparse(transcript_url)
         bucket_name = storage_engine.bucket_name
-        key = parsed_url.path.lstrip("/")
+        key = parsed_url.path.lstrip("/").strip("/", 1)[1]
         response = client.get_object(Bucket=bucket_name, Key=key)
         return response["Body"].read().decode()
     except Exception as exc:
         logger.error(
             f"[fetch_transcript] Error during transcript fetch: {exc}", exc_info=True
-        )
-        raise
-
-
-def save_summary_to_file(summary: str, file_path: str) -> None:
-    """
-    Save the summary to a local file.
-    Parameters:
-        summary (str): The summary text to save.
-        file_path (str): The path to the file where the summary will be saved.
-    """
-    try:
-        with open(file_path, "w", encoding="utf-8") as file:
-            file.write(summary)
-        logger.info(f"Summary saved to {file_path}")
-    except Exception as exc:
-        logger.error(
-            f"[save_summary_to_file] Error saving summary: {exc}", exc_info=True
         )
         raise
 
@@ -91,7 +72,7 @@ async def main():
         cloud_storage = get_cloud_storage()
         for uuid, episode_id, episode_podcast, transcript_url in episodes_infos:
             bucket_name = cloud_storage.bucket_name
-            key = f"{episode_podcast}/summarys/episode_{episode_id}_summary.txt"
+            key = f"{episode_podcast}/summaries/episode_{episode_id}_summary.txt"
             content = get_transcript_content(transcript_url)
             summary = await summarize(content, language="fr")
             link = save_summary_to_cloud(bucket_name, key, summary)
@@ -100,7 +81,7 @@ async def main():
             )
     except Exception as exc:
         logger.error(f"[main] Error in main execution: {exc}", exc_info=True)
-        exit(1)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

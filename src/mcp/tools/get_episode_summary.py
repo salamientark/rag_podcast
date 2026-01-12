@@ -25,41 +25,6 @@ from .get_episode_info import get_episode_info_by_date
 
 logger = logging.getLogger(__name__)
 
-
-# async def fetch_transcript(transcript_url: str) -> str:
-#     """Fetch episode transcript text from cloud storage.
-#
-#     Args:
-#         transcript_url: Absolute URL to the transcript object.
-#
-#     Returns:
-#         Transcript content as UTF-8 text.
-#
-#     Raises:
-#         Exception: Re-raises any unexpected runtime errors.
-#     """
-#     try:
-#         # Get Client
-#         storage_engine = get_cloud_storage()
-#         client = storage_engine.get_client()
-#         bucket_name = storage_engine.bucket_name
-#
-#         parsed_url = urlparse(transcript_url)
-#         key = parsed_url.path.lstrip("/")
-#         with NamedTemporaryFile(suffix=".txt", delete=False) as tmp:
-#             tmp_path = Path(tmp.name)
-#         try:
-#             client.download_file(bucket_name, key, str(tmp_path))
-#             return tmp_path.read_text(encoding="utf-8")
-#         finally:
-#             tmp_path.unlink(missing_ok=True)
-#     except Exception as exc:
-#         logger.error(
-#             f"[fetch_transcript] Error during transcript fetch: {exc}", exc_info=True
-#         )
-#         raise
-
-
 @mcp.tool()
 async def get_episode_summary(
     date: str, podcast: str, language: Optional[str] = "en"
@@ -98,6 +63,8 @@ async def get_episode_summary(
         storage_engine = get_cloud_storage()
         client = storage_engine.get_client()
         summary_url = episode_info.get("summary_path")
+        if summary_url is None:
+            return f"error: no summary found for episode on '{date}' for podcast '{normalized_podcast}'."
         parsed_url = urlparse(summary_url)
         bucket_name = storage_engine.bucket_name
         key = parsed_url.path.lstrip("/").split("/", 1)[1]

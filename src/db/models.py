@@ -87,6 +87,7 @@ class Episode(Base, TimestampMixin):
         raw_transcript_path: Path to raw transcript JSON (with diarization)
         speaker_mapping_path: Path to speaker mapping JSON file
         formatted_transcript_path: Path to formatted transcript (with speaker names)
+        summary_path: Path to episode summary text file
         transcript_duration: Audio duration in seconds (from transcription)
         transcript_confidence: Transcription confidence score (0.0-1.0)
         created_at: Timestamp when episode was added to database (from TimestampMixin)
@@ -96,6 +97,7 @@ class Episode(Base, TimestampMixin):
         audio_file_path: data/audio/episode_{episode_id:03d}_{sanitized_title}.mp3
         raw_transcript_path: data/transcript/episode_{episode_id}_universal.json
         formatted_transcript_path: data/transcript/episode_{episode_id}_formatted.txt
+        summary_path: data/summary/episode_{episode_id}_summary.txt
     """
 
     __tablename__ = "episodes"
