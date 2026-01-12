@@ -1,6 +1,5 @@
 import sys
 import asyncio
-import io
 
 from pathlib import Path
 from urllib.parse import urlparse
@@ -76,7 +75,12 @@ def get_episode_info() -> list[tuple[str, str, str, str]]:
         )
         for episode in response:
             episodes_info.append(
-                (episode.uuid, episode.episode_id, episode.podcast, episode.formatted_transcript_path)
+                (
+                    episode.uuid,
+                    episode.episode_id,
+                    episode.podcast,
+                    episode.formatted_transcript_path,
+                )
             )
     return episodes_info
 
@@ -91,7 +95,9 @@ async def main():
             content = get_transcript_content(transcript_url)
             summary = await summarize(content, language="fr")
             link = save_summary_to_cloud(bucket_name, key, summary)
-            update_episode_in_db(uuid, podcast=episode_podcast, episode_id=episode_id, summary_path=link)
+            update_episode_in_db(
+                uuid, podcast=episode_podcast, episode_id=episode_id, summary_path=link
+            )
     except Exception as exc:
         logger.error(f"[main] Error in main execution: {exc}", exc_info=True)
         exit(1)
