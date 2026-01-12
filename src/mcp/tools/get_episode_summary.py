@@ -77,7 +77,7 @@ async def summarize(text: str, language: str = "en") -> str:
         ValueError: If the OpenAI client cannot be initialized.
         Exception: Re-raises unexpected runtime errors from the LLM call.
     """
-    agent_prompt = "Summarize this podcast transcript in {language}. Markdown: Summary, Key points, Topics (bullets). No inventions."
+    agent_prompt = "Summarize this podcast transcript in {language}. Markdown: Summary, Key points, Topics (bullets). No inventions. Keep it under 500 tokens long."
 
     try:
         # Init llm client
@@ -91,7 +91,7 @@ async def summarize(text: str, language: str = "en") -> str:
             model=OPENAI_MODEL,
             instructions=agent_prompt.format(language=language),
             input=text,
-            max_output_tokens=500,
+            max_output_tokens=900,
         )
 
         logger.info("OpenAI returned summary")

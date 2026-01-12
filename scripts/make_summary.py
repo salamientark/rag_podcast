@@ -1,0 +1,125 @@
+import sys
+import asyncio
+import io
+
+from pathlib import Path
+from urllib.parse import urlparse
+from logging import getLogger
+
+sys.path.insert(1, str(Path(__file__).resolve().parent.parent))
+
+from src.db import get_db_session, Episode, ProcessingStage
+from src.storage.cloud import CloudStorage
+from src.mcp.tools.get_episode_summary import summarize
+
+logger = getLogger(__name__)
+
+
+def get_transcript_content(transcript_url: str) -> str:
+    """
+    Fetch transcript content from the given URL.
+
+    Parameters:
+        url (str): The URL of the transcript.
+
+    Returns:
+        str: The content of the transcript.
+    """
+    try:
+        # Get Client
+        storage_engine = CloudStorage()
+        client = storage_engine.get_client()
+
+        parsed_url = urlparse(transcript_url)
+        bucket_name = storage_engine.bucket_name
+        key = parsed_url.path.lstrip("/")
+        response = client.get_object(Bucket=bucket_name, Key=key)
+        return response["Body"].read().decode()
+    except Exception as exc:
+        logger.error(
+            f"[fetch_transcript] Error during transcript fetch: {exc}", exc_info=True
+        )
+        raise
+
+
+def save_summary_to_file(summary: str, file_path: str) -> None:
+    """
+    Save the summary to a local file.
+    Parameters:
+        summary (str): The summary text to save.
+        file_path (str): The path to the file where the summary will be saved.
+    """
+    try:
+        with open(file_path, "w", encoding="utf-8") as file:
+            file.write(summary)
+        logger.info(f"Summary saved to {file_path}")
+    except Exception as exc:
+        logger.error(
+            f"[save_summary_to_file] Error saving summary: {exc}", exc_info=True
+        )
+        raise
+
+
+def get_episode_info() -> list[tuple[str, str, str]]:
+    """
+    Retrieve episode information from the database.
+    Returns:
+        list[tuple[str, str, str]]: A list of tuples containing episode ID, podcast name, and formatted transcript path.
+    """
+    episodes_info = []
+    with get_db_session() as session:
+        response = (
+            session.query(Episode)
+            .filter(Episode.processing_stage == ProcessingStage.EMBEDDED)
+            .all()
+        )
+        for episode in response:
+            episodes_info.append(
+                (episode.episode_id, episode.podcast, episode.formatted_transcript_path)
+            )
+    return episodes_info
+
+
+def save_summary_to_cloud(bucket_name: str, key: str, summary: str) -> None:
+    """
+    Save the summary to cloud storage.
+    Parameters:
+        bucket_name (str): The name of the cloud storage bucket.
+        key (str): The key (path) in the bucket where the summary will be saved.
+        summary (str): The summary text to save.
+    """
+    try:
+        # Get S3 client
+        storage_engine = CloudStorage()
+        client = storage_engine.get_client()
+
+        # Create io.BytesIO object from summary
+        file_stream = io.BytesIO(summary.encode("utf-8"))
+
+        # Upload to cloud storage
+        client.upload_fileobj(file_stream, bucket_name, key)
+
+    except Exception as exc:
+        logger.error(
+            f"[save_summary_to_cloud] Error saving summary: {exc}", exc_info=True
+        )
+        raise
+
+
+async def main():
+    try:
+        episodes_infos = get_episode_info()
+        cloud_storage = CloudStorage()
+        for episode_id, episode_podcast, transcript_url in episodes_infos:
+            bucket_name = cloud_storage.bucket_name
+            key = f"{episode_podcast}/summarys/episode_{episode_id}_summary.txt"
+            content = get_transcript_content(transcript_url)
+            summary = await summarize(content, language="fr")
+            save_summary_to_cloud(bucket_name, key, summary)
+    except Exception as exc:
+        logger.error(f"[main] Error in main execution: {exc}", exc_info=True)
+        exit(1)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
