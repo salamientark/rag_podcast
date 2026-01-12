@@ -40,7 +40,7 @@ from src.transcription import (
 )
 from src.transcription.transcript import transcribe_with_diarization
 from src.embedder.embed import process_episode_embedding
-from src.storage import CloudStorage, LocalStorage
+from src.storage import get_cloud_storage, LocalStorage
 from src.transcription.summarize import summarize, save_summary_to_cloud
 
 
@@ -150,7 +150,7 @@ def run_download_stage(
         if not missing_episodes:
             logger.info("No missing episodes to download.")
             if cloud_save:
-                storage = CloudStorage()
+                storage = get_cloud_storage()
                 for episode in episodes_list:
                     # for i, episode in enumerate(episodes):
                     filename = os.path.basename(episode["audio_path"])
@@ -200,7 +200,7 @@ def run_download_stage(
                 }
                 episodes_list.append(episode_data)
                 if cloud_save:
-                    storage = CloudStorage()
+                    storage = get_cloud_storage()
                     workspace = f"{podcast}/audio/"
                     filename = os.path.basename(filepath)
                     if storage.file_exist(workspace, filename):
@@ -469,7 +469,7 @@ def run_formatted_transcript_stage(
 
             # Cloud save
             if cloud_storage:
-                storage = CloudStorage()
+                storage = get_cloud_storage()
                 workspace = (
                     f"{episodes[0]['podcast']}/transcripts/episode_{episode_id:03d}/"
                 )
@@ -512,7 +512,7 @@ async def run_summarization_stage(
                 keys `podcast`, `episode_id`, `transcript_path`
     """
     try:
-        storage_engine = CloudStorage()
+        storage_engine = get_cloud_storage()
         for episode in episodes:
             logger = logging.getLogger("pipeline")
             logger.info("Starting summarization stage...")

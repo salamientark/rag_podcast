@@ -4,7 +4,7 @@ import io
 
 from logging import getLogger
 
-from src.storage.cloud import CloudStorage
+from src.storage.cloud import get_cloud_storage
 from src.llm.openai import get_openai_async_client, OPENAI_MODEL
 
 
@@ -84,7 +84,7 @@ def save_summary_to_cloud(bucket_name: str, key: str, summary: str) -> str:
     """
     try:
         # Get S3 client
-        storage_engine = CloudStorage()
+        storage_engine = get_cloud_storage()
         client = storage_engine.get_client()
 
         # Create io.BytesIO object from summary

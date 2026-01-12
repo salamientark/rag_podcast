@@ -8,7 +8,7 @@ from logging import getLogger
 sys.path.insert(1, str(Path(__file__).resolve().parent.parent))
 
 from src.db import get_db_session, Episode, ProcessingStage, update_episode_in_db
-from src.storage.cloud import CloudStorage
+from src.storage.cloud import get_cloud_storage
 from src.mcp.tools.get_episode_summary import summarize
 from src.transcription.summarize import save_summary_to_cloud
 
@@ -27,7 +27,7 @@ def get_transcript_content(transcript_url: str) -> str:
     """
     try:
         # Get Client
-        storage_engine = CloudStorage()
+        storage_engine = get_cloud_storage()
         client = storage_engine.get_client()
 
         parsed_url = urlparse(transcript_url)
@@ -88,7 +88,7 @@ def get_episode_info() -> list[tuple[str, str, str, str]]:
 async def main():
     try:
         episodes_infos = get_episode_info()
-        cloud_storage = CloudStorage()
+        cloud_storage = get_cloud_storage()
         for uuid, episode_id, episode_podcast, transcript_url in episodes_infos:
             bucket_name = cloud_storage.bucket_name
             key = f"{episode_podcast}/summarys/episode_{episode_id}_summary.txt"

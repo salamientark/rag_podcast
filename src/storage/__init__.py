@@ -6,11 +6,12 @@ backends, supporting both local filesystem and cloud storage services.
 """
 
 from .base import BaseStorage
-from .cloud import CloudStorage
+from .cloud import CloudStorage, get_cloud_storage
 from .local import LocalStorage
 
 __all__ = [
     "BaseStorage",
     "CloudStorage",
+    "get_cloud_storage",
     "LocalStorage",
 ]

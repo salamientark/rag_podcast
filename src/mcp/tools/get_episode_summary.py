@@ -19,7 +19,7 @@ from tempfile import NamedTemporaryFile
 from typing import Optional
 from urllib.parse import urlparse
 
-from src.storage.cloud import CloudStorage
+from src.storage.cloud import get_cloud_storage
 from src.transcription.summarize import summarize
 
 from ..config import mcp
@@ -43,7 +43,7 @@ async def fetch_transcript(transcript_url: str) -> str:
     """
     try:
         # Get Client
-        storage_engine = CloudStorage()
+        storage_engine = get_cloud_storage()
         client = storage_engine.get_client()
         bucket_name = storage_engine.bucket_name
 
