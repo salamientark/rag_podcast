@@ -186,7 +186,7 @@ def run_download_stage(
                     processing_stage=ProcessingStage.AUDIO_DOWNLOADED,
                 )
                 episode_data = episode.copy()
-                episode_data['audio_file_path'] = filepath
+                episode_data["audio_file_path"] = filepath
                 episodes_list.append(episode_data)
                 if cloud_save:
                     storage = get_cloud_storage()
@@ -512,7 +512,7 @@ async def run_summarization_stage(
         storage_engine = get_cloud_storage()
         client = storage_engine.get_client()
         for episode in episodes:
-            if episode['summary_path']:
+            if episode["summary_path"]:
                 continue
             podcast = episode["podcast"]
             episode_id = episode["episode_id"]
@@ -527,7 +527,6 @@ async def run_summarization_stage(
                     f"Summary already exists for episode ID {episode_id:03d}, skipping summarization."
                 )
                 continue
-
 
             # Generate summary
             logger.info(
