@@ -445,7 +445,7 @@ def process_episode_embedding(
         with input_path.open("r", encoding="utf-8") as f:
             transcript_text = f.read()
 
-        # Chunk text if needed (max 30K tokens per chunk, 10% overlap)
+        # Chunk text if needed (max MAX_TOKEN_PER_CHUNK tokens per chunk, 10% overlap)
         chunk_texts = chunk_long_text(
             transcript_text, max_tokens=MAX_TOKEN_PER_CHUNK, overlap_percent=0.1
         )

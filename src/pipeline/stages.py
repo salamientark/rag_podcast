@@ -512,7 +512,7 @@ async def run_summarization_stage(
         storage_engine = get_cloud_storage()
         client = storage_engine.get_client()
         for episode in episodes:
-            if episode["summary_path"]:
+            if episode["summary_path"] and not force:
                 continue
             podcast = episode["podcast"]
             episode_id = episode["episode_id"]
