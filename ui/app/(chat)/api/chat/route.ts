@@ -39,6 +39,7 @@ export const maxDuration = 60;
 
 const handler = async (request: Request) => {
   after(async () => await langfuseSpanProcessor.forceFlush());
+  const rootSpan = trace.getActiveSpan();
 
   let requestBody: PostRequestBody;
 
@@ -48,7 +49,7 @@ const handler = async (request: Request) => {
   } catch (error) {
     updateActiveObservation({ output: error, level: 'ERROR' });
     updateActiveTrace({ name: 'ui.chat.request', output: error });
-    trace.getActiveSpan()?.end();
+    rootSpan?.end();
     return new ChatSDKError('bad_request:api').toResponse();
   }
 
@@ -61,7 +62,7 @@ const handler = async (request: Request) => {
     if (!session?.user) {
       updateActiveObservation({ output: 'unauthorized', level: 'ERROR' });
       updateActiveTrace({ name: 'ui.chat.request', output: 'unauthorized' });
-      trace.getActiveSpan()?.end();
+      rootSpan?.end();
       return new ChatSDKError('unauthorized:chat').toResponse();
     }
 
@@ -75,7 +76,7 @@ const handler = async (request: Request) => {
     if (messageCount > entitlementsByUserType[userType].maxMessagesPerDay) {
       updateActiveObservation({ output: 'rate_limited', level: 'ERROR' });
       updateActiveTrace({ name: 'ui.chat.request', output: 'rate_limited' });
-      trace.getActiveSpan()?.end();
+      rootSpan?.end();
       return new ChatSDKError('rate_limit:chat').toResponse();
     }
 
@@ -96,7 +97,7 @@ const handler = async (request: Request) => {
       if (chat.userId !== session.user.id) {
         updateActiveObservation({ output: 'forbidden', level: 'ERROR' });
         updateActiveTrace({ name: 'ui.chat.request', output: 'forbidden' });
-        trace.getActiveSpan()?.end();
+        rootSpan?.end();
         return new ChatSDKError('forbidden:chat').toResponse();
       }
     }
@@ -183,10 +184,12 @@ const handler = async (request: Request) => {
             experimental_transform: smoothStream({ chunking: 'word' }),
             experimental_generateMessageId: generateUUID,
             onFinish: async ({ response }) => {
-              const langfuseResponseMessages = response.messages.map((msg: any) => ({
-                role: msg.role,
-                parts: msg.parts,
-              }));
+              const langfuseResponseMessages = response.messages.map(
+                (msg: any) => ({
+                  role: msg.role,
+                  parts: msg.parts,
+                }),
+              );
 
               updateActiveObservation({ output: langfuseResponseMessages });
               updateActiveTrace({ output: langfuseResponseMessages });
@@ -225,7 +228,7 @@ const handler = async (request: Request) => {
                 }
               }
 
-              trace.getActiveSpan()?.end();
+              rootSpan?.end();
               await mcpClient.close();
             },
             experimental_telemetry: {
@@ -242,7 +245,7 @@ const handler = async (request: Request) => {
         } catch (error) {
           updateActiveObservation({ output: error, level: 'ERROR' });
           updateActiveTrace({ name: 'ui.chat.request', output: error });
-          trace.getActiveSpan()?.end();
+          rootSpan?.end();
           throw error;
         }
       },
@@ -257,7 +260,7 @@ const handler = async (request: Request) => {
 
     updateActiveObservation({ output: error, level: 'ERROR' });
     updateActiveTrace({ name: 'ui.chat.request', output: error });
-    trace.getActiveSpan()?.end();
+    rootSpan?.end();
 
     if (error instanceof ChatSDKError) {
       return error.toResponse();
