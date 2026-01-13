@@ -110,10 +110,15 @@ const handler = async (request: Request) => {
       message,
     });
 
-    const langfuseMessages = messages.map((msg: any) => ({
-      role: msg.role,
-      parts: msg.parts,
-    }));
+	interface LangfuseMessage {
+	  role: string;
+	  parts: unknown[];
+	}
+
+	const langfuseMessages: LangfuseMessage[] = messages.map((msg) => ({
+	  role: msg.role,
+	  parts: msg.parts,
+	}));
 
     updateActiveObservation({
       input: {
@@ -155,8 +160,8 @@ const handler = async (request: Request) => {
 
     const stream = createDataStream({
       execute: async (dataStream) => {
+		let mcpClient: Awaited<ReturnType<typeof createMCPClient>> | null = null;
         try {
-	      let mcpClient: Awaited<ReturnType<typeof createMCPClient>> | null = null;
           const authToken = await createAuthToken();
 
           const serverUrl = process.env.MCP_SERVER_URL;
@@ -174,7 +179,7 @@ const handler = async (request: Request) => {
             },
           });
 
-		  try {
+          try {
             const tools = await mcpClient.tools();
             const result = streamText({
               model: myProvider.languageModel(selectedChatModel),
@@ -231,7 +236,7 @@ const handler = async (request: Request) => {
                 }
 
                 rootSpan?.end();
-                await mcpClient.close();
+                if (mcpClient) await mcpClient.close();
               },
               experimental_telemetry: {
                 isEnabled: true,
@@ -244,17 +249,17 @@ const handler = async (request: Request) => {
             result.mergeIntoDataStream(dataStream, {
               sendReasoning: true,
             });
-		  } catch (streamError) {
-		  	await mcpClient.close();
-			throw streamError;
-		  }
+          } catch (streamError) {
+            await mcpClient.close();
+            throw streamError;
+          }
         } catch (error) {
           updateActiveObservation({ output: error, level: 'ERROR' });
           updateActiveTrace({ name: 'ui.chat.request', output: error });
           rootSpan?.end();
-		  if (mcpClient) {
-		  	await mcpClient.close();
-		  }
+          if (mcpClient) {
+            await mcpClient.close();
+          }
           throw error;
         }
       },
