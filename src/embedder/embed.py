@@ -18,6 +18,7 @@ from src.chunker.token_counter import check_voyage_limits, count_tokens
 from src.chunker import chunk_long_text
 
 
+MAX_TOKEN_PER_CHUNK = 4000
 DEFAULT_EMBEDDING_OUTPUT_DIR = Path("data/embeddings")
 
 
@@ -73,7 +74,7 @@ def embed_text(text: str | list[str], dimensions: int = 1024) -> Any:
         texts_to_embed = [text] if isinstance(text, str) else text
 
         # Check token limits before making API call
-        model_name = "voyage-3"
+        model_name = "voyage-3.5"
         limit_check = check_voyage_limits(texts_to_embed, model=model_name)
 
         if not limit_check["fits"]:
@@ -388,7 +389,7 @@ def process_episode_embedding(
 
             # Re-chunk the text to get chunk texts for metadata
             chunk_texts = chunk_long_text(
-                transcript_text, max_tokens=30000, overlap_percent=0.1
+                transcript_text, max_tokens=MAX_TOKEN_PER_CHUNK, overlap_percent=0.1
             )
 
             # Ensure we have the same number of chunks as embeddings
@@ -444,9 +445,9 @@ def process_episode_embedding(
         with input_path.open("r", encoding="utf-8") as f:
             transcript_text = f.read()
 
-        # Chunk text if needed (max 30K tokens per chunk, 10% overlap)
+        # Chunk text if needed (max MAX_TOKEN_PER_CHUNK tokens per chunk, 10% overlap)
         chunk_texts = chunk_long_text(
-            transcript_text, max_tokens=30000, overlap_percent=0.1
+            transcript_text, max_tokens=MAX_TOKEN_PER_CHUNK, overlap_percent=0.1
         )
 
         # Embed all chunks in single API call

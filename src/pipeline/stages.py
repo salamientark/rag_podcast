@@ -41,7 +41,7 @@ from src.transcription import (
 from src.transcription.transcript import transcribe_with_diarization
 from src.embedder.embed import process_episode_embedding
 from src.storage import get_cloud_storage, LocalStorage
-from src.transcription.summarize import summarize, save_summary_to_cloud
+from src.transcription.summarize import summarize, save_summary_to_cloud, make_file_url
 
 
 AUDIO_DIR = "data/audio"
@@ -112,7 +112,7 @@ def run_download_stage(
         cloud_save (bool): If True, upload audio files to cloud storage and store cloud paths in the database.
 
     Returns:
-        list[Dict[str, Any]]: List of episode dictionaries with keys `uuid`, `podcast`, `episode_id`, `title`, and `audio_path` (local or cloud path as stored in the DB).
+        list[Dict[str, Any]]: List of episode dictionaries with keys `uuid`, `podcast`, `episode_id`, `title`, and `audio_file_path` (local or cloud path as stored in the DB).
     """
     logger = logging.getLogger("pipeline")
     try:
@@ -133,19 +133,13 @@ def run_download_stage(
         for episode in episodes:
             ep_number = episode["episode_id"]
             ep_title = episode["title"]
-            episode_data = {
-                "uuid": episode["uuid"],
-                "podcast": episode["podcast"],
-                "episode_id": episode["episode_id"],
-                "title": episode["title"],
-                "description": episode["description"],
-            }
+            episode_data = episode.copy()
             filename = generate_filename(ep_number, ep_title)
             if filename not in existing_files:
                 missing_episodes.append(episode)
             else:
                 filepath = os.path.join(workspace, filename)
-                episode_data["audio_path"] = filepath
+                episode_data["audio_file_path"] = filepath
                 episodes_list.append(episode_data)
 
         if not missing_episodes:
@@ -153,14 +147,14 @@ def run_download_stage(
             if cloud_save:
                 storage = get_cloud_storage()
                 for episode in episodes_list:
-                    filename = os.path.basename(episode["audio_path"])
+                    filename = os.path.basename(episode["audio_file_path"])
                     if storage.file_exist(workspace, filename):
                         logger.info(
                             f"Episode {episode['episode_id']} already exists in cloud storage, skipping upload."
                         )
                     else:
                         storage.client.upload_file(
-                            episode["audio_path"],
+                            episode["audio_file_path"],
                             storage.bucket_name,
                             f"{workspace}{filename}",
                         )
@@ -191,14 +185,8 @@ def run_download_stage(
                     audio_file_path=filepath,
                     processing_stage=ProcessingStage.AUDIO_DOWNLOADED,
                 )
-                episode_data = {
-                    "uuid": episode["uuid"],
-                    "podcast": episode["podcast"],
-                    "episode_id": episode["episode_id"],
-                    "title": episode["title"],
-                    "description": episode["description"],
-                    "audio_path": filepath,
-                }
+                episode_data = episode.copy()
+                episode_data["audio_file_path"] = filepath
                 episodes_list.append(episode_data)
                 if cloud_save:
                     storage = get_cloud_storage()
@@ -243,7 +231,7 @@ def run_raw_transcript_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, A
 
     Parameters:
         episodes (list[Dict[str, Any]]): List of episode dictionaries. Each dictionary must include
-            the keys `uuid`, `podcast`, `episode_id`, and `audio_path`. `title` is optional but may be present.
+            the keys `uuid`, `podcast`, `episode_id`, and `audio_file_path`. `title` is optional but may be present.
 
     Returns:
         list[Dict[str, Any]]: The input episode dictionaries augmented with `raw_transcript_path`.
@@ -285,10 +273,10 @@ def run_raw_transcript_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, A
             else:
                 # Call transcription function here
                 logger.info(
-                    f"Transcribing episode ID {episode_id:03d} from file {episode['audio_path']}..."
+                    f"Transcribing episode ID {episode_id:03d} from file {episode['audio_file_path']}..."
                 )
                 raw_transcript = transcribe_with_diarization(
-                    Path(episode["audio_path"]), language="fr"
+                    Path(episode["audio_file_path"]), language="fr"
                 )
 
                 # Extract metadata from new transcription
@@ -508,6 +496,7 @@ def run_formatted_transcript_stage(
 
 async def run_summarization_stage(
     episodes: list[Dict[str, Any]],
+    force: bool = False,
 ) -> None:
     """
     Create summaries for each episode's formatted transcript and attach their paths to each episode.
@@ -523,12 +512,21 @@ async def run_summarization_stage(
         storage_engine = get_cloud_storage()
         client = storage_engine.get_client()
         for episode in episodes:
+            if episode["summary_path"] and not force:
+                continue
             podcast = episode["podcast"]
             episode_id = episode["episode_id"]
             transcript_path = episode["formatted_transcript_path"]
             bucket_name = storage_engine.bucket_name
             transcript_key = f"{podcast}/" + transcript_path.split(f"{podcast}/")[1]
             summary_key = f"{podcast}/summaries/episode_{episode_id:03d}_summary.txt"
+
+            link = make_file_url(bucket_name, summary_key)
+            if storage_engine.file_exist(bucket_name, summary_key) and not force:
+                logger.info(
+                    f"Summary already exists for episode ID {episode_id:03d}, skipping summarization."
+                )
+                continue
 
             # Generate summary
             logger.info(
