@@ -74,7 +74,7 @@ def embed_text(text: str | list[str], dimensions: int = 1024) -> Any:
         texts_to_embed = [text] if isinstance(text, str) else text
 
         # Check token limits before making API call
-        model_name = "voyage-3"
+        model_name = "voyage-3.5"
         limit_check = check_voyage_limits(texts_to_embed, model=model_name)
 
         if not limit_check["fits"]:

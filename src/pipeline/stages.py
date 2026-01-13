@@ -41,7 +41,7 @@ from src.transcription import (
 from src.transcription.transcript import transcribe_with_diarization
 from src.embedder.embed import process_episode_embedding
 from src.storage import get_cloud_storage, LocalStorage
-from src.transcription.summarize import summarize, save_summary_to_cloud
+from src.transcription.summarize import summarize, save_summary_to_cloud, make_file_url
 
 
 AUDIO_DIR = "data/audio"
@@ -265,7 +265,6 @@ def run_raw_transcript_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, A
             transcript_duration = None
             transcript_confidence = None
 
-            print(f"DEBUG: Checking for existing transcript at {raw_file_path}")
             if raw_file_path.exists():
                 # Load existing transcript to extract metadata
                 logger.info(
@@ -497,6 +496,7 @@ def run_formatted_transcript_stage(
 
 async def run_summarization_stage(
     episodes: list[Dict[str, Any]],
+    force: bool = False,
 ) -> None:
     """
     Create summaries for each episode's formatted transcript and attach their paths to each episode.
@@ -520,6 +520,14 @@ async def run_summarization_stage(
             bucket_name = storage_engine.bucket_name
             transcript_key = f"{podcast}/" + transcript_path.split(f"{podcast}/")[1]
             summary_key = f"{podcast}/summaries/episode_{episode_id:03d}_summary.txt"
+
+            link = make_file_url(bucket_name, summary_key)
+            if storage_engine.file_exist(bucket_name, summary_key) and not force:
+                logger.info(
+                    f"Summary already exists for episode ID {episode_id:03d}, skipping summarization."
+                )
+                continue
+
 
             # Generate summary
             logger.info(

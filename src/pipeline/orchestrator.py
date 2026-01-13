@@ -195,7 +195,7 @@ async def run_pipeline(
             episodes_to_process = run_formatted_transcript_stage(
                 episodes_to_process, use_cloud_storage, force
             )
-            await run_summarization_stage(episodes_to_process)
+            await run_summarization_stage(episodes_to_process, force)
 
         # Run embedding stage
         if force or stages is None or "embed" in stages:
