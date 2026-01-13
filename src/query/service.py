@@ -12,10 +12,11 @@ import contextlib
 import logging
 from typing import Optional
 
-from llama_index.core import Settings, VectorStoreIndex
+from llama_index.core import Settings, VectorStoreIndex, get_response_synthesizer
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.vector_stores.types import MetadataFilter, MetadataFilters
+from llama_index.core.response_synthesizers import ResponseMode
 from llama_index.embeddings.voyageai import VoyageEmbedding
 from llama_index.llms.anthropic import Anthropic
 from llama_index.vector_stores.qdrant import QdrantVectorStore
@@ -160,7 +161,9 @@ class PodcastQueryService:
         self,
         retriever,
         langfuse,
-        enhanced_question
+        enhanced_question,
+        podcast_filter_applied: bool,
+        normalized_podcast: Optional[str],
     ):
         try:
             retrieve_cm = langfuse.start_as_current_observation(
@@ -177,9 +180,7 @@ class PodcastQueryService:
                 try:
                     retrieved_previews = []
                     for node_with_score in retrieved_nodes:
-                        metadata = (
-                            getattr(node_with_score.node, "metadata", {}) or {}
-                        )
+                        metadata = getattr(node_with_score.node, "metadata", {}) or {}
                         try:
                             raw_text = node_with_score.node.get_content()
                         except Exception:
@@ -192,9 +193,7 @@ class PodcastQueryService:
                                 "podcast": metadata.get("podcast"),
                                 "episode_id": metadata.get("episode_id"),
                                 "title": metadata.get("title"),
-                                "publication_date": metadata.get(
-                                    "publication_date"
-                                ),
+                                "publication_date": metadata.get("publication_date"),
                                 "chunk_index": metadata.get("chunk_index"),
                                 "snippet": snippet,
                             }
@@ -211,10 +210,45 @@ class PodcastQueryService:
                             "podcast": normalized_podcast,
                         },
                     )
+                    return retrieved_nodes
                 except Exception as exc:
-                    self.logger.debug(
-                        f"Langfuse retrieve span update failed: {exc}"
+                    self.logger.debug(f"Langfuse retrieve span update failed: {exc}")
+
+    async def _get_synthetized_answer(
+        self,
+        langfuse,
+        enhanced_question: str,
+        sorted_nodes,
+    ):
+        synthesizer = get_response_synthesizer(
+            response_mode=ResponseMode.COMPACT, llm=Settings.llm
+        )
+        try:
+            synthesize_cm = langfuse.start_as_current_observation(
+                as_type="span",
+                name="rag.synthesize",
+            )
+        except Exception as exc:
+            self.logger.debug(f"Langfuse synthesize span start failed: {exc}")
+            synthesize_cm = contextlib.nullcontext()
+
+        with synthesize_cm as synthesize_span:
+            response = await synthesizer.asynthesize(enhanced_question, sorted_nodes)
+
+            if synthesize_span is not None:
+                try:
+                    synthesize_span.update(
+                        output={"response_length": len(str(response))},
+                        metadata={
+                            "response_mode": str(ResponseMode.COMPACT),
+                            "llm_model": self.config.llm_model,
+                        },
                     )
+                except Exception as exc:
+                    self.logger.debug(f"Langfuse synthesize span update failed: {exc}")
+
+        self.logger.debug(f"Generated response: {len(str(response))} characters")
+        return str(response)
 
     async def query(
         self,
@@ -263,62 +297,14 @@ class PodcastQueryService:
                 )
                 podcast_filter_applied = True
 
-            self._setup_langfuse_retrieval(retriever, langfuse, enhanced_question)
             # First retrieve nodes
-            # try:
-            #     retrieve_cm = langfuse.start_as_current_observation(
-            #         as_type="span",
-            #         name="rag.retrieve",
-            #     )
-            # except Exception as exc:
-            #     self.logger.debug(f"Langfuse retrieve span start failed: {exc}")
-            #     retrieve_cm = contextlib.nullcontext()
-            #
-            # with retrieve_cm as retrieve_span:
-            #     retrieved_nodes = await retriever.aretrieve(enhanced_question)
-            #
-            #     if retrieve_span is not None:
-            #         try:
-            #             retrieved_previews = []
-            #             for node_with_score in retrieved_nodes:
-            #                 metadata = (
-            #                     getattr(node_with_score.node, "metadata", {}) or {}
-            #                 )
-            #                 try:
-            #                     raw_text = node_with_score.node.get_content()
-            #                 except Exception:
-            #                     raw_text = ""
-            #
-            #                 snippet = " ".join(str(raw_text).split())[:500]
-            #                 retrieved_previews.append(
-            #                     {
-            #                         "score": node_with_score.score,
-            #                         "podcast": metadata.get("podcast"),
-            #                         "episode_id": metadata.get("episode_id"),
-            #                         "title": metadata.get("title"),
-            #                         "publication_date": metadata.get(
-            #                             "publication_date"
-            #                         ),
-            #                         "chunk_index": metadata.get("chunk_index"),
-            #                         "snippet": snippet,
-            #                     }
-            #                 )
-            #
-            #             retrieve_span.update(
-            #                 output={
-            #                     "num_nodes": len(retrieved_nodes),
-            #                     "nodes": retrieved_previews,
-            #                 },
-            #                 metadata={
-            #                     "similarity_top_k": self.config.similarity_top_k,
-            #                     "podcast_filter_applied": podcast_filter_applied,
-            #                     "podcast": normalized_podcast,
-            #                 },
-            #             )
-            #         except Exception as exc:
-            #             self.logger.debug(
-            #                 f"Langfuse retrieve span update failed: {exc}"
-            #             )
+            retrieved_nodes = await self._setup_langfuse_retrieval(
+                retriever,
+                langfuse,
+                enhanced_question,
+                podcast_filter_applied,
+                normalized_podcast,
+            )
 
             # Apply temporal sorting if needed
             sorted_nodes = sort_nodes_temporally(retrieved_nodes, enhanced_question)
@@ -329,43 +315,12 @@ class PodcastQueryService:
                     if hasattr(postprocessor, "postprocess_nodes"):
                         sorted_nodes = postprocessor.postprocess_nodes(sorted_nodes)
 
-            # Generate response using sorted nodes with the LLM from Settings
-            from llama_index.core.response_synthesizers import ResponseMode
-            from llama_index.core import get_response_synthesizer
-
-            synthesizer = get_response_synthesizer(
-                response_mode=ResponseMode.COMPACT, llm=Settings.llm
+            # Synthesize
+            response = await self._get_synthetized_answer(
+                langfuse,
+                enhanced_question,
+                sorted_nodes,
             )
-
-            try:
-                synthesize_cm = langfuse.start_as_current_observation(
-                    as_type="span",
-                    name="rag.synthesize",
-                )
-            except Exception as exc:
-                self.logger.debug(f"Langfuse synthesize span start failed: {exc}")
-                synthesize_cm = contextlib.nullcontext()
-
-            with synthesize_cm as synthesize_span:
-                response = await synthesizer.asynthesize(
-                    enhanced_question, sorted_nodes
-                )
-
-                if synthesize_span is not None:
-                    try:
-                        synthesize_span.update(
-                            output={"response_length": len(str(response))},
-                            metadata={
-                                "response_mode": str(ResponseMode.COMPACT),
-                                "llm_model": self.config.llm_model,
-                            },
-                        )
-                    except Exception as exc:
-                        self.logger.debug(
-                            f"Langfuse synthesize span update failed: {exc}"
-                        )
-
-            self.logger.debug(f"Generated response: {len(str(response))} characters")
             return str(response)
 
         except Exception as e:
