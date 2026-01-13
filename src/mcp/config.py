@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 import logging
 from src.query.config import QueryConfig
 from src.query.service import PodcastQueryService
+from src.observability.langfuse import init_langfuse_observability
 from .prompts import SERVER_PROMPT
 from fastmcp import FastMCP
 from fastmcp.server.auth.providers.jwt import JWTVerifier
@@ -42,6 +43,9 @@ mcp = FastMCP(name="Rag Podcast Server", instructions=SERVER_PROMPT, auth=auth)
 
 # Global configuration
 config = QueryConfig()
+
+# Observability (Langfuse + OpenInference)
+init_langfuse_observability()
 
 # Lazy-initialized service (stateless RAG, no conversation memory)
 _service_instance = None
