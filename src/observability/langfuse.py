@@ -22,7 +22,7 @@ from langfuse import get_client
 
 logger = logging.getLogger(__name__)
 
-_INITIALIZED = False
+_LANGFUSE_INITIALIZED = False
 
 
 def _is_langfuse_configured() -> bool:
@@ -37,8 +37,8 @@ def init_langfuse_observability() -> bool:
         False if Langfuse is not configured or initialization fails.
     """
 
-    global _INITIALIZED
-    if _INITIALIZED:
+    global _LANGFUSE_INITIALIZED
+    if _LANGFUSE_INITIALIZED:
         return True
 
     if not _is_langfuse_configured():
@@ -66,7 +66,7 @@ def init_langfuse_observability() -> bool:
         # Instrumentation is optional; core tracing still works.
         logger.warning(f"Failed to instrument LlamaIndex via OpenInference: {exc}")
 
-    _INITIALIZED = True
+    _LANGFUSE_INITIALIZED = True
     return True
 
 
