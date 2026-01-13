@@ -42,7 +42,6 @@ interface LangfuseMessage {
   parts: unknown[];
 }
 
-
 const handler = async (request: Request) => {
   after(async () => await langfuseSpanProcessor.forceFlush());
   const rootSpan = trace.getActiveSpan();
@@ -116,10 +115,10 @@ const handler = async (request: Request) => {
       message,
     });
 
-	const langfuseMessages: LangfuseMessage[] = messages.map((msg) => ({
-	  role: msg.role,
-	  parts: msg.parts ?? [],
-	}));
+    const langfuseMessages: LangfuseMessage[] = messages.map((msg) => ({
+      role: msg.role,
+      parts: msg.parts ?? [],
+    }));
 
     updateActiveObservation({
       input: {
@@ -161,7 +160,8 @@ const handler = async (request: Request) => {
 
     const stream = createDataStream({
       execute: async (dataStream) => {
-		let mcpClient: Awaited<ReturnType<typeof createMCPClient>> | null = null;
+        let mcpClient: Awaited<ReturnType<typeof createMCPClient>> | null =
+          null;
         try {
           const authToken = await createAuthToken();
 
@@ -192,7 +192,7 @@ const handler = async (request: Request) => {
               experimental_transform: smoothStream({ chunking: 'word' }),
               experimental_generateMessageId: generateUUID,
               onFinish: async ({ response }) => {
-			    try {
+                try {
                   const langfuseResponseMessages = response.messages.map(
                     (msg: any) => ({
                       role: msg.role,
@@ -239,7 +239,7 @@ const handler = async (request: Request) => {
                 } finally {
                   rootSpan?.end();
                   if (mcpClient) await mcpClient.close();
-			    }
+                }
               },
               experimental_telemetry: {
                 isEnabled: true,
