@@ -112,7 +112,7 @@ def run_download_stage(
         cloud_save (bool): If True, upload audio files to cloud storage and store cloud paths in the database.
 
     Returns:
-        list[Dict[str, Any]]: List of episode dictionaries with keys `uuid`, `podcast`, `episode_id`, `title`, and `audio_path` (local or cloud path as stored in the DB).
+        list[Dict[str, Any]]: List of episode dictionaries with keys `uuid`, `podcast`, `episode_id`, `title`, and `audio_file_path` (local or cloud path as stored in the DB).
     """
     logger = logging.getLogger("pipeline")
     try:
@@ -133,19 +133,13 @@ def run_download_stage(
         for episode in episodes:
             ep_number = episode["episode_id"]
             ep_title = episode["title"]
-            episode_data = {
-                "uuid": episode["uuid"],
-                "podcast": episode["podcast"],
-                "episode_id": episode["episode_id"],
-                "title": episode["title"],
-                "description": episode["description"],
-            }
+            episode_data = episode.copy()
             filename = generate_filename(ep_number, ep_title)
             if filename not in existing_files:
                 missing_episodes.append(episode)
             else:
                 filepath = os.path.join(workspace, filename)
-                episode_data["audio_path"] = filepath
+                episode_data["audio_file_path"] = filepath
                 episodes_list.append(episode_data)
 
         if not missing_episodes:
@@ -153,14 +147,14 @@ def run_download_stage(
             if cloud_save:
                 storage = get_cloud_storage()
                 for episode in episodes_list:
-                    filename = os.path.basename(episode["audio_path"])
+                    filename = os.path.basename(episode["audio_file_path"])
                     if storage.file_exist(workspace, filename):
                         logger.info(
                             f"Episode {episode['episode_id']} already exists in cloud storage, skipping upload."
                         )
                     else:
                         storage.client.upload_file(
-                            episode["audio_path"],
+                            episode["audio_file_path"],
                             storage.bucket_name,
                             f"{workspace}{filename}",
                         )
@@ -191,14 +185,8 @@ def run_download_stage(
                     audio_file_path=filepath,
                     processing_stage=ProcessingStage.AUDIO_DOWNLOADED,
                 )
-                episode_data = {
-                    "uuid": episode["uuid"],
-                    "podcast": episode["podcast"],
-                    "episode_id": episode["episode_id"],
-                    "title": episode["title"],
-                    "description": episode["description"],
-                    "audio_path": filepath,
-                }
+                episode_data = episode.copy()
+                episode_data['audio_file_path'] = filepath
                 episodes_list.append(episode_data)
                 if cloud_save:
                     storage = get_cloud_storage()
@@ -243,7 +231,7 @@ def run_raw_transcript_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, A
 
     Parameters:
         episodes (list[Dict[str, Any]]): List of episode dictionaries. Each dictionary must include
-            the keys `uuid`, `podcast`, `episode_id`, and `audio_path`. `title` is optional but may be present.
+            the keys `uuid`, `podcast`, `episode_id`, and `audio_file_path`. `title` is optional but may be present.
 
     Returns:
         list[Dict[str, Any]]: The input episode dictionaries augmented with `raw_transcript_path`.
@@ -277,6 +265,7 @@ def run_raw_transcript_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, A
             transcript_duration = None
             transcript_confidence = None
 
+            print(f"DEBUG: Checking for existing transcript at {raw_file_path}")
             if raw_file_path.exists():
                 # Load existing transcript to extract metadata
                 logger.info(
@@ -285,10 +274,10 @@ def run_raw_transcript_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, A
             else:
                 # Call transcription function here
                 logger.info(
-                    f"Transcribing episode ID {episode_id:03d} from file {episode['audio_path']}..."
+                    f"Transcribing episode ID {episode_id:03d} from file {episode['audio_file_path']}..."
                 )
                 raw_transcript = transcribe_with_diarization(
-                    Path(episode["audio_path"]), language="fr"
+                    Path(episode["audio_file_path"]), language="fr"
                 )
 
                 # Extract metadata from new transcription
@@ -523,6 +512,8 @@ async def run_summarization_stage(
         storage_engine = get_cloud_storage()
         client = storage_engine.get_client()
         for episode in episodes:
+            if episode['summary_path']:
+                continue
             podcast = episode["podcast"]
             episode_id = episode["episode_id"]
             transcript_path = episode["formatted_transcript_path"]
