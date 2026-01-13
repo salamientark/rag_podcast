@@ -16,7 +16,7 @@ RUN uv sync --frozen --no-install-project --no-dev
 
 COPY src/ ./src/
 
-RUN groupadd -r appuser && useradd -r -g appuser appuser \
+RUN groupadd -r appuser && useradd -r -g appuser -m appuser \
     && chown -R appuser:appuser /app
 
 USER appuser
