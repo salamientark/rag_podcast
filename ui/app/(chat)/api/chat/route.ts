@@ -118,7 +118,7 @@ const handler = async (request: Request) => {
 
 	const langfuseMessages: LangfuseMessage[] = messages.map((msg) => ({
 	  role: msg.role,
-	  parts: msg.parts,
+	  parts: msg.parts ?? [],
 	}));
 
     updateActiveObservation({
