@@ -28,6 +28,9 @@ from .config import QueryConfig
 from .postprocessors import sort_nodes_temporally
 
 
+SNIPPET_SIZE = 500  # Characters for Langfuse node preview
+
+
 class PodcastQueryService:
     """
     Core stateless RAG service for podcast content.
@@ -186,7 +189,7 @@ class PodcastQueryService:
                         except Exception:
                             raw_text = ""
 
-                        snippet = " ".join(str(raw_text).split())[:500]
+                        snippet = " ".join(str(raw_text).split())[:SNIPPET_SIZE]
                         retrieved_previews.append(
                             {
                                 "score": node_with_score.score,
