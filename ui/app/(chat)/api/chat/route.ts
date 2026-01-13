@@ -37,6 +37,12 @@ import { podcastSystemPrompt } from '@/lib/ai/prompts';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
+interface LangfuseMessage {
+  role: string;
+  parts: unknown[];
+}
+
+
 const handler = async (request: Request) => {
   after(async () => await langfuseSpanProcessor.forceFlush());
   const rootSpan = trace.getActiveSpan();
@@ -109,11 +115,6 @@ const handler = async (request: Request) => {
       messages: previousMessages,
       message,
     });
-
-	interface LangfuseMessage {
-	  role: string;
-	  parts: unknown[];
-	}
 
 	const langfuseMessages: LangfuseMessage[] = messages.map((msg) => ({
 	  role: msg.role,
@@ -191,52 +192,54 @@ const handler = async (request: Request) => {
               experimental_transform: smoothStream({ chunking: 'word' }),
               experimental_generateMessageId: generateUUID,
               onFinish: async ({ response }) => {
-                const langfuseResponseMessages = response.messages.map(
-                  (msg: any) => ({
-                    role: msg.role,
-                    parts: msg.parts,
-                  }),
-                );
+			    try {
+                  const langfuseResponseMessages = response.messages.map(
+                    (msg: any) => ({
+                      role: msg.role,
+                      parts: msg.parts,
+                    }),
+                  );
 
-                updateActiveObservation({ output: langfuseResponseMessages });
-                updateActiveTrace({ output: langfuseResponseMessages });
+                  updateActiveObservation({ output: langfuseResponseMessages });
+                  updateActiveTrace({ output: langfuseResponseMessages });
 
-                if (session.user?.id) {
-                  try {
-                    const assistantId = getTrailingMessageId({
-                      messages: response.messages.filter(
-                        (message) => message.role === 'assistant',
-                      ),
-                    });
+                  if (session.user?.id) {
+                    try {
+                      const assistantId = getTrailingMessageId({
+                        messages: response.messages.filter(
+                          (message) => message.role === 'assistant',
+                        ),
+                      });
 
-                    if (!assistantId) throw new Error('No message ID found!');
+                      if (!assistantId) throw new Error('No message ID found!');
 
-                    const [, assistantMessage] = appendResponseMessages({
-                      messages: [message],
-                      responseMessages: response.messages,
-                    });
+                      const [, assistantMessage] = appendResponseMessages({
+                        messages: [message],
+                        responseMessages: response.messages,
+                      });
 
-                    await saveMessages({
-                      messages: [
-                        {
-                          id: assistantId,
-                          chatId: id,
-                          role: assistantMessage.role,
-                          parts: assistantMessage.parts,
-                          attachments:
-                            assistantMessage.experimental_attachments ?? [],
-                          createdAt: new Date(),
-                        },
-                      ],
-                    });
-                  } catch (e) {
-                    console.error(e);
-                    console.error('Failed to save chat :/');
+                      await saveMessages({
+                        messages: [
+                          {
+                            id: assistantId,
+                            chatId: id,
+                            role: assistantMessage.role,
+                            parts: assistantMessage.parts,
+                            attachments:
+                              assistantMessage.experimental_attachments ?? [],
+                            createdAt: new Date(),
+                          },
+                        ],
+                      });
+                    } catch (e) {
+                      console.error(e);
+                      console.error('Failed to save chat :/');
+                    }
                   }
-                }
-
-                rootSpan?.end();
-                if (mcpClient) await mcpClient.close();
+                } finally {
+                  rootSpan?.end();
+                  if (mcpClient) await mcpClient.close();
+			    }
               },
               experimental_telemetry: {
                 isEnabled: true,
