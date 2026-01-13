@@ -1,6 +1,7 @@
 ALLOWED_PODCASTS = {
     "Le rendez-vous Jeux",
     "Le rendez-vous Tech",
+    "The Phileas Club",
 }
 
 allowed_podcast_str = "".join(f"- {podcast}\n" for podcast in sorted(ALLOWED_PODCASTS))
