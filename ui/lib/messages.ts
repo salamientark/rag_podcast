@@ -4,6 +4,8 @@ import {
   experimental_createMCPClient as createMCPClient,
   smoothStream,
   streamText,
+  CoreAssistantMessage,
+  CoreToolMessage,
 } from 'ai';
 import { saveMessages } from '@/lib/db/queries';
 import { generateUUID, getTrailingMessageId } from '@/lib/utils';
@@ -12,6 +14,7 @@ import {
   updateActiveObservation,
   updateActiveTrace,
 } from '@langfuse/tracing';
+import { myProvider } from '@/lib/ai/providers';
 import { ChatSDKError } from '@/lib/errors';
 import { createAuthToken } from '@/lib/mcp/auth';
 // eslint-disable-next-line import/namespace -- prompts module is a plain-string prompt, not a namespace.
@@ -86,7 +89,7 @@ export async function streamTextOnFinishHandler(
 	chatId: string,
 	session: any,
 	userMessage: any,
-	rootSpan: ReturnType<typeof trace.getActiveSpan>)
+	rootSpan: ReturnType<typeof trace.getActiveSpan>): Promise<void>
 {
   const langfuseResponseMessages = response.messages.map(
     (msg: any) => ({
@@ -100,7 +103,8 @@ export async function streamTextOnFinishHandler(
   if (session.user?.id) {
   	const assistantId = getTrailingMessageId({
   	  messages: response.messages.filter(
-  		(message) => message.role === 'assistant',
+  		(message: (CoreToolMessage | CoreAssistantMessage) & { id: string }) =>
+		  message.role === 'assistant',
   	  ),
   	});
   
