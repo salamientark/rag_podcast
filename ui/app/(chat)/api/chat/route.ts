@@ -42,6 +42,188 @@ interface LangfuseMessage {
   parts: unknown[];
 }
 
+function logErrorAndEndSpan(rootSpan: ReturnType<typeof trace.getActiveSpan>, output: unknown) {
+  updateActiveObservation({ output, level: 'ERROR' });
+  updateActiveTrace({ name: 'ui.chat.request', output });
+  rootSpan?.end();
+}
+
+function toChatErrorResponse(
+  rootSpan: ReturnType<typeof trace.getActiveSpan>,
+  output: unknown,
+  errorCode: ConstructorParameters<typeof ChatSDKError>[0],
+) {
+  logErrorAndEndSpan(rootSpan, output);
+  return new ChatSDKError(errorCode).toResponse();
+}
+
+function toLangfuseMessages(messages: Array<any>): Array<LangfuseMessage> {
+  return messages.map((message) => ({
+    role: message.role,
+    parts: message.parts ?? [],
+  }));
+}
+
+function logLangfuseInput({
+  chatId,
+  userId,
+  selectedChatModel,
+  selectedVisibilityType,
+  langfuseMessages,
+}: {
+  chatId: string;
+  userId: string;
+  selectedChatModel: string;
+  selectedVisibilityType: string;
+  langfuseMessages: Array<LangfuseMessage>;
+}) {
+  const input = {
+    messages: langfuseMessages,
+    system: podcastSystemPrompt,
+    selectedChatModel,
+  };
+
+  updateActiveObservation({ input });
+
+  updateActiveTrace({
+    name: 'ui.chat.request',
+    sessionId: chatId,
+    userId,
+    input,
+    metadata: {
+      selectedVisibilityType,
+    },
+  });
+}
+
+function logLangfuseOutput(output: unknown) {
+  updateActiveObservation({ output });
+  updateActiveTrace({ output });
+}
+
+function createChatStream({
+  chatId,
+  messages,
+  selectedChatModel,
+  session,
+  userMessage,
+  rootSpan,
+}: {
+  chatId: string;
+  messages: Array<any>;
+  selectedChatModel: string;
+  session: any;
+  userMessage: any;
+  rootSpan: ReturnType<typeof trace.getActiveSpan>;
+}) {
+  return createDataStream({
+    execute: async (dataStream) => {
+      let mcpClient: Awaited<ReturnType<typeof createMCPClient>> | null = null;
+      try {
+        const authToken = await createAuthToken();
+
+        const serverUrl = process.env.MCP_SERVER_URL;
+        if (!serverUrl) {
+          throw new Error('MCP_SERVER_URL environment variable is not set');
+        }
+
+        mcpClient = await createMCPClient({
+          transport: {
+            type: 'sse',
+            url: serverUrl,
+            headers: {
+              Authorization: `Bearer ${authToken}`,
+            },
+          },
+        });
+
+        try {
+          const tools = await mcpClient.tools();
+          const result = streamText({
+            model: myProvider.languageModel(selectedChatModel),
+            messages,
+            maxSteps: 15,
+            system: podcastSystemPrompt,
+            tools,
+            experimental_activeTools: Object.keys(tools),
+            experimental_transform: smoothStream({ chunking: 'word' }),
+            experimental_generateMessageId: generateUUID,
+            onFinish: async ({ response }) => {
+              try {
+                const langfuseResponseMessages = response.messages.map(
+                  (msg: any) => ({
+                    role: msg.role,
+                    parts: msg.parts,
+                  }),
+                );
+
+                logLangfuseOutput(langfuseResponseMessages);
+
+                if (session.user?.id) {
+                    const assistantId = getTrailingMessageId({
+                      messages: response.messages.filter(
+                        (message) => message.role === 'assistant',
+                      ),
+                    });
+
+                    if (!assistantId) throw new Error('No message ID found!');
+
+                    const [, assistantMessage] = appendResponseMessages({
+                      messages: [userMessage],
+                      responseMessages: response.messages,
+                    });
+
+                    await saveMessages({
+                      messages: [
+                        {
+                          id: assistantId,
+                          chatId: chatId,
+                          role: assistantMessage.role,
+                          parts: assistantMessage.parts,
+                          attachments:
+                            assistantMessage.experimental_attachments ?? [],
+                          createdAt: new Date(),
+                        },
+                      ],
+                    });
+                }
+			  } catch (e) {
+				console.error(e);
+				console.error('Failed to save chat :/');
+              } finally {
+                rootSpan?.end();
+                if (mcpClient) await mcpClient.close();
+              }
+            },
+            experimental_telemetry: {
+              isEnabled: true,
+              functionId: 'stream-text',
+            },
+          });
+
+          result.consumeStream();
+
+          result.mergeIntoDataStream(dataStream, {
+            sendReasoning: true,
+          });
+        } catch (streamError) {
+          await mcpClient.close();
+          throw streamError;
+        }
+      } catch (error) {
+        logErrorAndEndSpan(rootSpan, error);
+        if (mcpClient) {
+          await mcpClient.close();
+        }
+        throw error;
+      }
+    },
+    onError: () => {
+      return 'Oops, an error occurred!';
+    },
+  });
+}
+
 const handler = async (request: Request) => {
   after(async () => await langfuseSpanProcessor.forceFlush());
   const rootSpan = trace.getActiveSpan();
@@ -52,10 +234,7 @@ const handler = async (request: Request) => {
     const json = await request.json();
     requestBody = postRequestBodySchema.parse(json);
   } catch (error) {
-    updateActiveObservation({ output: error, level: 'ERROR' });
-    updateActiveTrace({ name: 'ui.chat.request', output: error });
-    rootSpan?.end();
-    return new ChatSDKError('bad_request:api').toResponse();
+    return toChatErrorResponse(rootSpan, error, 'bad_request:api');
   }
 
   try {
@@ -65,10 +244,7 @@ const handler = async (request: Request) => {
     const session = await auth();
 
     if (!session?.user) {
-      updateActiveObservation({ output: 'unauthorized', level: 'ERROR' });
-      updateActiveTrace({ name: 'ui.chat.request', output: 'unauthorized' });
-      rootSpan?.end();
-      return new ChatSDKError('unauthorized:chat').toResponse();
+      return toChatErrorResponse(rootSpan, 'unauthorized', 'unauthorized:chat');
     }
 
     const userType: UserType = session.user.type;
@@ -79,10 +255,7 @@ const handler = async (request: Request) => {
     });
 
     if (messageCount > entitlementsByUserType[userType].maxMessagesPerDay) {
-      updateActiveObservation({ output: 'rate_limited', level: 'ERROR' });
-      updateActiveTrace({ name: 'ui.chat.request', output: 'rate_limited' });
-      rootSpan?.end();
-      return new ChatSDKError('rate_limit:chat').toResponse();
+      return toChatErrorResponse(rootSpan, 'rate_limited', 'rate_limit:chat');
     }
 
     const chat = await getChatById({ id });
@@ -100,46 +273,25 @@ const handler = async (request: Request) => {
       });
     } else {
       if (chat.userId !== session.user.id) {
-        updateActiveObservation({ output: 'forbidden', level: 'ERROR' });
-        updateActiveTrace({ name: 'ui.chat.request', output: 'forbidden' });
-        rootSpan?.end();
-        return new ChatSDKError('forbidden:chat').toResponse();
+        return toChatErrorResponse(rootSpan, 'forbidden', 'forbidden:chat');
       }
     }
 
     const previousMessages = await getMessagesByChatId({ id });
 
     const messages = appendClientMessage({
-      // @ts-expect-error: todo add type conversion from DBMessage[] to UIMessage[]
-      messages: previousMessages,
+      messages: previousMessages as any,
       message,
     });
 
-    const langfuseMessages: LangfuseMessage[] = messages.map((msg) => ({
-      role: msg.role,
-      parts: msg.parts ?? [],
-    }));
+    const langfuseMessages = toLangfuseMessages(messages);
 
-    updateActiveObservation({
-      input: {
-        messages: langfuseMessages,
-        system: podcastSystemPrompt,
-        selectedChatModel,
-      },
-    });
-
-    updateActiveTrace({
-      name: 'ui.chat.request',
-      sessionId: id,
+    logLangfuseInput({
+      chatId: id,
       userId: session.user.id,
-      input: {
-        messages: langfuseMessages,
-        system: podcastSystemPrompt,
-        selectedChatModel,
-      },
-      metadata: {
-        selectedVisibilityType,
-      },
+      selectedChatModel,
+      selectedVisibilityType,
+      langfuseMessages,
     });
 
     await saveMessages({
@@ -158,126 +310,20 @@ const handler = async (request: Request) => {
     const streamId = generateUUID();
     await createStreamId({ streamId, chatId: id });
 
-    const stream = createDataStream({
-      execute: async (dataStream) => {
-        let mcpClient: Awaited<ReturnType<typeof createMCPClient>> | null =
-          null;
-        try {
-          const authToken = await createAuthToken();
-
-          const serverUrl = process.env.MCP_SERVER_URL;
-          if (!serverUrl) {
-            throw new Error('MCP_SERVER_URL environment variable is not set');
-          }
-
-          mcpClient = await createMCPClient({
-            transport: {
-              type: 'sse',
-              url: serverUrl,
-              headers: {
-                Authorization: `Bearer ${authToken}`,
-              },
-            },
-          });
-
-          try {
-            const tools = await mcpClient.tools();
-            const result = streamText({
-              model: myProvider.languageModel(selectedChatModel),
-              messages,
-              maxSteps: 15,
-              system: podcastSystemPrompt,
-              tools,
-              experimental_activeTools: Object.keys(tools),
-              experimental_transform: smoothStream({ chunking: 'word' }),
-              experimental_generateMessageId: generateUUID,
-              onFinish: async ({ response }) => {
-                try {
-                  const langfuseResponseMessages = response.messages.map(
-                    (msg: any) => ({
-                      role: msg.role,
-                      parts: msg.parts,
-                    }),
-                  );
-
-                  updateActiveObservation({ output: langfuseResponseMessages });
-                  updateActiveTrace({ output: langfuseResponseMessages });
-
-                  if (session.user?.id) {
-                    try {
-                      const assistantId = getTrailingMessageId({
-                        messages: response.messages.filter(
-                          (message) => message.role === 'assistant',
-                        ),
-                      });
-
-                      if (!assistantId) throw new Error('No message ID found!');
-
-                      const [, assistantMessage] = appendResponseMessages({
-                        messages: [message],
-                        responseMessages: response.messages,
-                      });
-
-                      await saveMessages({
-                        messages: [
-                          {
-                            id: assistantId,
-                            chatId: id,
-                            role: assistantMessage.role,
-                            parts: assistantMessage.parts,
-                            attachments:
-                              assistantMessage.experimental_attachments ?? [],
-                            createdAt: new Date(),
-                          },
-                        ],
-                      });
-                    } catch (e) {
-                      console.error(e);
-                      console.error('Failed to save chat :/');
-                    }
-                  }
-                } finally {
-                  rootSpan?.end();
-                  if (mcpClient) await mcpClient.close();
-                }
-              },
-              experimental_telemetry: {
-                isEnabled: true,
-                functionId: 'stream-text',
-              },
-            });
-
-            result.consumeStream();
-
-            result.mergeIntoDataStream(dataStream, {
-              sendReasoning: true,
-            });
-          } catch (streamError) {
-            await mcpClient.close();
-            throw streamError;
-          }
-        } catch (error) {
-          updateActiveObservation({ output: error, level: 'ERROR' });
-          updateActiveTrace({ name: 'ui.chat.request', output: error });
-          rootSpan?.end();
-          if (mcpClient) {
-            await mcpClient.close();
-          }
-          throw error;
-        }
-      },
-      onError: () => {
-        return 'Oops, an error occurred!';
-      },
+    const stream = createChatStream({
+      chatId: id,
+      messages,
+      selectedChatModel,
+      session,
+      userMessage: message,
+      rootSpan,
     });
 
     return new Response(stream);
   } catch (error) {
     console.error('Chat API error:', error);
 
-    updateActiveObservation({ output: error, level: 'ERROR' });
-    updateActiveTrace({ name: 'ui.chat.request', output: error });
-    rootSpan?.end();
+    logErrorAndEndSpan(rootSpan, error);
 
     if (error instanceof ChatSDKError) {
       return error.toResponse();
