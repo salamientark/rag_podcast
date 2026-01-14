@@ -160,7 +160,7 @@ class PodcastQueryService:
             f"Query engine configured: top_k={self.config.similarity_top_k}"
         )
 
-    async def _setup_langfuse_retrieval(
+    async def _retrieve_nodes(
         self,
         retriever,
         langfuse,
@@ -301,7 +301,7 @@ class PodcastQueryService:
                 podcast_filter_applied = True
 
             # First retrieve nodes
-            retrieved_nodes = await self._setup_langfuse_retrieval(
+            retrieved_nodes = await self._retrieve_nodes(
                 retriever,
                 langfuse,
                 enhanced_question,
