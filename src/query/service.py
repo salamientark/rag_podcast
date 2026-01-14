@@ -64,7 +64,11 @@ class PodcastQueryService:
             raise
 
     def _validate_config(self):
-        """Validate required configuration and API keys"""
+        """Validate required configuration and API keys.
+
+        Raises:
+            ValueError: If required API keys are missing.
+        """
         if not self.config.anthropic_api_key:
             raise ValueError("ANTHROPIC_API_KEY is required")
 
@@ -72,7 +76,13 @@ class PodcastQueryService:
             raise ValueError("VOYAGE_API_KEY is required")
 
     def _setup_models(self):
-        """Configure LLM and embedding models"""
+        """Configure LLM and embedding models.
+
+        Sets global LlamaIndex `Settings` for the embed model and LLM.
+
+        Raises:
+            Exception: If model initialization fails.
+        """
         # VoyageAI embeddings (compatible with existing vectors)
         Settings.embed_model = VoyageEmbedding(
             voyage_api_key=self.config.voyage_api_key,
@@ -90,7 +100,14 @@ class PodcastQueryService:
         )
 
     def _setup_vector_store(self):
-        """Initialize Qdrant vector store connection"""
+        """Initialize the Qdrant vector store and LlamaIndex index.
+
+        Connects to Qdrant, validates the configured collection exists, and builds
+        a `VectorStoreIndex` backed by the existing vectors.
+
+        Raises:
+            ConnectionError: If Qdrant is unreachable or the collection is missing.
+        """
         try:
             # Use sync client for initial connection test
             sync_client = QdrantClient(
@@ -133,7 +150,12 @@ class PodcastQueryService:
             )
 
     def _setup_query_engine(self):
-        """Configure stateless query engine with postprocessors"""
+        """Configure the stateless retriever and query engine.
+
+        Builds a `VectorIndexRetriever` and a `RetrieverQueryEngine` without any
+        conversation memory. Node postprocessors are stored for optional manual
+        postprocessing in `query()`.
+        """
         # Build postprocessor pipeline (order matters!)
         postprocessors = []
 
@@ -168,6 +190,21 @@ class PodcastQueryService:
         podcast_filter_applied: bool,
         normalized_podcast: Optional[str],
     ):
+        """Retrieve candidate nodes for a question.
+
+        Wraps `retriever.aretrieve` and (when available) records retrieval details in
+        Langfuse, including a short text snippet preview and key node metadata.
+
+        Args:
+            retriever: LlamaIndex retriever to use (optionally filtered).
+            langfuse: Langfuse client used for tracing spans.
+            enhanced_question: Question string (possibly augmented with context).
+            podcast_filter_applied: Whether a podcast metadata filter is used.
+            normalized_podcast: Normalized podcast name used in the filter.
+
+        Returns:
+            Retrieved nodes when tracing succeeds; otherwise returns `None`.
+        """
         try:
             retrieve_cm = langfuse.start_as_current_observation(
                 as_type="span",
@@ -223,6 +260,19 @@ class PodcastQueryService:
         enhanced_question: str,
         sorted_nodes,
     ):
+        """Synthesize a final answer from retrieved nodes.
+
+        Runs a LlamaIndex response synthesizer in `ResponseMode.COMPACT` over the
+        provided nodes and records basic metrics to Langfuse (when available).
+
+        Args:
+            langfuse: Langfuse client used for tracing spans.
+            enhanced_question: Question string (possibly augmented with context).
+            sorted_nodes: Retrieved nodes after sorting/postprocessing.
+
+        Returns:
+            The synthesized response text.
+        """
         synthesizer = get_response_synthesizer(
             response_mode=ResponseMode.COMPACT, llm=Settings.llm
         )
