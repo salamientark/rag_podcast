@@ -4,6 +4,17 @@ from dotenv import load_dotenv
 import argparse
 from elevenlabs.client import ElevenLabs
 
+import sys
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+
+from src.transcription.elevenlabs_preprocess import (  # noqa: E402
+    preprocess_elevenlabs_transcript_file,
+)
+
 
 load_dotenv()
 
@@ -38,6 +49,11 @@ def main():
     with open("tmp/elevenlab_transcript.json", "w") as f:
         json.dump(transcription.model_dump(), f, indent=4)
         print("Wrote full transcript JSON to tmp/elevenlab_transcript.json")
+
+    formatted = preprocess_elevenlabs_transcript_file("tmp/elevenlab_transcript.json")
+    with open("tmp/elevenlab_final.txt", "w") as f:
+        f.write(formatted)
+        print("Wrote final transcript to tmp/elevenlab_final.txt")
 
 
 if __name__ == "__main__":
