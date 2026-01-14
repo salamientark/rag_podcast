@@ -180,7 +180,7 @@ export function createChatStream({
             experimental_generateMessageId: generateUUID,
             onFinish: async ({ response }) => {
 			  try {
-				streamTextOnFinishHandler(
+				await streamTextOnFinishHandler(
 					response,
 					chatId,
 					session,
@@ -194,51 +194,6 @@ export function createChatStream({
 			    rootSpan?.end();
 			    if (mcpClient) await mcpClient.close();
 			  }
-    //           try {
-    //             const langfuseResponseMessages = response.messages.map(
-    //               (msg: any) => ({
-    //                 role: msg.role,
-    //                 parts: msg.parts,
-    //               }),
-    //             );
-				//
-    //             logLangfuseOutput(langfuseResponseMessages);
-				//
-    //             if (session.user?.id) {
-    //                 const assistantId = getTrailingMessageId({
-    //                   messages: response.messages.filter(
-    //                     (message) => message.role === 'assistant',
-    //                   ),
-    //                 });
-				//
-    //                 if (!assistantId) throw new Error('No message ID found!');
-				//
-    //                 const [, assistantMessage] = appendResponseMessages({
-    //                   messages: [userMessage],
-    //                   responseMessages: response.messages,
-    //                 });
-				//
-    //                 await saveMessages({
-    //                   messages: [
-    //                     {
-    //                       id: assistantId,
-    //                       chatId: chatId,
-    //                       role: assistantMessage.role,
-    //                       parts: assistantMessage.parts,
-    //                       attachments:
-    //                         assistantMessage.experimental_attachments ?? [],
-    //                       createdAt: new Date(),
-    //                     },
-    //                   ],
-    //                 });
-    //             }
-			 //  } catch (e) {
-				// console.error(e);
-				// console.error('Failed to save chat :/');
-    //           } finally {
-    //             rootSpan?.end();
-    //             if (mcpClient) await mcpClient.close();
-    //           }
             },
             experimental_telemetry: {
               isEnabled: true,
