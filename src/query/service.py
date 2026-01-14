@@ -250,9 +250,9 @@ class PodcastQueryService:
                             "podcast": normalized_podcast,
                         },
                     )
-                    return retrieved_nodes
                 except Exception as exc:
                     self.logger.debug(f"Langfuse retrieve span update failed: {exc}")
+        return retrieved_nodes
 
     async def _get_synthetized_answer(
         self,
