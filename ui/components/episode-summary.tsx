@@ -68,7 +68,8 @@ export const EpisodeSummaryToolResult = ({
 
   const summaryText =
     result?.structuredContent?.result ??
-	result?.content?.map((b) => b.text).join('') ?? '';
+    result?.content?.map((b) => b.text).join('') ??
+    '';
 
   // Detect errors from explicit flag or error-prefixed content
   const isError =
@@ -100,8 +101,8 @@ export const EpisodeSummaryToolResult = ({
           </svg>
           <span className="text-muted-foreground">
             {isError
-               ? 'Summary generation failed: '
-               : 'Generated summary for: '}
+              ? 'Summary generation failed: '
+              : 'Generated summary for: '}
             <strong className="text-foreground">{date}</strong>
             <span className="text-muted-foreground"> (podcast: {podcast})</span>
           </span>
@@ -113,7 +114,7 @@ export const EpisodeSummaryToolResult = ({
             onClick={() => setIsOpen(!isOpen)}
             className="text-xs gap-1"
           >
-             {isOpen ? 'Hide' : 'Show summary'}
+            {isOpen ? 'Hide' : 'Show summary'}
             <span
               className={`transition-transform ${isOpen ? 'rotate-180' : ''}`}
             >
@@ -124,7 +125,7 @@ export const EpisodeSummaryToolResult = ({
       </div>
       {isOpen && hasContent && (
         <pre className="mt-2 p-3 bg-muted/50 rounded-lg border whitespace-pre-wrap text-xs max-h-[50vh] overflow-auto">
-        {summaryText}
+          {summaryText}
         </pre>
       )}
     </div>

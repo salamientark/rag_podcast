@@ -98,7 +98,10 @@ export const AskPodcastToolResult = ({
             {isError ? 'Query failed: ' : 'Queried: '}
             <strong className="text-foreground">&quot;{question}&quot;</strong>
             {podcast ? (
-              <span className="text-muted-foreground"> (podcast: {podcast})</span>
+              <span className="text-muted-foreground">
+                {' '}
+                (podcast: {podcast})
+              </span>
             ) : null}
           </span>
         </div>
