@@ -420,6 +420,9 @@ def get_podcast_by_id(podcast_id: int) -> Optional[Podcast]:
             podcast = session.query(Podcast).filter_by(id=podcast_id).first()
             if podcast:
                 session.expunge(podcast)
+                db_logger.info(f"Found podcast by id: {podcast.name} (id={podcast_id})")
+            else:
+                db_logger.info(f"Podcast not found for id: {podcast_id}")
             return podcast
     except Exception as e:
         db_logger.error(f"Failed to get podcast by id {podcast_id}: {e}")

@@ -82,7 +82,7 @@ def get_episode_from_db(podcast_id: int, episode_id: int) -> dict | None:
     except Exception as e:
         # Log but don't fail - caller handles None gracefully
         logging.getLogger("transcript").debug(
-            f"DB lookup failed for episode {episode_id}: {e}"
+            f"DB lookup failed for podcast_id={podcast_id}, episode_id={episode_id}: {e}"
         )
     return None
 

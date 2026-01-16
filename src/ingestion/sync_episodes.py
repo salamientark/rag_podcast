@@ -190,6 +190,9 @@ def generate_slug(name: str) -> str:
     slug = name.lower()
     slug = re.sub(r"[^a-z0-9]+", "-", slug)
     slug = slug.strip("-")
+    # Guard against empty slug (e.g., empty input or all special characters)
+    if not slug:
+        slug = "untitled-podcast"
     return slug
 
 
