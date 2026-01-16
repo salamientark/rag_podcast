@@ -15,6 +15,8 @@ from google import genai
 from src.logger import log_function
 
 
+GEMINI_MODEL = "gemini-3-pro-preview"
+
 GEMINI_TRANSCRIPTION_PROMPT = """
 You are an expert audio transcriber. Transcribe the following podcast audio.
 
@@ -55,7 +57,7 @@ def get_gemini_client() -> genai.Client:
 def transcribe_with_gemini(
     file_path: Path,
     description: str,
-    model: str = "gemini-3-flash-preview",
+    model: str = GEMINI_MODEL,
 ) -> dict:
     """Transcribe audio using Gemini with speaker identification.
 
@@ -65,7 +67,7 @@ def transcribe_with_gemini(
     Args:
         file_path: Path to audio file
         description: Episode description for speaker context
-        model: Gemini model to use (default: gemini-3-flash-preview)
+        model: Gemini model to use (see GEMINI_MODEL constant)
 
     Returns:
         Dict with transcript text, formatted output, and metadata
