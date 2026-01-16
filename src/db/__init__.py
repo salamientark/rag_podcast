@@ -21,7 +21,7 @@ naming conventions (singular class names, plural table names).
 """
 
 # Import key components for easy access
-from .models import Base, Episode, ProcessingStage, TimestampMixin
+from .models import Base, Episode, Podcast, ProcessingStage, TimestampMixin
 from .database import (
     get_db_session,
     fetch_db_episodes,
@@ -30,6 +30,10 @@ from .database import (
     init_database,
     get_database_info,
     get_podcasts,
+    get_all_podcasts,
+    get_podcast_by_name_or_slug,
+    get_podcast_by_id,
+    create_podcast,
     engine,
     SessionLocal,
     update_episode_in_db,
@@ -53,6 +57,7 @@ __all__ = [
     # Models
     "Base",
     "Episode",
+    "Podcast",
     "ProcessingStage",
     "TimestampMixin",
     # Database utilities
@@ -63,6 +68,10 @@ __all__ = [
     "init_database",
     "get_database_info",
     "get_podcasts",
+    "get_all_podcasts",
+    "get_podcast_by_name_or_slug",
+    "get_podcast_by_id",
+    "create_podcast",
     "engine",
     "SessionLocal",
     "update_episode_in_db",

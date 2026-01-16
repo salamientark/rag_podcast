@@ -10,36 +10,38 @@ This pipeline orchestrates the complete workflow from RSS feed to vector embeddi
     5. Generate and store embeddings in Qdrant
 
 Usage:
-    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --full
-    uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --limit 5
-    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --episode-id 672
-    uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --episode-id 672 680
+    uv run -m src.pipeline --podcast rdv-tech --full
+    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --limit 5
+    uv run -m src.pipeline --podcast rdv-tech --episode-id 672 680
 
 Examples:
-    # Using podcast name
-    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --full
-    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --limit 5
-    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --episode-id 672 680
+    # Using podcast slug
+    uv run -m src.pipeline --podcast rdv-tech --full
+    uv run -m src.pipeline --podcast rdv-tech --limit 5
+    uv run -m src.pipeline --podcast rdv-tech --episode-id 672 680
 
-    # Using custom feed URL (auto-detects podcast name, always syncs)
-    uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --full
-    uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --limit 5
-    uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --episode-id 672
+    # Using full podcast name
+    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --full
 
     # Other options
-    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --stages transcribe,embed --limit 10
-    uv run -m src.pipeline --podcast "Le rendez-vous Tech" --episode-id 672 --force
-    uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --dry-run --verbose
+    uv run -m src.pipeline --podcast rdv-tech --stages format_transcript,embed --limit 10
+    uv run -m src.pipeline --podcast rdv-tech --episode-id 672 --force
+    uv run -m src.pipeline --podcast rdv-tech --dry-run --verbose
 """
 
 import sys
 import argparse
 import asyncio
+import logging
 from typing import List, Optional
 
 from src.logger import setup_logging
-from src.db.database import get_db_session
-from src.db.models import Episode, ProcessingStage
+from src.db.database import (
+    get_db_session,
+    get_podcast_by_name_or_slug,
+    get_all_podcasts,
+)
+from src.db.models import Episode, ProcessingStage, Podcast
 from .orchestrator import run_pipeline
 
 
@@ -74,9 +76,12 @@ def validate_stages(stage_names: List[str]) -> tuple[List[ProcessingStage], List
     return valid_stages, invalid_names
 
 
-def count_episodes_by_stage() -> dict:
+def count_episodes_by_stage(podcast_id: Optional[int] = None) -> dict:
     """
     Count episodes grouped by processing stage.
+
+    Args:
+        podcast_id: If provided, only count episodes for this podcast.
 
     Returns:
         dict: Mapping from `ProcessingStage.value` (stage name) to the integer count of `Episode` records in that stage. Returns an empty dict and prints an error to stderr if a database error occurs.
@@ -85,64 +90,38 @@ def count_episodes_by_stage() -> dict:
         with get_db_session() as session:
             counts = {}
             for stage in ProcessingStage:
-                count = session.query(Episode).filter_by(processing_stage=stage).count()
-                counts[stage.value] = count
+                query = session.query(Episode).filter_by(processing_stage=stage)
+                if podcast_id:
+                    query = query.filter_by(podcast_id=podcast_id)
+                counts[stage.value] = query.count()
             return counts
     except Exception as e:
         print(f"✗ Database error during stage counting: {e}", file=sys.stderr)
         return {}
 
 
-def get_available_podcasts() -> list[str]:
+def validate_podcast(podcast_identifier: str) -> tuple[bool, Optional[Podcast]]:
     """
-    Return the list of available podcast names from the database.
-
-    If retrieval fails, prints an error message to stderr and returns an empty list.
-
-    Returns:
-        list[str]: Podcast names from the database, or an empty list if retrieval fails.
-    """
-    try:
-        from src.db import get_podcasts
-
-        return get_podcasts()
-    except Exception as e:
-        print(f"✗ Error retrieving podcasts: {e}", file=sys.stderr)
-        return []
-
-
-def validate_podcast(podcast_name: str) -> tuple[bool, Optional[str]]:
-    """
-    Finds a canonical podcast name in the database that matches the provided name.
+    Find a podcast in the database by name or slug (case-insensitive).
 
     Parameters:
-        podcast_name (str): Podcast name to validate (case-insensitive).
+        podcast_identifier (str): Podcast name or slug to validate.
 
     Returns:
-        tuple[bool, Optional[str]]: `(True, canonical_name)` when a case-insensitive match is found; `(False, None)` otherwise.
+        tuple[bool, Optional[Podcast]]: `(True, Podcast)` when found; `(False, None)` otherwise.
 
     Notes:
-        If no podcasts exist in the database or the name is not found, an error message is printed to stderr.
+        If no podcasts exist in the database or the identifier is not found, an error message is printed to stderr.
     """
-    available_podcasts = get_available_podcasts()
+    podcast = get_podcast_by_name_or_slug(podcast_identifier)
 
-    if not available_podcasts:
-        print(
-            "✗ Error: No podcasts found in database. Run sync first.", file=sys.stderr
-        )
-        return False, None
-
-    # Case-insensitive search for matching podcast
-    podcast_lower = podcast_name.lower()
-    for db_podcast in available_podcasts:
-        if db_podcast.lower() == podcast_lower:
-            return True, db_podcast  # Return canonical DB name
+    if podcast:
+        return True, podcast
 
     # Not found - show available podcasts
-    print(f"✗ Error: Podcast '{podcast_name}' not found in database", file=sys.stderr)
-    print("\nAvailable podcasts:", file=sys.stderr)
-    for podcast in available_podcasts:
-        print(f"  - {podcast}", file=sys.stderr)
+    logger = logging.getLogger("pipeline")
+    available = ", ".join(p.slug for p in get_all_podcasts())
+    logger.error(f"Podcast '{podcast_identifier}' not found. Available: {available}")
 
     return False, None
 
@@ -172,33 +151,15 @@ def validate_mutually_exclusive_args(args: argparse.Namespace) -> Optional[str]:
     return None
 
 
-def validate_feed_url_podcast_exclusivity(args: argparse.Namespace) -> Optional[str]:
-    """
-    Validate mutual exclusivity between --feed-url and --podcast and require that one is provided.
-
-    Parameters:
-        args (argparse.Namespace): Parsed command-line arguments with `feed_url` and `podcast` attributes.
-
-    Returns:
-        str: Error message if validation fails, `None` otherwise.
-    """
-    if args.feed_url and args.podcast:
-        return "Cannot use both --feed-url and --podcast (they are mutually exclusive)"
-
-    if not args.feed_url and not args.podcast:
-        return "Either --feed-url or --podcast must be provided"
-
-    return None
-
-
-def print_dry_run_summary(args: argparse.Namespace, logger) -> None:
+def print_dry_run_summary(args: argparse.Namespace, podcast: Podcast, logger) -> None:
     """
     Print a human-readable dry-run summary of the pipeline configuration and current database counts.
 
-    The summary displays the selected processing mode (full, specific episode IDs, or limited), podcast or feed URL filter, chosen pipeline stages, runtime options (force, verbose, storage backend), and per-stage episode counts retrieved from the database. This function only prints information and does not perform any processing.
+    The summary displays the selected processing mode (full, specific episode IDs, or limited), podcast filter, chosen pipeline stages, runtime options (force, verbose, storage backend), and per-stage episode counts retrieved from the database. This function only prints information and does not perform any processing.
 
     Args:
         args (argparse.Namespace): Parsed command-line arguments.
+        podcast (Podcast): The podcast being processed.
         logger: Logger instance for recording the dry-run action.
     """
     print("=" * 80)
@@ -222,16 +183,10 @@ def print_dry_run_summary(args: argparse.Namespace, logger) -> None:
 
     print()
 
-    # Podcast/Feed filter
-    if args.podcast:
-        print(f"Podcast filter: {args.podcast}")
-        print("  → Only process episodes from this podcast")
-        print()
-    elif args.feed_url:
-        print(f"Feed URL: {args.feed_url}")
-        print("  → Will sync from custom feed and auto-detect podcast name")
-        print("  → Sync stage will always run")
-        print()
+    # Podcast filter
+    print(f"Podcast: {podcast.name} (slug: {podcast.slug}, id: {podcast.id})")
+    print(f"Feed URL: {podcast.feed_url}")
+    print()
 
     # Stage configuration
     if args.stages:
@@ -253,8 +208,8 @@ def print_dry_run_summary(args: argparse.Namespace, logger) -> None:
     print()
 
     # Database stats
-    print("Current Database Status:")
-    stage_counts = count_episodes_by_stage()
+    print(f"Current Database Status (for {podcast.name}):")
+    stage_counts = count_episodes_by_stage(podcast_id=podcast.id)
     if stage_counts:
         total = sum(stage_counts.values())
         print(f"  Total episodes: {total}")
@@ -274,23 +229,20 @@ def parse_arguments() -> argparse.Namespace:
     Parse command-line arguments for the podcast processing pipeline.
 
     Configures processing mode (--full, --episode-id, --limit), stage selection (--stages),
-    podcast selection (--podcast or --feed-url), storage options (--no-cloud),
+    podcast selection (--podcast), storage options (--no-cloud),
     and miscellaneous flags (--force, --dry-run, --verbose).
 
     Returns:
         argparse.Namespace: Parsed arguments with attributes:
-            full, episode_id, limit, stages, podcast, feed_url, force, dry_run,
+            full, episode_id, limit, stages, podcast, force, dry_run,
             verbose, no_cloud
     """
     parser = argparse.ArgumentParser(
         description="Podcast Processing Pipeline - Orchestrates RSS sync, audio download, transcription, chunking, and embedding",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Required Parameter (choose one):
-  --podcast         Podcast name to process (case-insensitive)
-  --feed-url        RSS feed URL to sync and process (auto-detects podcast name)
-
-Note: --podcast and --feed-url are MUTUALLY EXCLUSIVE
+Required Parameter:
+  --podcast         Podcast name or slug to process (case-insensitive)
 
 Processing Modes (choose one, default: --limit 5):
   --full            Process all episodes from podcast
@@ -312,33 +264,25 @@ Storage Options:
   --no-cloud               Save files to local filesystem only (cloud is default)
 
 Examples:
-  # Using podcast name
-  uv run -m src.pipeline --podcast "Le rendez-vous Tech" --full
-  uv run -m src.pipeline --podcast "Le rendez-vous Tech" --limit 5
-  uv run -m src.pipeline --podcast "Le rendez-vous Tech" --episode-id 672 680
+  # Using podcast slug
+  uv run -m src.pipeline --podcast rdv-tech --full
+  uv run -m src.pipeline --podcast rdv-tech --limit 5
+  uv run -m src.pipeline --podcast rdv-tech --episode-id 672 680
 
-  # Using custom feed URL (auto-detects podcast name, always syncs)
-  uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --full
-  uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --limit 5
-  uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --episode-id 672
+  # Using full podcast name
+  uv run -m src.pipeline --podcast "Le rendez-vous Tech" --limit 5
 
   # With specific stages
-  uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --stages embed --limit 10
+  uv run -m src.pipeline --podcast rdv-tech --stages embed --limit 10
 
   # Force reprocessing
-  uv run -m src.pipeline --podcast "Le rendez-vous Tech" --episode-id 672 --force
+  uv run -m src.pipeline --podcast rdv-tech --episode-id 672 --force
 
   # Dry run
-  uv run -m src.pipeline --feed-url "https://feeds.example.com/podcast.xml" --dry-run --verbose
-
-  # Case-insensitive matching
-  uv run -m src.pipeline --podcast "le rendez-vous tech" --limit 5
+  uv run -m src.pipeline --podcast rdv-tech --dry-run --verbose
 
 Notes:
-  - Either --podcast or --feed-url is REQUIRED (mutually exclusive)
-  - With --feed-url: podcast name is auto-extracted from feed, sync always runs first
-  - With --podcast: uses default feed from .env, sync runs only if in --stages
-  - Podcast name matching is case-insensitive
+  - --podcast is REQUIRED (accepts name or slug, case-insensitive)
   - Episode IDs are per-podcast
   - Multiple podcasts can coexist in the same database
   - Pipeline automatically skips completed stages (unless --force)
@@ -384,14 +328,9 @@ Notes:
     options_group.add_argument(
         "--podcast",
         type=str,
+        required=True,
         metavar="NAME",
-        help="Podcast name to process (case-insensitive, mutually exclusive with --feed-url)",
-    )
-    options_group.add_argument(
-        "--feed-url",
-        type=str,
-        metavar="URL",
-        help="RSS feed URL to sync and process (auto-detects podcast name, mutually exclusive with --podcast)",
+        help="Podcast name or slug to process (case-insensitive, required)",
     )
     options_group.add_argument(
         "--force",
@@ -439,24 +378,12 @@ async def main():
         print("Run with --help for usage information", file=sys.stderr)
         sys.exit(1)
 
-    # Validate feed-url and podcast mutual exclusivity
-    validation_error = validate_feed_url_podcast_exclusivity(args)
-    if validation_error:
-        print(f"✗ Error: {validation_error}", file=sys.stderr)
-        print("Run with --help for usage information", file=sys.stderr)
+    # Validate podcast
+    is_valid, podcast = validate_podcast(args.podcast)
+    if not is_valid:
         sys.exit(1)
 
-    # Validate podcast name if provided (not needed for feed-url)
-    if args.podcast:
-        is_valid, canonical_podcast = validate_podcast(args.podcast)
-        if not is_valid:
-            sys.exit(1)
-        # Use canonical database name for consistency
-        args.podcast = canonical_podcast
-        logger.info(f"Filtering by podcast: {canonical_podcast}")
-    elif args.feed_url:
-        logger.info(f"Using custom feed URL: {args.feed_url}")
-        # Podcast name will be extracted during sync stage in orchestrator
+    logger.info(f"Using podcast: {podcast.name} (id={podcast.id})")
 
     # Parse and validate stages if provided
     if args.stages:
@@ -477,7 +404,7 @@ async def main():
     # Dry run mode - show what would happen
     if args.dry_run:
         logger.info("Running in dry-run mode (no changes will be made)")
-        print_dry_run_summary(args, logger)
+        print_dry_run_summary(args, podcast, logger)
         sys.exit(0)
 
     # Log pipeline start
@@ -512,7 +439,7 @@ async def main():
             limit = args.limit
         # For --full mode, both remain None
 
-        # Call the orchestrator
+        # Call the orchestrator with podcast_id and feed_url
         await run_pipeline(
             episodes_id=episodes_id,
             limit=limit,
@@ -520,8 +447,9 @@ async def main():
             dry_run=args.dry_run,
             verbose=args.verbose,
             use_cloud_storage=not args.no_cloud,
-            podcast=args.podcast,
-            feed_url=args.feed_url,
+            podcast_id=podcast.id,
+            podcast_name=podcast.name,
+            feed_url=podcast.feed_url,
             force=args.force,
         )
 

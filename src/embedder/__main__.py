@@ -56,7 +56,11 @@ from src.db.qdrant_client import (
     QDRANT_COLLECTION_NAME,
     EMBEDDING_DIMENSION,
 )
-from src.db.database import get_db_session
+from src.db.database import (
+    get_db_session,
+    get_podcast_by_name_or_slug,
+    get_all_podcasts,
+)
 from src.db.models import Episode
 from src.logger import setup_logging
 
@@ -282,13 +286,13 @@ def validate_files(
 
 
 def get_episode_info_from_db(
-    episode_id: int, podcast: Optional[str], logger: logging.Logger
+    episode_id: int, podcast_id: Optional[int], logger: logging.Logger
 ) -> Optional[Dict[str, Any]]:
     """Fetch episode information from database.
 
     Args:
         episode_id (int): Episode number within podcast.
-        podcast (Optional[str]): Podcast identifier for filtering.
+        podcast_id (Optional[int]): Podcast ID (FK) for filtering.
         logger (logging.Logger): Logger instance.
 
     Returns:
@@ -299,8 +303,8 @@ def get_episode_info_from_db(
             query = session.query(Episode).filter_by(episode_id=episode_id)
 
             # Add podcast filter if provided
-            if podcast:
-                query = query.filter_by(podcast=podcast)
+            if podcast_id:
+                query = query.filter_by(podcast_id=podcast_id)
 
             episode = query.first()
 
@@ -322,7 +326,7 @@ def process_single_file(
     dimensions: int,
     save_local: bool,
     episode_id: Optional[int],
-    podcast: Optional[str],
+    podcast_id: Optional[int],
     skip_existing: bool,
     logger: logging.Logger,
 ) -> Dict[str, Any]:
@@ -334,7 +338,7 @@ def process_single_file(
         dimensions (int): Embedding dimensions.
         save_local (bool): Whether to save embeddings locally.
         episode_id (Optional[int]): Episode ID (if None, auto-extract from filename).
-        podcast (Optional[str]): Podcast identifier for filtering.
+        podcast_id (Optional[int]): Podcast ID (FK) for filtering.
         skip_existing (bool): Whether to skip if episode already exists in Qdrant.
         logger (logging.Logger): Logger instance.
 
@@ -400,16 +404,23 @@ def process_single_file(
         logger.debug(f"Generated embedding with {len(embeddings)} dimensions")
 
         # Fetch episode info from database for metadata
+        # Note: episode_id is NOT globally unique (it's per-podcast), so we require
+        # podcast_id to safely look up the correct episode
         episode_info = None
-        if episode_id:
-            episode_info = get_episode_info_from_db(episode_id, podcast, logger)
+        if episode_id and podcast_id:
+            episode_info = get_episode_info_from_db(episode_id, podcast_id, logger)
 
-            # If both podcast and episode_id provided, episode MUST exist
-            if podcast and episode_id and not episode_info:
+            if not episode_info:
                 raise ValueError(
-                    f"Episode {episode_id} not found for podcast '{podcast}'. "
+                    f"Episode {episode_id} not found for podcast_id={podcast_id}. "
                     "Cannot proceed without valid episode metadata."
                 )
+        elif episode_id and not podcast_id:
+            logger.warning(
+                f"Episode ID {episode_id} detected but --podcast not provided. "
+                "Skipping DB lookup (episode_id is not globally unique). "
+                "Provide --podcast for proper metadata."
+            )
 
         # Create payload metadata
         payload = {
@@ -490,6 +501,19 @@ def main() -> int:
         logger.info(f"Podcast: {args.podcast if args.podcast else 'N/A'}")
         logger.info("=" * 60)
 
+        # Resolve podcast to get podcast_id if provided
+        podcast_id = None
+        if args.podcast:
+            podcast = get_podcast_by_name_or_slug(args.podcast)
+            if not podcast:
+                available = ", ".join(p.slug for p in get_all_podcasts())
+                logger.error(
+                    f"Podcast '{args.podcast}' not found. Available: {available}"
+                )
+                return 1
+            podcast_id = podcast.id
+            logger.info(f"Resolved podcast '{args.podcast}' to id={podcast_id}")
+
         # Expand glob patterns
         print("Expanding file patterns...")
         files = expand_glob_patterns(args.input_files)
@@ -554,7 +578,7 @@ def main() -> int:
                     dimensions=args.dimensions,
                     save_local=args.save_local,
                     episode_id=args.episode_id,
-                    podcast=args.podcast,
+                    podcast_id=podcast_id,
                     skip_existing=args.skip_existing,
                     logger=logger,
                 )

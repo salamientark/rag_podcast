@@ -312,21 +312,26 @@ def process_episode_embedding(
             episode = session.query(Episode).filter_by(uuid=episode_uuid).first()
             if not episode:
                 raise ValueError(f"Episode UUID {episode_uuid} not found in database")
+            # Extract values while session is open (podcast_rel is lazy loaded)
+            podcast_name = episode.podcast
+            episode_id = episode.episode_id
+            episode_title = episode.title
+            publication_date = episode.published_date
 
         # Get paths
-        workspace = f"data/{episode.podcast}/embeddings/"
+        workspace = f"data/{podcast_name}/embeddings/"
         local_file_path = Path(
-            f"{workspace}/episode_{episode.episode_id:03d}_d{dimensions}.npy"
+            f"{workspace}/episode_{episode_id:03d}_d{dimensions}.npy"
         )
 
         # Create base payload metadata
         base_payload = {
-            "podcast": episode.podcast,
-            "episode_id": episode.episode_id,
-            "title": episode.title,
+            "podcast": podcast_name,
+            "episode_id": episode_id,
+            "title": episode_title,
             "db_uuid": str(episode_uuid),
             "dimensions": dimensions,
-            "publication_date": format_publication_date(episode.published_date),
+            "publication_date": format_publication_date(publication_date),
         }
 
         # TIER 1: Check if vectors exist in Qdrant

@@ -52,20 +52,19 @@ def get_last_requested_stage(stages: list[str]) -> ProcessingStage:
 
 
 def filter_episode(
-    podcast: str,
+    podcast_id: int,
     episodes_id: Optional[list[int]] = None,
     limit: Optional[int] = None,
     force: bool = False,
 ) -> list[Dict[str, Any]]:
     """
-    Query episodes from the database by podcast name, specific episode IDs, or maximum count.
-
-    Podcast filtering is case-insensitive. If `episodes_id` is provided, returns only episodes whose `episode_id` is in that list. If `limit` is provided (or defaults to 5), returns up to `limit` non-EMBEDDED episodes ordered by publication date descending.
+    Query episodes from the database by podcast ID, specific episode IDs, or maximum count.
 
     Parameters:
-        podcast (str): Include only episodes whose podcast name matches this value (case-insensitive).
+        podcast_id (int): Include only episodes belonging to this podcast.
         episodes_id (Optional[list[int]]): If provided, include only episodes with these IDs.
         limit (Optional[int]): If provided and `episodes_id` is not, include up to this many non-EMBEDDED episodes (defaults to 5).
+        force (bool): If True, include all episodes regardless of processing stage.
 
     Returns:
         list[Dict[str, Any]]: Episodes that match the provided filters.
@@ -79,7 +78,7 @@ def filter_episode(
                 episodes = (
                     session.query(Episode)
                     .filter(
-                        Episode.podcast.ilike(podcast),
+                        Episode.podcast_id == podcast_id,
                         Episode.processing_stage != ProcessingStage.EMBEDDED,
                     )
                     .order_by(Episode.published_date.desc())
@@ -90,7 +89,7 @@ def filter_episode(
                 episodes = (
                     session.query(Episode)
                     .filter(
-                        Episode.podcast.ilike(podcast),
+                        Episode.podcast_id == podcast_id,
                     )
                     .order_by(Episode.published_date.desc())
                     .limit(limit)
@@ -101,7 +100,7 @@ def filter_episode(
                 episodes = (
                     session.query(Episode)
                     .filter(
-                        Episode.podcast.ilike(podcast),
+                        Episode.podcast_id == podcast_id,
                         Episode.episode_id.in_(episodes_id),
                         Episode.processing_stage != ProcessingStage.EMBEDDED,
                     )
@@ -111,7 +110,7 @@ def filter_episode(
                 episodes = (
                     session.query(Episode)
                     .filter(
-                        Episode.podcast.ilike(podcast),
+                        Episode.podcast_id == podcast_id,
                         Episode.episode_id.in_(episodes_id),
                     )
                     .all()
@@ -129,14 +128,15 @@ async def run_pipeline(
     dry_run: bool = False,
     verbose: bool = False,
     use_cloud_storage: bool = False,
-    podcast: Optional[str] = None,
+    podcast_id: Optional[int] = None,
+    podcast_name: Optional[str] = None,
     feed_url: Optional[str] = None,
     force: bool = False,
 ):
     """
     Orchestrates the end-to-end podcast processing pipeline across configurable stages.
 
-    Runs sync, download, transcription, formatting (including speaker mapping), and embedding stages as requested; when `feed_url` is provided the sync stage is always run and the podcast name is extracted and used for filtering, when only `podcast` is provided sync runs only if requested, and a ValueError is raised if neither `feed_url` nor `podcast` is supplied.
+    Runs sync, download, transcription, formatting (including speaker mapping), and embedding stages as requested.
 
     Parameters:
         episodes_id (list[int] | None): Specific episode_id values to process within the selected podcast; when provided the pipeline restricts processing to these episodes.
@@ -145,8 +145,10 @@ async def run_pipeline(
         dry_run (bool): If true, run in preview mode without making persistent changes.
         verbose (bool): If true, enable more detailed logging.
         use_cloud_storage (bool): If true, use cloud storage paths and uploads where supported.
-        podcast (str | None): Podcast name to filter episodes; used when `feed_url` is not provided. If both `feed_url` and `podcast` are given, `feed_url` takes precedence.
-        feed_url (str | None): RSS feed URL to sync from; when provided the function runs the sync stage to extract the podcast name and uses it for filtering.
+        podcast_id (int | None): Podcast ID to filter episodes.
+        podcast_name (str | None): Podcast name for display/logging purposes.
+        feed_url (str | None): RSS feed URL to sync from.
+        force (bool): If true, force reprocessing of already completed stages.
     """
     logger = logging.getLogger("pipeline")
 
@@ -154,24 +156,21 @@ async def run_pipeline(
         # Run sync Stage
         logger.info("=== PIPELINE STARTED ===")
 
-        # Handle feed_url vs podcast
-        if feed_url:
-            # Always run sync stage when feed_url is provided
-            logger.info(f"Using custom feed URL: {feed_url}")
-            extracted_podcast = run_sync_stage(feed_url=feed_url)
-            logger.info(f"Extracted podcast name from feed: {extracted_podcast}")
-            podcast = extracted_podcast
-        elif podcast:
-            logger.info(f"Filtering by podcast: {podcast}")
-            # Only run sync if stage is requested
-            if stages is None or "sync" in stages:
-                run_sync_stage()
-        else:
-            logger.error("Either feed_url or podcast must be provided")
-            raise ValueError("Either feed_url or podcast must be provided")
+        if podcast_id is None:
+            logger.error("podcast_id must be provided")
+            raise ValueError("podcast_id must be provided")
+
+        logger.info(f"Processing podcast: {podcast_name} (id={podcast_id})")
+
+        # Run sync stage if requested
+        if stages is None or "sync" in stages:
+            if feed_url:
+                run_sync_stage(podcast_id=podcast_id, feed_url=feed_url)
+            else:
+                logger.info("Skipping sync stage (no feed_url provided)")
 
         # Filter episodes to process
-        episodes_to_process = filter_episode(podcast, episodes_id, limit, force)
+        episodes_to_process = filter_episode(podcast_id, episodes_id, limit, force)
         if len(episodes_to_process) == 0:
             logger.info("No episodes found to process. Exiting pipeline.")
             logger.info("=== PIPELINE COMPLETED SUCCESSFULLY ===")
