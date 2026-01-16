@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from typing import Generator, Any, Optional, Dict
 from urllib.parse import urlparse
 
-from sqlalchemy import create_engine, event, text, or_
+from sqlalchemy import create_engine, event, text, or_, func
 from sqlalchemy.exc import SQLAlchemyError, OperationalError
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import QueuePool
@@ -380,10 +380,16 @@ def get_podcast_by_name_or_slug(identifier: str) -> Optional[Podcast]:
     """
     try:
         with get_db_session() as session:
+            # Use func.lower() for exact case-insensitive matching
+            # (ilike() interprets % and _ as SQL wildcards, which is unsafe)
+            identifier_lower = identifier.lower()
             podcast = (
                 session.query(Podcast)
                 .filter(
-                    or_(Podcast.name.ilike(identifier), Podcast.slug.ilike(identifier))
+                    or_(
+                        func.lower(Podcast.name) == identifier_lower,
+                        func.lower(Podcast.slug) == identifier_lower,
+                    )
                 )
                 .first()
             )

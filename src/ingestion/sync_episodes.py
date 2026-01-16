@@ -23,7 +23,7 @@ from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
 
-from src.db import get_db_session, Episode
+from src.db import get_db_session, Episode, ProcessingStage
 from src.logger import setup_logging, log_function
 
 
@@ -269,7 +269,7 @@ def sync_to_database(
                         published_date=episode_data["date"],
                         audio_url=episode_data["audio_url"],
                         description=episode_data.get("description", ""),
-                        processing_stage="synced",
+                        processing_stage=ProcessingStage.SYNCED,
                     )
                     session.add(episode)
                     session.commit()
