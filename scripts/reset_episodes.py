@@ -15,6 +15,7 @@ Usage:
 import argparse
 import os
 from dotenv import load_dotenv
+from qdrant_client import models
 
 from src.db import get_db_session, Episode, ProcessingStage, get_qdrant_client
 
@@ -33,11 +34,16 @@ def reset_episode(session, client, collection_name, episode, dry_run=False):
     # 1. Delete from Qdrant
     client.delete(
         collection_name=collection_name,
-        points_selector={
-            "filter": {
-                "must": [{"key": "db_uuid", "match": {"value": episode.uuid}}]
-            }
-        },
+        points_selector=models.FilterSelector(
+            filter=models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="db_uuid",
+                        match=models.MatchValue(value=episode.uuid),
+                    )
+                ]
+            )
+        ),
     )
     print("    Deleted from Qdrant")
 
@@ -51,7 +57,9 @@ def main():
     parser.add_argument("--podcast", required=True, help="Podcast name")
     parser.add_argument("--episode-id", type=int, help="Single episode ID to reset")
     parser.add_argument("--all", action="store_true", help="Reset all episodes")
-    parser.add_argument("--dry-run", action="store_true", help="Preview without changes")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Preview without changes"
+    )
     args = parser.parse_args()
 
     if not args.episode_id and not args.all:

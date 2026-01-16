@@ -30,11 +30,8 @@ from .orchestrator import (
 from .stages import (
     run_sync_stage,
     run_download_stage,
-    run_raw_transcript_stage,
-    run_speaker_mapping_stage,
-    run_formatted_transcript_stage,
+    run_transcription_stage,
     run_embedding_stage,
-    update_episode_in_db,
 )
 
 __all__ = [
@@ -45,9 +42,6 @@ __all__ = [
     # Stage functions
     "run_sync_stage",
     "run_download_stage",
-    "run_raw_transcript_stage",
-    "run_speaker_mapping_stage",
-    "run_formatted_transcript_stage",
+    "run_transcription_stage",
     "run_embedding_stage",
-    "update_episode_in_db",
 ]
