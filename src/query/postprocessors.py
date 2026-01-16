@@ -4,14 +4,29 @@ Postprocessors for the podcast query system.
 This module provides:
 - process_nodes_with_metadata: Injects episode metadata into chunks for LLM context
 - sort_nodes_temporally: Sorts nodes by episode recency for temporal queries
-
-Reranking removed to reduce image size. To re-enable:
-1. Add sentence-transformers>=2.2.0 to pyproject.toml
-2. Use SentenceTransformerRerank from llama_index.core.postprocessor
+- get_cohere_reranker: Creates a Cohere reranker postprocessor
 """
 
 from typing import List
 from llama_index.core.schema import NodeWithScore
+from llama_index.postprocessor.cohere_rerank import CohereRerank
+
+
+def get_cohere_reranker(
+    api_key: str, model: str = "rerank-v3.5", top_n: int = 5
+) -> CohereRerank:
+    """
+    Create a Cohere reranker postprocessor.
+
+    Args:
+        api_key: Cohere API key
+        model: Cohere rerank model name (default: rerank-v3.5)
+        top_n: Number of top results to return after reranking
+
+    Returns:
+        CohereRerank postprocessor instance
+    """
+    return CohereRerank(api_key=api_key, model=model, top_n=top_n)
 
 
 def process_nodes_with_metadata(nodes: List[NodeWithScore]) -> List[NodeWithScore]:

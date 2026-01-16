@@ -15,18 +15,18 @@ from typing import Optional
 class QueryConfig:
     """Configuration for the podcast query agent"""
 
-    # Models
-    llm_model: str = "claude-haiku-4-5"
+    # Embedding model
     embedding_model: str = "voyage-3.5"  # VoyageAI model
     embedding_dimensions: int = 1024
 
-    # Retrieval settings (optimized for Claude's 200k context window)
-    similarity_top_k: int = 5  # Initial retrieval from Qdrant
+    # Retrieval settings
+    similarity_top_k: int = 10  # Initial retrieval from Qdrant (before reranking)
 
-    # Reranking removed to reduce image size
-    # To re-enable: add sentence-transformers to deps and see postprocessors.py
+    # Cohere reranking
+    cohere_rerank_model: str = "rerank-v3.5"
+    rerank_top_n: int = 5  # Final results after reranking
 
-    # Chat memory (3000 tokens = ~8-12 exchanges)
+    # Chat memory (3000 tokens = ~8-12 exchanges) - used by CLI
     memory_token_limit: int = 3000
 
     load_dotenv()
@@ -36,8 +36,8 @@ class QueryConfig:
     qdrant_api_key: Optional[str] = os.getenv("QDRANT_API_KEY", None)
 
     # API keys
-    anthropic_api_key: Optional[str] = os.getenv("ANTHROPIC_API_KEY")
     voyage_api_key: Optional[str] = os.getenv("VOYAGE_API_KEY")
+    cohere_api_key: Optional[str] = os.getenv("COHERE_API_KEY")
 
 
 # French system prompt for the LLM
