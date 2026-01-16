@@ -340,6 +340,10 @@ class PodcastQueryService:
                 normalized_podcast,
             )
 
+            # Early return if no nodes retrieved (avoid unnecessary reranker API call)
+            if not retrieved_nodes:
+                return self._format_chunks_as_markdown([])
+
             # Apply Cohere reranking first (semantic relevance)
             reranked_nodes = self.reranker.postprocess_nodes(
                 retrieved_nodes, query_str=enhanced_question
