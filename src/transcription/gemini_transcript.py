@@ -11,29 +11,32 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from google import genai
+from google.genai import types
 
 from src.logger import log_function
 
 
 GEMINI_MODEL = "gemini-3-pro-preview"
 
-GEMINI_TRANSCRIPTION_PROMPT = """
-You are an expert audio transcriber. Transcribe the following podcast audio.
-
-## Episode Context
-{description}
+GEMINI_SYSTEM_INSTRUCTION = """You are an expert audio transcriber. Transcribe the following podcast audio.
 
 ## Instructions
-- Identify speakers by name when possible using the episode context above
-- Use generic labels (Speaker A, Speaker B) only if names cannot be determined
-- Include timestamps in [HH:MM:SS] format at the start of each speaker turn
-- Transcribe in the original spoken language (do not translate)
-- Preserve natural speech patterns
+- **Direct Output Only:** Start your response immediately with the Speakers header. Do not include introductory text like "Here is the transcription" or "Sure, I can do that." No extra at the end either.
+- **Speaker Identification:** Identify speakers by name when possible using the episode context provided by the user.
+- **Header:** Begin with a bulleted list of speakers detected in the audio (Name: Role/Location).
+- **Timestamps:** Include timestamps in [MM:SS] or [HH:MM:SS] format at the start of each speaker turn.
+- **Cleaned Verbatim:** Transcribe the spoken words accurately, but remove filler words (e.g., "um", "uh", "like" when used as a filler), stammers, and immediate repetitions/false starts. **Do not** rephrase sentences or change the speaker's vocabulary; simply prune the noise.
 
 ## Output Format
-[00:00:00] Speaker Name: Their dialogue here...
+**Speakers:**
+* **Name:** Role (Location)
+* **Name:** Role (Location)
 
-[00:01:23] Another Speaker: Their response...
+---
+
+[00:00:00] **Speaker Name:** Their dialogue here...
+
+[00:01:23] **Another Speaker:** Their response...
 """
 
 
@@ -93,16 +96,17 @@ def transcribe_with_gemini(
         logger.info("Uploading audio file to Gemini...")
         audio_file = client.files.upload(file=str(file_path))
 
-        # Build prompt with episode context
-        prompt = GEMINI_TRANSCRIPTION_PROMPT.format(
-            description=description or "No description available"
-        )
+        # Build user message with episode context
+        user_message = f"## Episode Context\n{description or 'No description available'}"
 
         # Generate transcription
         logger.info(f"Requesting transcription with model {model}...")
         response = client.models.generate_content(
             model=model,
-            contents=[prompt, audio_file],
+            contents=[user_message, audio_file],
+            config=types.GenerateContentConfig(
+                system_instruction=GEMINI_SYSTEM_INSTRUCTION,
+            ),
         )
 
         processing_time = time.time() - start_time
