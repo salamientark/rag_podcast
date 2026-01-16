@@ -12,7 +12,7 @@ import logging
 import os
 
 from pathlib import Path
-from typing import Any, Optional, Dict
+from typing import Any, Dict
 
 from dotenv import load_dotenv
 
@@ -45,15 +45,13 @@ EMBEDDING_DIR = "data/embeddings"
 
 
 @log_function(logger_name="pipeline", log_execution_time=True)
-def run_sync_stage(feed_url: Optional[str] = None) -> str:
+def run_sync_stage(podcast_id: int, feed_url: str) -> None:
     """
-    Sync podcast RSS feed into the SQL database and return the podcast name.
+    Sync podcast RSS feed into the SQL database.
 
     Parameters:
-        feed_url (Optional[str]): Custom RSS feed URL; if None, uses FEED_URL from environment.
-
-    Returns:
-        str: Podcast name extracted from the fetched feed.
+        podcast_id (int): The podcast ID to associate episodes with.
+        feed_url (str): RSS feed URL to fetch episodes from.
 
     Raises:
         ValueError: If no episodes are fetched from the feed.
@@ -61,10 +59,7 @@ def run_sync_stage(feed_url: Optional[str] = None) -> str:
     logger = logging.getLogger("pipeline")
     episodes = []
     try:
-        if feed_url:
-            logger.info(f"Starting sync stage with custom feed URL: {feed_url}")
-        else:
-            logger.info("Starting sync stage with default feed URL from .env")
+        logger.info(f"Starting sync stage with feed URL: {feed_url}")
 
         logger.info("Fetching podcast episodes from RSS feed...")
         episodes = fetch_podcast_episodes(feed_url=feed_url)
@@ -72,20 +67,14 @@ def run_sync_stage(feed_url: Optional[str] = None) -> str:
             logger.error("No episodes fetched during sync stage.")
             raise ValueError("No episodes fetched during sync stage.")
 
-        # Extract podcast name from first episode
-        podcast_name = episodes[0]["podcast"]
-        logger.info(f"Detected podcast from feed: {podcast_name}")
-
         episodes = filter_episodes(episodes, full_sync=True)
         logger.info(f"Fetched {len(episodes)} episodes. Syncing to database...")
 
-        stats = sync_to_database(episodes)
+        stats = sync_to_database(episodes, podcast_id=podcast_id)
         logger.info(
             f"Sync stage completed: {stats['processed']} processed, {stats['added']} added, "
             f"{stats['skipped']} skipped, {stats['errors']} errors"
         )
-
-        return podcast_name
 
     except Exception as e:
         logger.error(f"Sync stage failed: {e}")

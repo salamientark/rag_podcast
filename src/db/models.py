@@ -4,6 +4,7 @@ This module defines the database schema using SQLAlchemy's declarative base.
 All models inherit from Base and use consistent naming conventions.
 
 Models:
+    Podcast: Represents a podcast with its metadata and feed URL
     Episode: Represents a podcast episode with metadata and processing status
     TimestampMixin: Provides automatic created_at/updated_at timestamps
 
@@ -20,8 +21,11 @@ from sqlalchemy import (
     String,
     Text,
     DateTime,
+    ForeignKey,
 )
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 Base = declarative_base()
@@ -66,6 +70,44 @@ class ProcessingStage(str, PyEnum):
     EMBEDDED = "embedded"  # Chunks embedded in vectorial DB (Qdrant)
 
 
+class Podcast(Base, TimestampMixin):
+    """
+    Represents a podcast with its metadata and RSS feed URL.
+
+    Attributes:
+        id: Primary key, auto-incrementing integer
+        name: Unique podcast name (display name from RSS feed)
+        slug: Unique URL-friendly identifier for CLI usage
+        feed_url: RSS feed URL for syncing episodes
+        created_at: Timestamp when podcast was added (from TimestampMixin)
+        updated_at: Timestamp of last update (from TimestampMixin)
+    """
+
+    __tablename__ = "podcasts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False, unique=True)
+    slug = Column(String, nullable=False, unique=True)
+    feed_url = Column(String, nullable=False)
+
+    # Relationship to episodes
+    episodes = relationship("Episode", back_populates="podcast_rel")
+
+    def __repr__(self):
+        return f"<Podcast(id={self.id}, name='{self.name}', slug='{self.slug}')>"
+
+    def to_dict(self):
+        """Convert Podcast instance to dictionary representation."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "slug": self.slug,
+            "feed_url": self.feed_url,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class Episode(Base, TimestampMixin):
     """
     Represents a podcast episode with metadata and processing tracking.
@@ -76,7 +118,9 @@ class Episode(Base, TimestampMixin):
 
     Attributes:
         uuid: Primary key, unique identifier (UUID7 format)
-        podcast: Podcast name/identifier
+        podcast_id: Foreign key to podcasts table
+        podcast_rel: Relationship to Podcast model
+        podcast: Hybrid property returning podcast name (backward compatible)
         episode_id: Episode number within podcast (not unique across different podcasts)
         title: Episode title from RSS feed
         description: Episode description/show notes (truncated to 1000 chars)
@@ -104,10 +148,19 @@ class Episode(Base, TimestampMixin):
 
     # Primary metadata
     uuid = Column(String, primary_key=True)  # Primary key (was guid)
-    podcast = Column(String, nullable=False)
+    podcast_id = Column(Integer, ForeignKey("podcasts.id"), nullable=False)
     episode_id = Column(
         Integer, nullable=False
     )  # Episode number, not unique across podcasts (was id)
+
+    # Relationship to Podcast
+    podcast_rel = relationship("Podcast", back_populates="episodes")
+
+    @hybrid_property
+    def podcast(self) -> str:
+        """Return podcast name for backward compatibility."""
+        return self.podcast_rel.name if self.podcast_rel else None
+
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     published_date = Column(DateTime, nullable=False)
@@ -147,7 +200,8 @@ class Episode(Base, TimestampMixin):
         """Convert Episode instance to dictionary representation."""
         return {
             "uuid": self.uuid,
-            "podcast": self.podcast,
+            "podcast_id": self.podcast_id,
+            "podcast": self.podcast,  # hybrid property for backward compat
             "episode_id": self.episode_id,
             "title": self.title,
             "description": self.description,

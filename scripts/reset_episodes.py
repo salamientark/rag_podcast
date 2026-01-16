@@ -17,7 +17,14 @@ import os
 from dotenv import load_dotenv
 from qdrant_client import models
 
-from src.db import get_db_session, Episode, ProcessingStage, get_qdrant_client
+from src.db import (
+    get_db_session,
+    Episode,
+    ProcessingStage,
+    get_qdrant_client,
+    get_podcast_by_name_or_slug,
+    get_all_podcasts,
+)
 
 
 def reset_episode(session, client, collection_name, episode, dry_run=False):
@@ -72,10 +79,20 @@ def main():
         print("Error: QDRANT_COLLECTION_NAME not set in environment")
         return 1
 
+    # Resolve podcast by name or slug
+    podcast = get_podcast_by_name_or_slug(args.podcast)
+    if not podcast:
+        print(f"Error: Podcast '{args.podcast}' not found")
+        print("\nAvailable podcasts:")
+        for p in get_all_podcasts():
+            print(f"  - {p.name} (slug: {p.slug})")
+        return 1
+    print(f"Using podcast: {podcast.name} (id={podcast.id})")
+
     with get_db_session() as session:
         with get_qdrant_client() as client:
             # Build query
-            query = session.query(Episode).filter(Episode.podcast.ilike(args.podcast))
+            query = session.query(Episode).filter(Episode.podcast_id == podcast.id)
 
             if args.episode_id:
                 query = query.filter(Episode.episode_id == args.episode_id)

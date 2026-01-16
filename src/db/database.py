@@ -16,12 +16,12 @@ from contextlib import contextmanager
 from typing import Generator, Any, Optional, Dict
 from urllib.parse import urlparse
 
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, event, text, or_
 from sqlalchemy.exc import SQLAlchemyError, OperationalError
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import QueuePool
 
-from .models import Base, Episode, ProcessingStage
+from .models import Base, Episode, Podcast, ProcessingStage
 from src.logger import setup_logging, log_function
 
 
@@ -336,11 +336,10 @@ def get_podcasts() -> list[str]:
     """
     try:
         with get_db_session() as session:
-            # Query distinct podcast names
-            results = session.query(Episode.podcast).distinct().all()
-            # Extract strings from tuples and sort
-            podcasts = sorted([row[0] for row in results])
-            db_logger.info(f"Retrieved {len(podcasts)} unique podcasts from database")
+            # Query podcast names from the podcasts table
+            results = session.query(Podcast.name).order_by(Podcast.name).all()
+            podcasts = [row[0] for row in results]
+            db_logger.info(f"Retrieved {len(podcasts)} podcasts from database")
             return podcasts
     except Exception as e:
         db_logger.error(f"Failed to retrieve podcasts: {e}")
@@ -348,9 +347,113 @@ def get_podcasts() -> list[str]:
 
 
 @log_function(logger_name="database", log_execution_time=True)
+def get_all_podcasts() -> list[Podcast]:
+    """
+    Return all podcasts from the database.
+
+    Returns:
+        list[Podcast]: List of Podcast objects. Returns empty list on error.
+    """
+    try:
+        with get_db_session() as session:
+            podcasts = session.query(Podcast).order_by(Podcast.name).all()
+            # Expunge to detach from session for use outside context
+            for p in podcasts:
+                session.expunge(p)
+            db_logger.info(f"Retrieved {len(podcasts)} podcasts from database")
+            return podcasts
+    except Exception as e:
+        db_logger.error(f"Failed to retrieve podcasts: {e}")
+        return []
+
+
+@log_function(logger_name="database", log_execution_time=True)
+def get_podcast_by_name_or_slug(identifier: str) -> Optional[Podcast]:
+    """
+    Find a podcast by name OR slug (case-insensitive).
+
+    Args:
+        identifier: Podcast name or slug to search for.
+
+    Returns:
+        Podcast object if found, None otherwise.
+    """
+    try:
+        with get_db_session() as session:
+            podcast = (
+                session.query(Podcast)
+                .filter(
+                    or_(Podcast.name.ilike(identifier), Podcast.slug.ilike(identifier))
+                )
+                .first()
+            )
+            if podcast:
+                session.expunge(podcast)
+                db_logger.info(f"Found podcast: {podcast.name} (slug: {podcast.slug})")
+            else:
+                db_logger.info(f"Podcast not found for identifier: {identifier}")
+            return podcast
+    except Exception as e:
+        db_logger.error(f"Failed to find podcast '{identifier}': {e}")
+        return None
+
+
+@log_function(logger_name="database", log_execution_time=True)
+def get_podcast_by_id(podcast_id: int) -> Optional[Podcast]:
+    """
+    Get a podcast by its ID.
+
+    Args:
+        podcast_id: The podcast's primary key ID.
+
+    Returns:
+        Podcast object if found, None otherwise.
+    """
+    try:
+        with get_db_session() as session:
+            podcast = session.query(Podcast).filter_by(id=podcast_id).first()
+            if podcast:
+                session.expunge(podcast)
+            return podcast
+    except Exception as e:
+        db_logger.error(f"Failed to get podcast by id {podcast_id}: {e}")
+        return None
+
+
+@log_function(logger_name="database", log_execution_time=True)
+def create_podcast(name: str, slug: str, feed_url: str) -> Podcast:
+    """
+    Create a new podcast entry in the database.
+
+    Args:
+        name: Display name of the podcast.
+        slug: URL-friendly identifier.
+        feed_url: RSS feed URL.
+
+    Returns:
+        The created Podcast object.
+
+    Raises:
+        Exception: If podcast creation fails (e.g., duplicate name/slug).
+    """
+    try:
+        with get_db_session() as session:
+            podcast = Podcast(name=name, slug=slug, feed_url=feed_url)
+            session.add(podcast)
+            session.commit()
+            session.refresh(podcast)
+            session.expunge(podcast)
+            db_logger.info(f"Created podcast: {name} (slug: {slug})")
+            return podcast
+    except Exception as e:
+        db_logger.error(f"Failed to create podcast '{name}': {e}")
+        raise
+
+
+@log_function(logger_name="database", log_execution_time=True)
 def update_episode_in_db(
     uuid: str,
-    podcast: Optional[str] = None,
+    podcast_id: Optional[int] = None,
     episode_id: Optional[int] = None,
     title: Optional[str] = None,
     description: Optional[str] = None,
@@ -372,7 +475,7 @@ def update_episode_in_db(
 
     Parameters:
         uuid: UUID of the episode to update.
-        podcast: New podcast name (optional).
+        podcast_id: New podcast FK ID (optional).
         episode_id: New episode identifier (optional).
         title: New episode title (optional).
         description: New episode description (optional).
@@ -390,8 +493,8 @@ def update_episode_in_db(
     try:
         # Create update dictionary
         update_data: dict[str, Any] = {}
-        if podcast is not None:
-            update_data["podcast"] = podcast
+        if podcast_id is not None:
+            update_data["podcast_id"] = podcast_id
         if episode_id is not None:
             update_data["episode_id"] = episode_id
         if title is not None:

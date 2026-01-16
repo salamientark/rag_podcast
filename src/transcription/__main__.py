@@ -30,7 +30,11 @@ import logging
 
 from src.transcription.gemini_transcript import transcribe_with_gemini
 from src.logger import setup_logging
-from src.db.database import get_db_session
+from src.db.database import (
+    get_db_session,
+    get_podcast_by_name_or_slug,
+    get_all_podcasts,
+)
 from src.db.models import Episode, ProcessingStage
 
 
@@ -50,11 +54,11 @@ def get_episode_id_from_path(file_path: Path) -> int:
     return 0
 
 
-def get_episode_from_db(podcast_name: str, episode_id: int) -> dict | None:
+def get_episode_from_db(podcast_id: int, episode_id: int) -> dict | None:
     """Get episode data from database.
 
     Args:
-        podcast_name: Podcast name
+        podcast_id: Podcast ID (FK)
         episode_id: Episode ID number
 
     Returns:
@@ -65,7 +69,7 @@ def get_episode_from_db(podcast_name: str, episode_id: int) -> dict | None:
             episode = (
                 session.query(Episode)
                 .filter(
-                    Episode.podcast.ilike(podcast_name),
+                    Episode.podcast_id == podcast_id,
                     Episode.episode_id == episode_id,
                 )
                 .first()
@@ -106,7 +110,7 @@ def update_episode_transcript_path(uuid: str, transcript_path: str) -> bool:
 def process_files(
     files: List[Path],
     output_dir: Path,
-    podcast_name: str,
+    podcast_id: int,
     force: bool,
     no_db_update: bool,
     logger: logging.Logger,
@@ -116,7 +120,7 @@ def process_files(
     Args:
         files: List of audio files to process
         output_dir: Output directory for transcripts
-        podcast_name: Podcast name
+        podcast_id: Podcast ID (FK)
         force: Force re-transcription
         no_db_update: Skip database updates
         logger: Logger instance
@@ -138,7 +142,7 @@ def process_files(
             print(f"  Episode ID: {episode_id}")
 
             # Get episode from database for description
-            episode_data = get_episode_from_db(podcast_name, episode_id)
+            episode_data = get_episode_from_db(podcast_id, episode_id)
             description = episode_data["description"] if episode_data else ""
 
             # Check if transcript exists
@@ -299,9 +303,20 @@ def main():
         print("No valid files to process")
         sys.exit(1)
 
+    # Resolve podcast by name or slug
+    podcast = get_podcast_by_name_or_slug(args.podcast)
+    if not podcast:
+        print(f"Error: Podcast '{args.podcast}' not found")
+        print("\nAvailable podcasts:")
+        for p in get_all_podcasts():
+            print(f"  - {p.name} (slug: {p.slug})")
+        sys.exit(1)
+
+    print(f"Using podcast: {podcast.name} (id={podcast.id})")
+
     # Dry run
     if args.dry_run:
-        dry_run_analysis(valid_files, args.output_dir, args.podcast, args.force)
+        dry_run_analysis(valid_files, args.output_dir, podcast.name, args.force)
         sys.exit(0)
 
     # Process files
@@ -311,7 +326,7 @@ def main():
         results = process_files(
             files=valid_files,
             output_dir=args.output_dir,
-            podcast_name=args.podcast,
+            podcast_id=podcast.id,
             force=args.force,
             no_db_update=args.no_db_update,
             logger=logger,

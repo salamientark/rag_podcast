@@ -5,21 +5,20 @@ RSS Feed to Database Sync Script - Optimized Version
 Based on successful simple testing. Fast and reliable.
 
 Usage:
-    uv run -m src.ingestion.sync_episodes                  # Sync last 30 days
-    uv run -m src.ingestion.sync_episodes --full-sync      # Sync all episodes
-    uv run -m src.ingestion.sync_episodes --feed-url https://feeds.example.com/podcast.xml  # Custom feed
-    uv run -m src.ingestion.sync_episodes --limit 5        # Sync 5 episodes
-    uv run -m src.ingestion.sync_episodes --dry-run        # Test mode (very fast)
+    uv run -m src.ingestion --podcast rdv-tech              # Sync using podcast slug
+    uv run -m src.ingestion --podcast "Le rendez-vous Tech" # Sync using podcast name
+    uv run -m src.ingestion --podcast rdv-tech --full-sync  # Sync all episodes
+    uv run -m src.ingestion --podcast rdv-tech --limit 5    # Sync 5 episodes
+    uv run -m src.ingestion --podcast rdv-tech --dry-run    # Test mode (very fast)
 """
 
 import uuid_utils as uuid
 import logging
-import os
+import re
 import sys
 from typing import Optional, Any
 from datetime import datetime, timedelta
 from pathlib import Path
-from dotenv import load_dotenv
 
 import requests
 from bs4 import BeautifulSoup
@@ -37,14 +36,12 @@ logger = setup_logging(logger_name="sync_episodes", log_file="logs/sync_episodes
 
 
 @log_function(logger_name="sync_episodes", log_execution_time=True)
-def fetch_podcast_episodes(feed_url: Optional[str] = None) -> list[dict[str, Any]]:
+def fetch_podcast_episodes(feed_url: str) -> list[dict[str, Any]]:
     """
     Fetch episodes from an RSS feed and return parsed episode metadata.
 
-    If feed_url is provided it is used; otherwise FEED_URL is read from a .env file. Each returned item is a dict containing a generated UUID7, the podcast name, a sequential episode_id, title, publication date, audio URL, and an optional description (truncated to 1000 chars).
-
     Parameters:
-        feed_url (Optional[str]): RSS feed URL to fetch; when None, the FEED_URL environment variable from a loaded .env file is used.
+        feed_url (str): RSS feed URL to fetch (required).
 
     Returns:
         list[dict[str, Any]]: A list of episode dictionaries with keys:
@@ -57,22 +54,14 @@ def fetch_podcast_episodes(feed_url: Optional[str] = None) -> list[dict[str, Any
             - description (str, optional): Cleaned episode description, up to 1000 characters
 
     Raises:
-        EnvironmentError: If the .env file cannot be loaded or FEED_URL is missing when feed_url is not provided.
+        ValueError: If feed_url is not provided.
     """
-    # Get feed URL from parameter or .env
     if not feed_url:
-        env = load_dotenv()
-        if not env:
-            raise EnvironmentError("Could not load .env file")
-        FEED_URL = os.getenv("FEED_URL")
-        if not FEED_URL:
-            raise EnvironmentError("FEED_URL not found in .env file")
-    else:
-        FEED_URL = feed_url
+        raise ValueError("feed_url is required")
 
-    logger.info(f"Fetching feed from {FEED_URL}...")
+    logger.info(f"Fetching feed from {feed_url}...")
     try:
-        response = requests.get(FEED_URL, timeout=30)
+        response = requests.get(feed_url, timeout=30)
         response.raise_for_status()
     except requests.RequestException as e:
         logger.error(f"Error fetching feed: {e}")
@@ -196,25 +185,33 @@ def filter_episodes(
     return episodes
 
 
+def generate_slug(name: str) -> str:
+    """Generate a URL-friendly slug from a podcast name."""
+    slug = name.lower()
+    slug = re.sub(r"[^a-z0-9]+", "-", slug)
+    slug = slug.strip("-")
+    return slug
+
+
 @log_function(logger_name="sync_episodes", log_execution_time=True)
 def sync_to_database(
-    episodes: list[dict[str, Any]], dry_run: bool = False
+    episodes: list[dict[str, Any]], podcast_id: int, dry_run: bool = False
 ) -> dict[str, int]:
     """
     Persist a list of parsed podcast episodes to the database, optionally performing a dry run.
 
-    Processes episodes in the provided order (chronological: oldest first). When an episode with the same (podcast, audio_url) combination already exists, that episode is skipped. In dry-run mode, no database changes are made and a summary of actions is printed.
+    Processes episodes in the provided order (chronological: oldest first). When an episode with the same (podcast_id, audio_url) combination already exists, that episode is skipped. In dry-run mode, no database changes are made and a summary of actions is printed.
 
     Parameters:
         episodes (list[dict[str, Any]]): Episode dictionaries with required keys:
             - uuid: UUID for the episode
-            - podcast: Podcast name
             - episode_id: Sequential episode number for the podcast
             - title: Episode title
             - date: Publication datetime
             - audio_url: URL to the episode audio
           Optional keys:
             - description: Episode description
+        podcast_id (int): The podcast FK ID to associate episodes with.
         dry_run (bool): If True, print what would be performed without modifying the database.
 
     Returns:
@@ -251,11 +248,11 @@ def sync_to_database(
     with get_db_session() as session:
         for episode_data in episodes:
             try:
-                # Check if exists
+                # Check if exists by podcast_id and audio_url
                 existing = (
                     session.query(Episode)
                     .filter_by(
-                        podcast=episode_data["podcast"],
+                        podcast_id=podcast_id,
                         audio_url=episode_data["audio_url"],
                     )
                     .first()
@@ -263,10 +260,10 @@ def sync_to_database(
                 if existing:
                     stats["skipped"] += 1
                 else:
-                    # Create new episode
+                    # Create new episode with podcast_id FK
                     episode = Episode(
                         uuid=episode_data["uuid"],
-                        podcast=episode_data["podcast"],
+                        podcast_id=podcast_id,
                         episode_id=episode_data["episode_id"],
                         title=episode_data["title"],
                         published_date=episode_data["date"],
