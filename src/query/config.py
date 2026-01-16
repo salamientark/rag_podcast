@@ -6,9 +6,13 @@ for the LlamaIndex-based podcast query system.
 """
 
 import os
-from dotenv import load_dotenv
 from dataclasses import dataclass
 from typing import Optional
+
+from dotenv import load_dotenv
+
+# Load environment variables at module import time (before dataclass field defaults)
+load_dotenv()
 
 
 @dataclass
@@ -29,7 +33,6 @@ class QueryConfig:
     # Chat memory (3000 tokens = ~8-12 exchanges) - used by CLI
     memory_token_limit: int = 3000
 
-    load_dotenv()
     # Qdrant connection
     collection_name: Optional[str] = os.getenv("QDRANT_COLLECTION_NAME")
     qdrant_url: Optional[str] = os.getenv("QDRANT_URL")

@@ -340,20 +340,20 @@ class PodcastQueryService:
                 normalized_podcast,
             )
 
-            # Apply temporal sorting if needed
-            sorted_nodes = sort_nodes_temporally(retrieved_nodes, enhanced_question)
-
-            # Apply Cohere reranking
+            # Apply Cohere reranking first (semantic relevance)
             reranked_nodes = self.reranker.postprocess_nodes(
-                sorted_nodes, query_str=enhanced_question
+                retrieved_nodes, query_str=enhanced_question
             )
 
+            # Then apply temporal sorting if needed (for "derniers épisodes" queries)
+            sorted_nodes = sort_nodes_temporally(reranked_nodes, enhanced_question)
+
             self.logger.debug(
-                f"Retrieved {len(retrieved_nodes)} nodes, reranked to {len(reranked_nodes)}"
+                f"Retrieved {len(retrieved_nodes)} → reranked to {len(reranked_nodes)} → sorted {len(sorted_nodes)}"
             )
 
             # Format as markdown for MCP client
-            return self._format_chunks_as_markdown(reranked_nodes)
+            return self._format_chunks_as_markdown(sorted_nodes)
 
         except Exception as e:
             self.logger.error(f"Query processing failed: {e}")
