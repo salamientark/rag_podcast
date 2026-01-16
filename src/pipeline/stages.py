@@ -260,30 +260,31 @@ def run_transcription_stage(
             filename = f"formatted_episode_{episode_id:03d}.txt"
             local_path = Path(local_workspace) / filename
 
-            # Check if transcript already exists
+            # Check if transcript already exists locally
             if local_path.exists() and not force:
                 logger.info(
-                    f"Transcript already exists for episode {episode_id:03d}, skipping."
+                    f"Transcript already exists for episode {episode_id:03d}, skipping transcription."
                 )
                 episode["formatted_transcript_path"] = str(local_path)
-                updated_episodes.append(episode)
-                continue
+                formatted_text = None  # Will read from file if needed for cloud upload
+            else:
+                # Transcribe with Gemini
+                logger.info(
+                    f"Transcribing episode {episode_id:03d} with Gemini from {audio_path.name}..."
+                )
+                result = transcribe_with_gemini(audio_path, description)
+                formatted_text = result["formatted_text"]
 
-            # Transcribe with Gemini
-            logger.info(
-                f"Transcribing episode {episode_id:03d} with Gemini from {audio_path.name}..."
-            )
-            result = transcribe_with_gemini(audio_path, description)
-            formatted_text = result["formatted_text"]
+                # Save locally
+                formatted_file_path = local_storage.save_file(
+                    local_workspace, filename, formatted_text
+                )
+                episode["formatted_transcript_path"] = str(formatted_file_path)
 
-            # Save locally
-            formatted_file_path = local_storage.save_file(
-                local_workspace, filename, formatted_text
-            )
-            episode["formatted_transcript_path"] = str(formatted_file_path)
             updated_episodes.append(episode)
 
             # Cloud save
+            formatted_file_path = episode["formatted_transcript_path"]
             if cloud_storage:
                 storage = get_cloud_storage()
                 cloud_workspace = f"{podcast}/transcripts/episode_{episode_id:03d}/"
@@ -295,6 +296,9 @@ def run_transcription_stage(
                         cloud_workspace, filename
                     )
                 else:
+                    # Read from local file if we didn't transcribe (reused existing)
+                    if formatted_text is None:
+                        formatted_text = local_path.read_text(encoding="utf-8")
                     formatted_file_path = storage.save_file(
                         cloud_workspace, filename, formatted_text
                     )

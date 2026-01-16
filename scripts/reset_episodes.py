@@ -68,6 +68,9 @@ def main():
 
     load_dotenv()
     collection_name = os.getenv("QDRANT_COLLECTION_NAME")
+    if not collection_name:
+        print("Error: QDRANT_COLLECTION_NAME not set in environment")
+        return 1
 
     with get_db_session() as session:
         with get_qdrant_client() as client:

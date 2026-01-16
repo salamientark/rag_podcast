@@ -37,7 +37,7 @@ Episodes flow through these automated stages:
 1. **`SYNCED`** → Metadata fetched from RSS feed
 2. **`AUDIO_DOWNLOADED`** → MP3 files downloaded locally  
 3. **`FORMATTED_TRANSCRIPT`** → Transcribed with Gemini (speaker identification included)
-5. **`EMBEDDED`** → Chunked and embedded in Qdrant vector database
+4. **`EMBEDDED`** → Chunked and embedded in Qdrant vector database
 
 ## 🚀 Key Features
 

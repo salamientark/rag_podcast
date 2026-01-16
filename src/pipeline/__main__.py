@@ -172,19 +172,6 @@ def validate_mutually_exclusive_args(args: argparse.Namespace) -> Optional[str]:
     return None
 
 
-def validate_storage_args(args: argparse.Namespace) -> None:
-    """
-    Ensure storage options are set correctly.
-
-    Cloud storage is the default. Use --no-cloud to disable.
-
-    Parameters:
-        args (argparse.Namespace): Parsed CLI namespace with `no_cloud` attribute.
-    """
-    # Cloud is default, --no-cloud disables it
-    pass
-
-
 def validate_feed_url_podcast_exclusivity(args: argparse.Namespace) -> Optional[str]:
     """
     Validate mutual exclusivity between --feed-url and --podcast and require that one is provided.
@@ -451,9 +438,6 @@ async def main():
         print(f"✗ Error: {validation_error}", file=sys.stderr)
         print("Run with --help for usage information", file=sys.stderr)
         sys.exit(1)
-
-    # Validate and set default storage arguments
-    validate_storage_args(args)
 
     # Validate feed-url and podcast mutual exclusivity
     validation_error = validate_feed_url_podcast_exclusivity(args)

@@ -97,7 +97,9 @@ def transcribe_with_gemini(
         audio_file = client.files.upload(file=str(file_path))
 
         # Build user message with episode context
-        user_message = f"## Episode Context\n{description or 'No description available'}"
+        user_message = (
+            f"## Episode Context\n{description or 'No description available'}"
+        )
 
         # Generate transcription
         logger.info(f"Requesting transcription with model {model}...")
