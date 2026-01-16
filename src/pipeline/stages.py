@@ -253,6 +253,18 @@ def run_transcription_stage(
             audio_path = Path(episode["audio_file_path"])
             description = episode.get("description", "")
 
+            # Ensure we have a valid local path for transcription
+            if not audio_path.exists():
+                # Try local path format (handles cloud-style paths)
+                local_audio_path = Path(f"data/{podcast}/audio/") / audio_path.name
+                if local_audio_path.exists():
+                    audio_path = local_audio_path
+                else:
+                    logger.error(
+                        f"Audio file not found for episode {episode_id}: {episode['audio_file_path']}"
+                    )
+                    continue
+
             # Create output directory
             local_workspace = f"data/{podcast}/transcripts/episode_{episode_id:03d}/"
             Path(local_workspace).mkdir(parents=True, exist_ok=True)
@@ -265,7 +277,7 @@ def run_transcription_stage(
                 logger.info(
                     f"Transcript already exists for episode {episode_id:03d}, skipping transcription."
                 )
-                episode["formatted_transcript_path"] = str(local_path)
+                episode["formatted_transcript_path"] = str(local_path.resolve())
                 formatted_text = None  # Will read from file if needed for cloud upload
             else:
                 # Transcribe with Gemini
