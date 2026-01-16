@@ -7,7 +7,7 @@ A complete RAG (Retrieval-Augmented Generation) system for podcast content analy
 Transform podcast episodes into a searchable, queryable knowledge base:
 - **📡 Automated ingestion** from RSS feeds with metadata extraction
 - **📁 Audio file management** with organized download and storage
-- **🎙️ Advanced transcription** using AssemblyAI with speaker diarization  
+- **🎙️ Advanced transcription** using Google Gemini with speaker identification  
 - **📝 Intelligent text processing** with semantic chunking for RAG
 - **🔍 Vector embeddings** using VoyageAI stored in Qdrant database
 - **🤖 AI query agent** for natural language conversations about episodes
@@ -19,7 +19,7 @@ rag_podcast/
 ├── src/
 │   ├── db/              # SQLAlchemy models, database connections, migrations
 │   ├── ingestion/       # RSS sync, audio downloads, reconciliation
-│   ├── transcription/   # AssemblyAI integration, speaker mapping
+│   ├── transcription/   # Gemini transcription with speaker identification
 │   ├── chunker/         # Semantic text chunking for RAG
 │   ├── embedder/        # VoyageAI embeddings with Qdrant storage
 │   ├── query/           # RAG query agent with LlamaIndex
@@ -36,8 +36,7 @@ rag_podcast/
 Episodes flow through these automated stages:
 1. **`SYNCED`** → Metadata fetched from RSS feed
 2. **`AUDIO_DOWNLOADED`** → MP3 files downloaded locally  
-3. **`RAW_TRANSCRIPT`** → Transcribed with AssemblyAI Universal-2
-4. **`FORMATTED_TRANSCRIPT`** → Speaker diarization and formatting
+3. **`FORMATTED_TRANSCRIPT`** → Transcribed with Gemini (speaker identification included)
 5. **`EMBEDDED`** → Chunked and embedded in Qdrant vector database
 
 ## 🚀 Key Features
@@ -54,7 +53,7 @@ Episodes flow through these automated stages:
 - **Python** >= 3.13
 - **Package Manager**: [`uv`](https://docs.astral.sh/uv/) (fast Python package manager)
 - **Vector Database**: [Qdrant](https://qdrant.tech/) (local or cloud instance)
-- **API Keys**: OpenAI, VoyageAI, AssemblyAI
+- **API Keys**: OpenAI, VoyageAI, Gemini
 
 ## 🛠️ Setup
 
@@ -79,7 +78,7 @@ cp .env.example .env
 # Required API keys (.env):
 OPENAI_API_KEY=your_openai_key_here
 VOYAGE_API_KEY=your_voyage_ai_key_here  
-ASSEMBLYAI_API_KEY=your_assemblyai_key_here
+GEMINI_API_KEY=your_gemini_key_here
 
 # Database configuration
 DATABASE_URL=sqlite:///data/podcast.db
@@ -354,7 +353,7 @@ uv run alembic upgrade head
 **API Key Errors:**
 ```bash
 # Verify environment variables
-grep -E "(OPENAI|VOYAGE|ASSEMBLYAI)" .env
+grep -E "(OPENAI|VOYAGE|GEMINI)" .env
 
 # Test API connectivity
 uv run python -c "import openai; print('OpenAI key valid')"

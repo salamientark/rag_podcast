@@ -10,7 +10,6 @@ Each function wraps existing module logic and provides:
 
 import logging
 import os
-import json
 
 from pathlib import Path
 from typing import Any, Optional, Dict
@@ -34,11 +33,7 @@ from src.ingestion.audio_scrap import (
     generate_filename,
     download_episode,
 )
-from src.transcription import (
-    format_transcript,
-    map_speakers_with_llm,
-)
-from src.transcription.transcript import transcribe_with_diarization
+from src.transcription.gemini_transcript import transcribe_with_gemini
 from src.embedder.embed import process_episode_embedding
 from src.storage import get_cloud_storage, LocalStorage
 from src.transcription.summarize import summarize, save_summary_to_cloud, make_file_url
@@ -225,238 +220,65 @@ def run_download_stage(
 
 
 @log_function(logger_name="pipeline", log_execution_time=True)
-def run_raw_transcript_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
-    """
-    Generate raw transcripts for the provided episodes and persist them to disk.
-
-    Parameters:
-        episodes (list[Dict[str, Any]]): List of episode dictionaries. Each dictionary must include
-            the keys `uuid`, `podcast`, `episode_id`, and `audio_file_path`. `title` is optional but may be present.
-
-    Returns:
-        list[Dict[str, Any]]: The input episode dictionaries augmented with `raw_transcript_path`.
-            Episodes may also include `transcript_duration` (int seconds) and `transcript_confidence` when available.
-
-    Side effects:
-        - Writes raw transcript JSON files to a per-episode workspace on disk.
-        - Updates the episode record in the database with `raw_transcript_path`, `processing_stage` set to
-          RAW_TRANSCRIPT, and any available `transcript_duration` and `transcript_confidence`.
-    """
-    logger = logging.getLogger("pipeline")
-
-    try:
-        logger.info("Starting raw transcription stage...")
-        transcripted_episodes = []
-        workspace = f"data/{episodes[0]['podcast']}/transcripts/"
-        for episode in episodes:
-            # Get episode ID
-            episode_id = episode["episode_id"]
-
-            # Create output directory
-            output_dir = Path(f"{workspace}/episode_{episode_id:03d}/")
-            try:
-                output_dir.mkdir(parents=True, exist_ok=True)
-            except OSError as e:
-                logger.error(f"Failed to create output directory {output_dir}: {e}")
-                continue
-
-            # Check if transcript already exist
-            raw_file_path = Path(output_dir) / f"raw_episode_{episode_id:03d}.json"
-            transcript_duration = None
-            transcript_confidence = None
-
-            if raw_file_path.exists():
-                # Load existing transcript to extract metadata
-                logger.info(
-                    f"Raw transcript already exists for episode ID {episode_id:03d}, loading metadata."
-                )
-            else:
-                # Call transcription function here
-                logger.info(
-                    f"Transcribing episode ID {episode_id:03d} from file {episode['audio_file_path']}..."
-                )
-                raw_transcript = transcribe_with_diarization(
-                    Path(episode["audio_file_path"]), language="fr"
-                )
-
-                # Extract metadata from new transcription
-                transcript_duration = raw_transcript.get("transcript", {}).get(
-                    "audio_duration"
-                )
-                transcript_confidence = raw_transcript.get("transcript", {}).get(
-                    "confidence"
-                )
-
-                # Convert duration to int if it exists (database expects Integer)
-                if transcript_duration is not None:
-                    transcript_duration = int(transcript_duration)
-
-                logger.info(
-                    f"Transcription metadata: duration={transcript_duration}s, confidence={transcript_confidence}"
-                )
-
-                try:
-                    with open(raw_file_path, "w", encoding="utf-8") as f:
-                        json.dump(raw_transcript, f, indent=4)
-                    logger.info(f"Saved raw transcription to {raw_file_path}")
-                except OSError as e:
-                    logger.error(
-                        f"Failed to save raw transcript for episode ID {episode_id:03d}: {e}"
-                    )
-                    continue
-
-            # Update db with transcript path and metadata
-            episode["raw_transcript_path"] = str(raw_file_path)
-            update_episode_in_db(
-                uuid=episode["uuid"],
-                raw_transcript_path=str(raw_file_path),
-                processing_stage=ProcessingStage.RAW_TRANSCRIPT,
-                transcript_duration=transcript_duration,
-                transcript_confidence=transcript_confidence,
-            )
-            transcripted_episodes.append(episode)
-
-        logger.info("Raw transcription stage completed successfully.")
-        return transcripted_episodes
-
-    except Exception as e:
-        logger.error(f"Failed to complete raw transcript pipeline : {e}")
-        raise
-
-
-@log_function(logger_name="pipeline", log_execution_time=True)
-def run_speaker_mapping_stage(
-    episodes: list[Dict[str, Any]], force: bool = False
-) -> list[Dict[str, Any]]:
-    """
-    Generate per-episode speaker mappings from raw transcript files and attach mapping paths to each episode.
-
-    Parameters:
-        episodes (list[Dict[str, Any]]): List of episode dictionaries. Each dictionary must include the keys
-            'uuid', 'podcast', 'episode_id', and 'raw_transcript_path'.
-        force (bool): If True, regenerate speaker mappings even if they already exist on disk.
-
-    Returns:
-        list[Dict[str, Any]]: The same list of episode dictionaries with a new 'mapping_path' key for each episode
-        pointing to the JSON file containing the speaker mapping.
-    """
-    logger = logging.getLogger("pipeline")
-
-    try:
-        logger.info("Starting speaker mapping stage...")
-        episodes_with_mapping = []
-        workspace = f"data/{episodes[0]['podcast']}/transcripts"
-
-        for episode in episodes:
-            episode_id = episode["episode_id"]
-            output_dir = Path(f"{workspace}/episode_{episode_id:03d}/")
-
-            # Take mapping from cache if exists
-            mapping_file_path = Path(
-                output_dir / f"speakers_episode_{episode_id:03d}.json"
-            )
-            mapping_result = {}
-            if mapping_file_path.exists() and not force:
-                logger.info(
-                    f"Speaker mapping already exists for episode ID {episode_id:03d}, loading from cache."
-                )
-            else:
-                logger.info(
-                    f"Generating speaker mapping for episode ID {episode_id:03d} from file {episode['raw_transcript_path']}..."
-                )
-                raw_formatted_text = format_transcript(
-                    Path(episode["raw_transcript_path"]), max_tokens=10000
-                )
-                description = episode["description"]
-                mapping_result = map_speakers_with_llm(raw_formatted_text, description)
-                try:
-                    with open(mapping_file_path, "w", encoding="utf-8") as f:
-                        json.dump(mapping_result, f, indent=4)
-                    logger.info(f"Saved mapping result to {mapping_file_path}")
-                except OSError as e:
-                    logger.error(
-                        f"Failed to write mapping result to {mapping_file_path}: {e}"
-                    )
-                    continue
-            episode["mapping_path"] = str(mapping_file_path)
-            episodes_with_mapping.append(episode)
-
-            # Save to db
-            update_episode_in_db(
-                uuid=episode["uuid"],
-                speaker_mapping_path=str(mapping_file_path),
-                processing_stage=ProcessingStage.RAW_TRANSCRIPT,
-            )
-        logger.info("Speaker mapping stage completed successfully.")
-        return episodes_with_mapping
-
-    except Exception as e:
-        logger.error(f"Failed to complete speaker mapping pipeline : {e}")
-        raise
-
-
-@log_function(logger_name="pipeline", log_execution_time=True)
-def run_formatted_transcript_stage(
-    episodes: list[Dict[str, str]],
+def run_transcription_stage(
+    episodes: list[Dict[str, Any]],
     cloud_storage: bool = False,
     force: bool = False,
 ) -> list[Dict[str, Any]]:
     """
-    Create speaker-attributed, human-readable transcripts from raw transcripts and attach their paths to each episode.
+    Transcribe audio files using Gemini and save formatted transcripts.
+
+    Uses Gemini to transcribe audio with speaker identification in a single call.
+    Episode description is passed to Gemini for speaker name context.
 
     Parameters:
-        episodes (list[dict]): List of episode dictionaries. Each dictionary must include the keys
-            `uuid`, `podcast`, `episode_id`, `title`, `raw_transcript_path`, and `mapping_path`.
-        cloud_storage (bool): If True, upload the formatted transcript to configured cloud storage.
-        force (bool): If True, regenerate formatted transcripts even if they already exist.
+        episodes (list[Dict[str, Any]]): List of episode dictionaries. Each must include:
+            `uuid`, `podcast`, `episode_id`, `audio_file_path`, `description`.
+        cloud_storage (bool): If True, upload transcripts to cloud storage.
+        force (bool): If True, re-transcribe even if transcript exists.
 
     Returns:
-        list[dict]: The same episode dictionaries with a `formatted_transcript_path` key added (path to the saved formatted transcript).
+        list[Dict[str, Any]]: Episodes with `formatted_transcript_path` added.
     """
     logger = logging.getLogger("pipeline")
 
     try:
-        logger.info("Starting formatted transcription stage...")
+        logger.info("Starting Gemini transcription stage...")
         updated_episodes = []
         local_storage = LocalStorage()
+        podcast = episodes[0]["podcast"]
 
         for episode in episodes:
-            transcript_path = episode["raw_transcript_path"]
-            speaker_map_path = episode["mapping_path"]
-
-            # Create filename
             episode_id = episode["episode_id"]
+            audio_path = Path(episode["audio_file_path"])
+            description = episode.get("description", "")
+
+            # Create output directory
+            local_workspace = f"data/{podcast}/transcripts/episode_{episode_id:03d}/"
+            Path(local_workspace).mkdir(parents=True, exist_ok=True)
+
             filename = f"formatted_episode_{episode_id:03d}.txt"
+            local_path = Path(local_workspace) / filename
 
-            # Local save
-            local_workspace = (
-                f"data/{episodes[0]['podcast']}/transcripts/episode_{episode_id:03d}/"
-            )
-            # local_workspace = local_storage.create_episode_workspace(episode_id)
+            # Check if transcript already exists
+            if local_path.exists() and not force:
+                logger.info(
+                    f"Transcript already exists for episode {episode_id:03d}, skipping."
+                )
+                episode["formatted_transcript_path"] = str(local_path)
+                updated_episodes.append(episode)
+                continue
+
+            # Transcribe with Gemini
             logger.info(
-                f"transcribing episode id {episode_id:03d} from file {transcript_path}..."
+                f"Transcribing episode {episode_id:03d} with Gemini from {audio_path.name}..."
             )
+            result = transcribe_with_gemini(audio_path, description)
+            formatted_text = result["formatted_text"]
 
-            # Load speaker mapping from JSON file
-            speaker_mapping_dict = {}
-            if os.path.exists(speaker_map_path):
-                try:
-                    with open(speaker_map_path, "r", encoding="utf-8") as f:
-                        speaker_mapping_dict = json.load(f)
-                    logger.info(f"Loaded speaker mapping: {speaker_mapping_dict}")
-                except (FileNotFoundError, json.JSONDecodeError) as e:
-                    logger.warning(
-                        f"Could not load speaker mapping from {speaker_map_path}: {e}"
-                    )
-                    speaker_mapping_dict = {}
-            else:
-                logger.warning(f"Speaker mapping file not found: {speaker_map_path}")
-
-            formatted_transcript = format_transcript(
-                Path(transcript_path), speaker_mapping=speaker_mapping_dict
-            )
+            # Save locally
             formatted_file_path = local_storage.save_file(
-                local_workspace, filename, formatted_transcript
+                local_workspace, filename, formatted_text
             )
             episode["formatted_transcript_path"] = str(formatted_file_path)
             updated_episodes.append(episode)
@@ -464,33 +286,33 @@ def run_formatted_transcript_stage(
             # Cloud save
             if cloud_storage:
                 storage = get_cloud_storage()
-                workspace = (
-                    f"{episodes[0]['podcast']}/transcripts/episode_{episode_id:03d}/"
-                )
-                if storage.file_exist(workspace, filename) and not force:
+                cloud_workspace = f"{podcast}/transcripts/episode_{episode_id:03d}/"
+                if storage.file_exist(cloud_workspace, filename) and not force:
                     logger.info(
-                        f"Formatted transcript already exists for episode ID {episode_id:03d}, skipping transcription."
+                        f"Transcript already exists in cloud for episode {episode_id:03d}."
                     )
                     formatted_file_path = storage._get_absolute_filename(
-                        workspace, filename
+                        cloud_workspace, filename
                     )
                 else:
                     formatted_file_path = storage.save_file(
-                        workspace, filename, formatted_transcript
+                        cloud_workspace, filename, formatted_text
                     )
 
-            # Update db
+            # Update database
             update_episode_in_db(
                 uuid=episode["uuid"],
                 formatted_transcript_path=str(formatted_file_path),
                 processing_stage=ProcessingStage.FORMATTED_TRANSCRIPT,
             )
 
-        logger.info("Format transcription stage completed successfully.")
+            logger.info(f"Episode {episode_id:03d} transcription completed.")
+
+        logger.info("Gemini transcription stage completed successfully.")
         return updated_episodes
 
     except Exception as e:
-        logger.error(f"Failed to complete formatted transcript pipeline : {e}")
+        logger.error(f"Failed to complete transcription stage: {e}")
         raise
 
 

@@ -6,7 +6,6 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.17.2",
-    "assemblyai>=0.48.0",
     "beautifulsoup4>=4.14.3",
     "chonkie[qdrant,semantic]>=1.4.2",
     "llama-index>=0.14.10",

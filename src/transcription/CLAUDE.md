@@ -2,94 +2,81 @@
 
 ## Purpose
 
-Converts audio podcast files into formatted transcripts with speaker diarization (AssemblyAI Universal-2) and optional speaker identification (OpenAI LLM).
+Converts audio podcast files into formatted transcripts with speaker identification using Google Gemini.
 
-This module is part of the pipeline stages:
+This module is part of the pipeline stage:
 
-`AUDIO_DOWNLOADED → RAW_TRANSCRIPT → FORMATTED_TRANSCRIPT`
+`AUDIO_DOWNLOADED → FORMATTED_TRANSCRIPT`
 
 ## Key Components
 
-### transcript.py
+### gemini_transcript.py
 
-Core transcription functionality using AssemblyAI.
+Core transcription functionality using Google Gemini API.
 
 **Key Functions:**
 
-- `transcribe_with_diarization(file_path, language)` - Main transcription with speaker diarization
-- `check_formatted_transcript_exists(output_dir, episode_id)` - Cache check
-- `get_episode_id_from_path(file_path)` - Extracts episode number from filename
+- `transcribe_with_gemini(file_path, description)` - Main transcription with speaker identification
+- `get_gemini_client()` - Returns configured Gemini client
 
-**Output Structure (raw JSON):**
+**How it works:**
+
+1. Uploads audio file to Gemini
+2. Sends transcription prompt with episode description for speaker context
+3. Gemini returns formatted transcript with timestamps and speaker names
+4. No intermediate steps needed (no raw JSON, no separate speaker mapping)
+
+**Output:**
 
 ```python
 {
-  "transcript": {"text": str, "confidence": float, "audio_duration": int},
-  "speakers": [{"speaker": str, "segments": [...]}],
-  "words": [{"text": str, "start": float, "end": float, "speaker": str}],
-  "_metadata": {...}
+    "transcript": {"text": str},
+    "formatted_text": str,  # Ready-to-use formatted transcript
+    "_metadata": {
+        "transcriber": "gemini",
+        "model": "gemini-3-flash-preview",
+        "processing_time_seconds": float,
+        "prompt_tokens": int,
+        "response_tokens": int,
+        ...
+    }
 }
 ```
 
-### speaker_mapper.py
-
-Transforms raw transcripts and identifies real speaker names.
-
-**Key Functions:**
-
-- `format_transcript(json_path, max_tokens, speaker_mapping)`  
-  Converts word-level JSON to readable text. If `speaker_mapping` is provided, it replaces generic labels with real names.
-- `map_speakers_with_llm(formatted_text)`  
-  Uses OpenAI to identify real speaker names from a formatted transcript excerpt.
-- `get_mapped_transcript(raw_transcript_path)`  
-  Convenience function: format → map → re-format.
-
-## Speaker Mapping Contract (IMPORTANT)
-
-Speaker mapping is a JSON object where keys are **generic labels**:
-
-- Keys: `"Speaker A"`, `"Speaker B"`, ...
-- Values: real names (string) or `"Unknown"` (case-insensitive accepted)
-
-Example:
-
-```json
-{
-  "Speaker A": "Patrick",
-  "Speaker B": "Cédric",
-  "Speaker C": "Unknown"
-}
-```
-
-Any other format (e.g., `{"A": "Patrick"}`) must be converted before being passed to `format_transcript()`.
-
-## File Naming Convention (canonical)
+## File Naming Convention
 
 Outputs are organized in: `{output_dir}/episode_{episode_id:03d}/`
 
-- Raw: `raw_episode_{episode_id:03d}.json`
-- Mapping: `speakers_episode_{episode_id:03d}.json`
 - Formatted: `formatted_episode_{episode_id:03d}.txt`
 
 ## CLI
 
-The CLI is implemented in `src/transcription/__main__.py` and is intended to support:
+The CLI is implemented in `src/transcription/__main__.py`:
 
-- `--force` - Re-transcribe even if formatted transcript exists
+```bash
+uv run -m src.transcription --podcast "Podcast Name" episode_001.mp3
+uv run -m src.transcription --podcast "Podcast Name" *.mp3 --force
+uv run -m src.transcription --podcast "Podcast Name" *.mp3 --dry-run
+```
+
+Options:
+- `--force` - Re-transcribe even if transcript exists
 - `--no-db-update` - Skip database updates
 - `--dry-run` - Preview without processing
 - `--verbose` - Enable detailed logging
 
-## Gotchas / Review Rules
+## Environment Variables
+
+```bash
+GEMINI_API_KEY=your_gemini_api_key
+```
+
+## Cost
+
+Gemini 3 Flash: ~$0.16/hour of audio (32 tokens/second, $1/1M audio tokens)
+
+## Gotchas
 
 1. **Episode identity**: SQL primary key is `Episode.uuid`. The integer `episode_id` is per-podcast and not globally unique.
-2. **Do not query `Episode.id`**: the model does not have an `id` column.
-3. **Mapping format must match the contract** above.
-4. **AssemblyAI time units**: raw data is in milliseconds; code converts to seconds in output.
-
-## Known Broken (current code reality)
-
-1. **Hard runtime break**: `src/transcription/__main__.py` imports `from src.transcript.speaker_mapper ...` but the package is `src.transcription`. This will fail immediately when running the CLI.
-2. **DB queries in CLI use wrong fields**: the CLI currently queries `Episode.id` in multiple places; the model uses `uuid` (PK) and `episode_id` (int).
-
-These should be fixed before relying on the transcription CLI in production.
+2. **Description context**: Episode description is passed to Gemini for better speaker identification. If not available, generic labels (Speaker A, Speaker B) are used.
+3. **No intermediate files**: Unlike the previous AssemblyAI flow, there's no raw JSON or speaker mapping JSON. Gemini produces the final formatted transcript directly.
