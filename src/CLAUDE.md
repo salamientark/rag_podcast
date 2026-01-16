@@ -14,24 +14,25 @@ src/
 ├── db/            # SQLite + Qdrant database layer
 ├── embedder/      # VoyageAI embedding generation
 ├── ingestion/     # RSS sync, audio download, reconciliation
-├── llm/           # OpenAI integration for speaker identification
+├── llm/           # OpenAI integration
 ├── logger/        # Centralized logging utilities
 ├── mcp/           # MCP server for Claude Desktop integration
-├── pipeline/      # 5-stage processing orchestrator
+├── pipeline/      # Processing orchestrator
 ├── query/         # RAG query engine with French support
 ├── storage/       # Local/cloud storage abstraction
-└── transcription/ # AssemblyAI transcription with diarization
+└── transcription/ # Gemini transcription with speaker identification
 ```
 
 ## Processing Pipeline (High Level)
 
-Episodes flow through 5 sequential stages tracked in the database:
+Episodes flow through these stages tracked in the database:
 
 1. **SYNCED** → `ingestion/sync_episodes.py` - RSS metadata to database
 2. **AUDIO_DOWNLOADED** → `ingestion/audio_scrap.py` - Download audio files
-3. **RAW_TRANSCRIPT** → `transcription/transcript.py` - AssemblyAI transcription
-4. **FORMATTED_TRANSCRIPT** → `transcription/speaker_mapper.py` - LLM speaker identification + formatting
-5. **EMBEDDED** → `embedder/embed.py` - VoyageAI embeddings to Qdrant
+3. **FORMATTED_TRANSCRIPT** → `transcription/gemini_transcript.py` - Gemini transcription + speaker identification
+4. **EMBEDDED** → `embedder/embed.py` - VoyageAI embeddings to Qdrant
+
+Note: `RAW_TRANSCRIPT` stage exists in the enum for backward compatibility but is skipped in the current pipeline.
 
 Run the full pipeline:
 
@@ -67,8 +68,6 @@ Local filesystem layout is expected to be consistent across modules:
   - `data/{podcast}/audio/episode_{episode_id:03d}_*.mp3` (pipeline)
   - Some legacy scripts also use `data/audio/episode_{episode_id:03d}_*.mp3` (ingestion)
 - Transcripts:
-  - `data/{podcast}/transcripts/episode_{episode_id:03d}/raw_episode_{episode_id:03d}.json`
-  - `data/{podcast}/transcripts/episode_{episode_id:03d}/speakers_episode_{episode_id:03d}.json`
   - `data/{podcast}/transcripts/episode_{episode_id:03d}/formatted_episode_{episode_id:03d}.txt`
 - Embeddings (local cache):
   - `data/{podcast}/embeddings/episode_{episode_id:03d}_d{dimensions}.npy`
@@ -79,25 +78,6 @@ If a module introduces a new path convention, it must update:
 - pipeline stage wrappers
 - reconciliation logic
 - documentation (this file + module CLAUDE.md)
-
-### Speaker mapping format (canonical)
-
-Speaker mapping is a JSON object where keys are **generic labels**:
-
-- Keys: `"Speaker A"`, `"Speaker B"`, ...
-- Values: real names (string) or `"Unknown"` (case-insensitive accepted)
-
-Example:
-
-```json
-{
-  "Speaker A": "Patrick",
-  "Speaker B": "Cédric",
-  "Speaker C": "Unknown"
-}
-```
-
-Any code producing mappings in a different format (e.g., `{"A": "Patrick"}`) is considered a bug unless explicitly converted.
 
 ### Qdrant payload contract (required fields)
 
@@ -129,23 +109,20 @@ The helper `ensure_payload_indexes()` exists for this purpose.
 When reviewing changes:
 
 1. **Do not introduce new DB lookups by `Episode.id`**. The model does not have an `id` column; use `uuid` or `(podcast, episode_id)`.
-2. **Do not change speaker mapping format** without updating both prompt + formatter + docs.
-3. **Any Qdrant filter must ensure payload indexes exist** (or call helper).
-4. **Avoid global side effects** in import time (e.g., `load_dotenv()` inside dataclass body, global `Settings.*` in LlamaIndex) unless explicitly justified.
-5. **Storage abstraction**: new file writes should go through `BaseStorage` where possible; do not hardcode cloud URLs/paths in business logic.
-6. **Stage transitions** must respect monotonicity rules.
+2. **Any Qdrant filter must ensure payload indexes exist** (or call helper).
+3. **Avoid global side effects** in import time (e.g., `load_dotenv()` inside dataclass body, global `Settings.*` in LlamaIndex) unless explicitly justified.
+4. **Storage abstraction**: new file writes should go through `BaseStorage` where possible; do not hardcode cloud URLs/paths in business logic.
+5. **Stage transitions** must respect monotonicity rules.
 
 ---
 
 ## Known Broken / Tech Debt (current code reality)
 
-These are not “gotchas”; they are known runtime issues or inconsistencies that should be fixed.
+These are not "gotchas"; they are known runtime issues or inconsistencies that should be fixed.
 
-1. **Transcription CLI import bug**: `src/transcription/__main__.py` imports `src.transcript.speaker_mapper` (module does not exist). It should import from `src.transcription.speaker_mapper`.
-2. **DB field mismatch in some CLIs**: some scripts query `Episode.id` or `Episode.guid`, but the model uses `uuid` (PK) and `episode_id` (int). This will fail at runtime.
-3. **LocalStorage.\_get_absolute_filename is incorrect**: it references cloud attributes (`endpoint`, `bucket_name`) that do not exist in LocalStorage.
-4. **Model naming drift**: query config defaults to `voyage-3.5` but embedder currently uses `voyage-3`. This can cause retrieval/embedding mismatch if not aligned.
-5. **Global Settings conflicts**: query modules set `llama_index.core.Settings.*` globally; multiple instances can conflict.
+1. **LocalStorage.\_get_absolute_filename is incorrect**: it references cloud attributes (`endpoint`, `bucket_name`) that do not exist in LocalStorage.
+2. **Model naming drift**: query config defaults to `voyage-3.5` but embedder currently uses `voyage-3`. This can cause retrieval/embedding mismatch if not aligned.
+3. **Global Settings conflicts**: query modules set `llama_index.core.Settings.*` globally; multiple instances can conflict.
 
 ---
 
@@ -153,11 +130,11 @@ These are not “gotchas”; they are known runtime issues or inconsistencies th
 
 | Component     | Technology                                       |
 | ------------- | ------------------------------------------------ |
-| Transcription | AssemblyAI Universal-2 with diarization          |
+| Transcription | Google Gemini (gemini-3-flash-preview)           |
 | Embeddings    | VoyageAI (currently `voyage-3` in embedder code) |
 | Vector Store  | Qdrant                                           |
 | SQL Database  | SQLite with SQLAlchemy                           |
-| LLM           | Claude (query) + OpenAI (speaker identification) |
+| LLM           | Claude (query) + OpenAI (misc)                   |
 | Reranking     | BGE-M3 multilingual                              |
 | Framework     | LlamaIndex                                       |
 
@@ -174,7 +151,7 @@ QDRANT_API_KEY=xxx  # Optional for local
 ANTHROPIC_API_KEY=xxx
 VOYAGE_API_KEY=xxx
 OPENAI_API_KEY=xxx
-ASSEMBLYAI_API_KEY=xxx
+GEMINI_API_KEY=xxx
 
 # Cloud Storage (optional)
 BUCKET_ENDPOINT=https://...
@@ -207,4 +184,4 @@ Each module has its own `CLAUDE.md` with detailed documentation:
 - [pipeline/CLAUDE.md](pipeline/CLAUDE.md) - 5-stage orchestrator
 - [query/CLAUDE.md](query/CLAUDE.md) - RAG query engine
 - [storage/CLAUDE.md](storage/CLAUDE.md) - Local/cloud abstraction
-- [transcription/CLAUDE.md](transcription/CLAUDE.md) - AssemblyAI + speaker mapping
+- [transcription/CLAUDE.md](transcription/CLAUDE.md) - Gemini transcription

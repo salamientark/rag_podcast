@@ -7,9 +7,7 @@ from src.db import ProcessingStage, get_db_session, Episode
 from .stages import (
     run_sync_stage,
     run_download_stage,
-    run_raw_transcript_stage,
-    run_speaker_mapping_stage,
-    run_formatted_transcript_stage,
+    run_transcription_stage,
     run_summarization_stage,
     run_embedding_stage,
 )
@@ -185,14 +183,15 @@ async def run_pipeline(
                 episodes_to_process, use_cloud_storage
             )
 
-        # Run raw transcript stage
-        if force or stages is None or "raw_transcript" in stages:
-            episodes_to_process = run_raw_transcript_stage(episodes_to_process)
-
-        # Run formatted transcript stage (Speaker mapping included)
-        if force or stages is None or "format_transcript" in stages:
-            episodes_to_process = run_speaker_mapping_stage(episodes_to_process, force)
-            episodes_to_process = run_formatted_transcript_stage(
+        # Run transcription stage (Gemini: transcription + speaker identification)
+        # Accepts both "raw_transcript" and "format_transcript" for backward compatibility
+        if (
+            force
+            or stages is None
+            or "raw_transcript" in stages
+            or "format_transcript" in stages
+        ):
+            episodes_to_process = run_transcription_stage(
                 episodes_to_process, use_cloud_storage, force
             )
             await run_summarization_stage(episodes_to_process, force)
