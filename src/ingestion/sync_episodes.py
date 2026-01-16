@@ -286,6 +286,7 @@ def sync_to_database(
                 stats["processed"] += 1
 
             except Exception as e:
+                session.rollback()
                 print(f'  ✗ Error: "{episode_data["title"][:50]}..." - {e}')
                 logger.error(f"Error processing episode '{episode_data['title']}': {e}")
                 stats["errors"] += 1

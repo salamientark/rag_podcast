@@ -56,15 +56,33 @@ def upgrade() -> None:
     with op.batch_alter_table("episodes", schema=None) as batch_op:
         batch_op.add_column(sa.Column("podcast_id", sa.Integer(), nullable=True))
 
-    # Step 4: Populate podcast_id from existing podcast string
+    # Step 4: Populate podcast_id from existing podcast string (case-insensitive)
     op.execute(
         """
         UPDATE episodes
         SET podcast_id = (
-            SELECT id FROM podcasts WHERE podcasts.name = episodes.podcast
+            SELECT id FROM podcasts WHERE LOWER(podcasts.name) = LOWER(episodes.podcast)
         )
         """
     )
+
+    # Step 4b: Validate no unmapped podcasts remain before making NOT NULL
+    # This prevents silent data corruption if episodes have podcast names not in seed data
+    connection = op.get_bind()
+    result = connection.execute(
+        sa.text(
+            """
+            SELECT DISTINCT podcast FROM episodes WHERE podcast_id IS NULL
+            """
+        )
+    )
+    unmapped = [row[0] for row in result]
+    if unmapped:
+        raise RuntimeError(
+            f"Migration failed: {len(unmapped)} podcast name(s) could not be mapped to podcasts table. "
+            f"Unmapped values: {unmapped}. "
+            "Please add these podcasts to the seed data in Step 2 and re-run the migration."
+        )
 
     # Step 5: Make podcast_id NOT NULL and add FK, then drop old column
     with op.batch_alter_table("episodes", schema=None) as batch_op:

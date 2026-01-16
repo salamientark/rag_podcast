@@ -404,16 +404,23 @@ def process_single_file(
         logger.debug(f"Generated embedding with {len(embeddings)} dimensions")
 
         # Fetch episode info from database for metadata
+        # Note: episode_id is NOT globally unique (it's per-podcast), so we require
+        # podcast_id to safely look up the correct episode
         episode_info = None
-        if episode_id:
+        if episode_id and podcast_id:
             episode_info = get_episode_info_from_db(episode_id, podcast_id, logger)
 
-            # If both podcast_id and episode_id provided, episode MUST exist
-            if podcast_id and episode_id and not episode_info:
+            if not episode_info:
                 raise ValueError(
                     f"Episode {episode_id} not found for podcast_id={podcast_id}. "
                     "Cannot proceed without valid episode metadata."
                 )
+        elif episode_id and not podcast_id:
+            logger.warning(
+                f"Episode ID {episode_id} detected but --podcast not provided. "
+                "Skipping DB lookup (episode_id is not globally unique). "
+                "Provide --podcast for proper metadata."
+            )
 
         # Create payload metadata
         payload = {
