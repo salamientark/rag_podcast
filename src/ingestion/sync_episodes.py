@@ -261,9 +261,6 @@ def sync_to_database(
                     .first()
                 )
                 if existing:
-                    print(
-                        f'  - Skipped: "{episode_data["title"][:50]}..." (already exists)'
-                    )
                     stats["skipped"] += 1
                 else:
                     # Create new episode

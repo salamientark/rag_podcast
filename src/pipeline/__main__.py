@@ -174,14 +174,15 @@ def validate_mutually_exclusive_args(args: argparse.Namespace) -> Optional[str]:
 
 def validate_storage_args(args: argparse.Namespace) -> None:
     """
-    Ensure a storage option is selected by defaulting to local when neither --local nor --cloud is provided.
+    Ensure storage options are set correctly.
+
+    Cloud storage is the default. Use --no-cloud to disable.
 
     Parameters:
-        args (argparse.Namespace): Parsed CLI namespace; may be mutated to set `args.local = True` when neither `args.local` nor `args.cloud` is truthy.
+        args (argparse.Namespace): Parsed CLI namespace with `no_cloud` attribute.
     """
-    # If neither storage flag is specified, default to local
-    if not args.local and not args.cloud:
-        args.local = True
+    # Cloud is default, --no-cloud disables it
+    pass
 
 
 def validate_feed_url_podcast_exclusivity(args: argparse.Namespace) -> Optional[str]:
@@ -259,7 +260,7 @@ def print_dry_run_summary(args: argparse.Namespace, logger) -> None:
     print("Options:")
     print(f"  Force reprocessing: {args.force}")
     print(f"  Verbose logging: {args.verbose}")
-    storage_type = "Cloud Storage" if args.cloud else "Local Filesystem"
+    storage_type = "Local Filesystem" if args.no_cloud else "Cloud Storage"
     print(f"  Storage backend: {storage_type}")
 
     print()
@@ -286,13 +287,13 @@ def parse_arguments() -> argparse.Namespace:
     Parse command-line arguments for the podcast processing pipeline.
 
     Configures processing mode (--full, --episode-id, --limit), stage selection (--stages),
-    podcast selection (--podcast or --feed-url), storage options (--local, --cloud),
+    podcast selection (--podcast or --feed-url), storage options (--no-cloud),
     and miscellaneous flags (--force, --dry-run, --verbose).
 
     Returns:
         argparse.Namespace: Parsed arguments with attributes:
             full, episode_id, limit, stages, podcast, feed_url, force, dry_run,
-            verbose, local, cloud
+            verbose, no_cloud
     """
     parser = argparse.ArgumentParser(
         description="Podcast Processing Pipeline - Orchestrates RSS sync, audio download, transcription, chunking, and embedding",
@@ -321,8 +322,7 @@ Available Stages:
   embed                   Chunks embedded in Qdrant
 
 Storage Options:
-  --local                  Save files to local filesystem (default)
-  --cloud                  Save files to cloud storage (DigitalOcean Spaces)
+  --no-cloud               Save files to local filesystem only (cloud is default)
 
 Examples:
   # Using podcast name
@@ -425,16 +425,10 @@ Notes:
 
     # Storage options
     storage_group = parser.add_argument_group("storage options")
-    storage_exclusive = storage_group.add_mutually_exclusive_group()
-    storage_exclusive.add_argument(
-        "--local",
+    storage_group.add_argument(
+        "--no-cloud",
         action="store_true",
-        help="Save audio and transcripts to local filesystem (default)",
-    )
-    storage_exclusive.add_argument(
-        "--cloud",
-        action="store_true",
-        help="Save audio and transcripts to cloud storage",
+        help="Save files to local filesystem only (cloud storage is default)",
     )
 
     return parser.parse_args()
@@ -517,7 +511,7 @@ async def main():
     else:
         logger.info("Stages: All (complete pipeline)")
 
-    storage_type = "cloud" if args.cloud else "local"
+    storage_type = "local" if args.no_cloud else "cloud"
     logger.info(f"Storage: {storage_type}")
     logger.info(f"Options: force={args.force}")
     logger.info("=" * 80)
@@ -541,7 +535,7 @@ async def main():
             stages=args.stages,
             dry_run=args.dry_run,
             verbose=args.verbose,
-            use_cloud_storage=args.cloud,
+            use_cloud_storage=not args.no_cloud,
             podcast=args.podcast,
             feed_url=args.feed_url,
             force=args.force,
