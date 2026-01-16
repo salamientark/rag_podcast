@@ -306,13 +306,11 @@ def main():
     # Resolve podcast by name or slug
     podcast = get_podcast_by_name_or_slug(args.podcast)
     if not podcast:
-        print(f"Error: Podcast '{args.podcast}' not found")
-        print("\nAvailable podcasts:")
-        for p in get_all_podcasts():
-            print(f"  - {p.name} (slug: {p.slug})")
+        available = ", ".join(p.slug for p in get_all_podcasts())
+        logger.error(f"Podcast '{args.podcast}' not found. Available: {available}")
         sys.exit(1)
 
-    print(f"Using podcast: {podcast.name} (id={podcast.id})")
+    logger.info(f"Using podcast: {podcast.name} (id={podcast.id})")
 
     # Dry run
     if args.dry_run:

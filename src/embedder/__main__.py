@@ -499,10 +499,10 @@ def main() -> int:
         if args.podcast:
             podcast = get_podcast_by_name_or_slug(args.podcast)
             if not podcast:
-                print(f"Error: Podcast '{args.podcast}' not found")
-                print("\nAvailable podcasts:")
-                for p in get_all_podcasts():
-                    print(f"  - {p.name} (slug: {p.slug})")
+                available = ", ".join(p.slug for p in get_all_podcasts())
+                logger.error(
+                    f"Podcast '{args.podcast}' not found. Available: {available}"
+                )
                 return 1
             podcast_id = podcast.id
             logger.info(f"Resolved podcast '{args.podcast}' to id={podcast_id}")

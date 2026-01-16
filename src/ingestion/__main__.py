@@ -73,7 +73,8 @@ def get_or_create_podcast(podcast_identifier: str):
             slug=slug,
             feed_url=feed_url,
         )
-        print(f"\nCreated podcast: {podcast.name} (slug: {podcast.slug})")
+        # Note: using print here since we're in an interactive prompt context
+        print(f"Created podcast: {podcast.name} (slug: {podcast.slug})")
         return podcast
 
     except KeyboardInterrupt:
@@ -143,7 +144,7 @@ Examples:
     try:
         # Get or create podcast
         podcast = get_or_create_podcast(args.podcast)
-        print(f"Using podcast: {podcast.name} (id={podcast.id})")
+        logger.info(f"Using podcast: {podcast.name} (id={podcast.id})")
 
         # Validate reconcile usage
         if args.reconcile and not (args.full_sync or args.limit):

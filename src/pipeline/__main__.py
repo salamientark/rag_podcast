@@ -32,6 +32,7 @@ Examples:
 import sys
 import argparse
 import asyncio
+import logging
 from typing import List, Optional
 
 from src.logger import setup_logging
@@ -118,13 +119,9 @@ def validate_podcast(podcast_identifier: str) -> tuple[bool, Optional[Podcast]]:
         return True, podcast
 
     # Not found - show available podcasts
-    print(
-        f"✗ Error: Podcast '{podcast_identifier}' not found in database",
-        file=sys.stderr,
-    )
-    print("\nAvailable podcasts:", file=sys.stderr)
-    for p in get_all_podcasts():
-        print(f"  - {p.name} (slug: {p.slug})", file=sys.stderr)
+    logger = logging.getLogger("pipeline")
+    available = ", ".join(p.slug for p in get_all_podcasts())
+    logger.error(f"Podcast '{podcast_identifier}' not found. Available: {available}")
 
     return False, None
 

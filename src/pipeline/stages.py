@@ -366,8 +366,6 @@ async def run_summarization_stage(
             link = save_summary_to_cloud(bucket_name, summary_key, summary)
             update_episode_in_db(
                 episode["uuid"],
-                podcast=podcast,
-                episode_id=episode_id,
                 summary_path=link,
             )
 
