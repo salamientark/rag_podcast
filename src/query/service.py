@@ -3,29 +3,27 @@ Core podcast query service - stateless RAG processing.
 
 This module provides the PodcastQueryService class that handles:
 - VoyageAI embeddings with existing Qdrant vectors
-- LlamaIndex retrieval and generation
-- Optional BGE-M3 reranking for French content
+- LlamaIndex retrieval with Cohere reranking
 - Stateless single-shot queries (no conversation memory)
+- Returns raw chunks for MCP client synthesis
 """
 
 import contextlib
 import logging
-from typing import Optional
+from typing import List, Optional
 
-from llama_index.core import Settings, VectorStoreIndex, get_response_synthesizer
-from llama_index.core.query_engine import RetrieverQueryEngine
+from llama_index.core import Settings, VectorStoreIndex
 from llama_index.core.retrievers import VectorIndexRetriever
+from llama_index.core.schema import NodeWithScore
 from llama_index.core.vector_stores.types import MetadataFilter, MetadataFilters
-from llama_index.core.response_synthesizers import ResponseMode
 from llama_index.embeddings.voyageai import VoyageEmbedding
-from llama_index.llms.anthropic import Anthropic
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 from qdrant_client import AsyncQdrantClient, QdrantClient
 
 from src.observability.langfuse import get_langfuse
 
 from .config import QueryConfig
-from .postprocessors import sort_nodes_temporally
+from .postprocessors import get_cohere_reranker, sort_nodes_temporally
 
 
 SNIPPET_SIZE = 500  # Characters for Langfuse node preview
@@ -35,8 +33,8 @@ class PodcastQueryService:
     """
     Core stateless RAG service for podcast content.
 
-    Handles vector retrieval and LLM generation without conversation memory.
-    Designed to be wrapped by conversational or stateless interfaces.
+    Handles vector retrieval with Cohere reranking, returning raw chunks
+    for the MCP client to synthesize. No LLM generation at this layer.
     """
 
     def __init__(self, config: QueryConfig):
@@ -69,16 +67,16 @@ class PodcastQueryService:
         Raises:
             ValueError: If required API keys are missing.
         """
-        if not self.config.anthropic_api_key:
-            raise ValueError("ANTHROPIC_API_KEY is required")
-
         if not self.config.voyage_api_key:
             raise ValueError("VOYAGE_API_KEY is required")
 
-    def _setup_models(self):
-        """Configure LLM and embedding models.
+        if not self.config.cohere_api_key:
+            raise ValueError("COHERE_API_KEY is required")
 
-        Sets global LlamaIndex `Settings` for the embed model and LLM.
+    def _setup_models(self):
+        """Configure embedding model.
+
+        Sets global LlamaIndex `Settings` for the embed model.
 
         Raises:
             Exception: If model initialization fails.
@@ -90,14 +88,7 @@ class PodcastQueryService:
             output_dimension=self.config.embedding_dimensions,
         )
 
-        # Anthropic Claude LLM
-        Settings.llm = Anthropic(
-            model=self.config.llm_model, api_key=self.config.anthropic_api_key
-        )
-
-        self.logger.info(
-            f"Models configured: {self.config.llm_model} + {self.config.embedding_model}"
-        )
+        self.logger.info(f"Embedding model configured: {self.config.embedding_model}")
 
     def _setup_vector_store(self):
         """Initialize the Qdrant vector store and LlamaIndex index.
@@ -150,36 +141,28 @@ class PodcastQueryService:
             )
 
     def _setup_query_engine(self):
-        """Configure the stateless retriever and query engine.
+        """Configure the retriever with Cohere reranking.
 
-        Builds a `VectorIndexRetriever` and a `RetrieverQueryEngine` without any
-        conversation memory. Node postprocessors are stored for optional manual
-        postprocessing in `query()`.
+        Builds a `VectorIndexRetriever` and sets up the Cohere reranker
+        postprocessor for semantic relevance boosting.
         """
-        # Build postprocessor pipeline (order matters!)
-        postprocessors = []
-
-        # Reranker would go here, removed for now to reduce image size
-        # See get_reranker() in postprocessors.py if re-enabling
-
-        # Create retriever
+        # Create retriever (fetches more candidates for reranking)
         self.retriever = VectorIndexRetriever(
             index=self.index,
             similarity_top_k=self.config.similarity_top_k,
         )
 
-        # Store postprocessors for temporal sorting
-        self.postprocessors = postprocessors
-
-        # Create stateless query engine (no memory)
-        self.query_engine = RetrieverQueryEngine.from_args(
-            retriever=self.retriever,
-            node_postprocessors=postprocessors,
-            # Note: No system prompt here - will be handled by wrappers
+        # Set up Cohere reranker
+        self.reranker = get_cohere_reranker(
+            api_key=self.config.cohere_api_key,
+            model=self.config.cohere_rerank_model,
+            top_n=self.config.rerank_top_n,
         )
 
         self.logger.info(
-            f"Query engine configured: top_k={self.config.similarity_top_k}"
+            f"Query engine configured: top_k={self.config.similarity_top_k}, "
+            f"rerank_top_n={self.config.rerank_top_n}, "
+            f"rerank_model={self.config.cohere_rerank_model}"
         )
 
     async def _retrieve_nodes(
@@ -254,54 +237,49 @@ class PodcastQueryService:
                     self.logger.debug(f"Langfuse retrieve span update failed: {exc}")
         return retrieved_nodes
 
-    async def _get_synthetized_answer(
-        self,
-        langfuse,
-        enhanced_question: str,
-        sorted_nodes,
-    ):
-        """Synthesize a final answer from retrieved nodes.
-
-        Runs a LlamaIndex response synthesizer in `ResponseMode.COMPACT` over the
-        provided nodes and records basic metrics to Langfuse (when available).
+    def _format_chunks_as_markdown(self, nodes: List[NodeWithScore]) -> str:
+        """Format retrieved chunks as markdown for MCP client consumption.
 
         Args:
-            langfuse: Langfuse client used for tracing spans.
-            enhanced_question: Question string (possibly augmented with context).
-            sorted_nodes: Retrieved nodes after sorting/postprocessing.
+            nodes: List of reranked nodes with scores
 
         Returns:
-            The synthesized response text.
+            Markdown-formatted string with episode metadata and chunk content
         """
-        synthesizer = get_response_synthesizer(
-            response_mode=ResponseMode.COMPACT, llm=Settings.llm
-        )
-        try:
-            synthesize_cm = langfuse.start_as_current_observation(
-                as_type="span",
-                name="rag.synthesize",
-            )
-        except Exception as exc:
-            self.logger.debug(f"Langfuse synthesize span start failed: {exc}")
-            synthesize_cm = contextlib.nullcontext()
+        if not nodes:
+            return "Aucun résultat trouvé."
 
-        with synthesize_cm as synthesize_span:
-            response = await synthesizer.asynthesize(enhanced_question, sorted_nodes)
+        parts = [f"## Sources ({len(nodes)} résultats)\n"]
 
-            if synthesize_span is not None:
-                try:
-                    synthesize_span.update(
-                        output={"response_length": len(str(response))},
-                        metadata={
-                            "response_mode": str(ResponseMode.COMPACT),
-                            "llm_model": self.config.llm_model,
-                        },
-                    )
-                except Exception as exc:
-                    self.logger.debug(f"Langfuse synthesize span update failed: {exc}")
+        for node in nodes:
+            metadata = getattr(node.node, "metadata", {}) or {}
+            episode_id = metadata.get("episode_id", "?")
+            title = metadata.get("title", "Épisode inconnu")
+            pub_date = metadata.get("publication_date", "")
+            podcast = metadata.get("podcast", "")
+            score = node.score if node.score is not None else 0.0
 
-        self.logger.debug(f"Generated response: {len(str(response))} characters")
-        return str(response)
+            # Get chunk text
+            try:
+                text = node.node.get_content()
+            except Exception:
+                text = "[Contenu non disponible]"
+
+            # Format header
+            header = f"### Épisode {episode_id}: {title}"
+            if podcast:
+                header = f"### [{podcast}] Épisode {episode_id}: {title}"
+
+            # Format metadata line
+            meta_parts = []
+            if pub_date:
+                meta_parts.append(f"**Date:** {pub_date}")
+            meta_parts.append(f"**Score:** {score:.2f}")
+            meta_line = " | ".join(meta_parts)
+
+            parts.append(f"{header}\n{meta_line}\n\n{text}\n\n---\n")
+
+        return "\n".join(parts)
 
     async def query(
         self,
@@ -311,7 +289,10 @@ class PodcastQueryService:
         podcast: Optional[str] = None,
     ) -> str:
         """
-        Process a single query without conversation memory.
+        Process a single query and return formatted chunks.
+
+        Uses vector retrieval + Cohere reranking, then formats the top chunks
+        as markdown for the MCP client to synthesize.
 
         Args:
             question: User's question in French
@@ -319,7 +300,7 @@ class PodcastQueryService:
             podcast: Optional podcast name to filter retrieval (exact match on Qdrant payload `podcast`). If omitted, searches across all podcasts.
 
         Returns:
-            Generated response in French
+            Markdown-formatted chunks with episode metadata
 
         Raises:
             Exception: If query processing fails
@@ -350,7 +331,7 @@ class PodcastQueryService:
                 )
                 podcast_filter_applied = True
 
-            # First retrieve nodes
+            # Retrieve nodes
             retrieved_nodes = await self._retrieve_nodes(
                 retriever,
                 langfuse,
@@ -359,41 +340,28 @@ class PodcastQueryService:
                 normalized_podcast,
             )
 
-            # Apply temporal sorting if needed
-            sorted_nodes = sort_nodes_temporally(retrieved_nodes, enhanced_question)
+            # Early return if no nodes retrieved (avoid unnecessary reranker API call)
+            if not retrieved_nodes:
+                return self._format_chunks_as_markdown([])
 
-            # Apply postprocessors
-            if hasattr(self, "postprocessors") and self.postprocessors:
-                for postprocessor in self.postprocessors:
-                    if hasattr(postprocessor, "postprocess_nodes"):
-                        sorted_nodes = postprocessor.postprocess_nodes(sorted_nodes)
-
-            # Synthesize
-            response = await self._get_synthetized_answer(
-                langfuse,
-                enhanced_question,
-                sorted_nodes,
+            # Apply Cohere reranking first (semantic relevance)
+            reranked_nodes = self.reranker.postprocess_nodes(
+                retrieved_nodes, query_str=enhanced_question
             )
-            return str(response)
+
+            # Then apply temporal sorting if needed (for "derniers épisodes" queries)
+            sorted_nodes = sort_nodes_temporally(reranked_nodes, enhanced_question)
+
+            self.logger.debug(
+                f"Retrieved {len(retrieved_nodes)} → reranked to {len(reranked_nodes)} → sorted {len(sorted_nodes)}"
+            )
+
+            # Format as markdown for MCP client
+            return self._format_chunks_as_markdown(sorted_nodes)
 
         except Exception as e:
             self.logger.error(f"Query processing failed: {e}")
-            # Fallback to original method if temporal sorting fails
-            try:
-                if context:
-                    enhanced_question = f"Context: {context}\n\nQuestion: {question}"
-                else:
-                    enhanced_question = question
-                query_engine = self.query_engine
-                if podcast_filter_applied:
-                    query_engine = RetrieverQueryEngine.from_args(
-                        retriever=retriever,
-                        node_postprocessors=self.postprocessors,
-                    )
-                response = await query_engine.aquery(enhanced_question)
-                return str(response)
-            except Exception:
-                raise e
+            raise
 
     def get_status(self) -> dict:
         """
@@ -406,8 +374,9 @@ class PodcastQueryService:
             "service_type": "stateless",
             "collection_name": self.config.collection_name,
             "qdrant_url": self.config.qdrant_url,
-            "llm_model": self.config.llm_model,
             "embedding_model": self.config.embedding_model,
-            "reranking_enabled": False,
+            "reranking_enabled": True,
+            "rerank_model": self.config.cohere_rerank_model,
             "similarity_top_k": self.config.similarity_top_k,
+            "rerank_top_n": self.config.rerank_top_n,
         }

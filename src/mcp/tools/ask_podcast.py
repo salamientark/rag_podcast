@@ -8,10 +8,10 @@ is handled by the MCP client (Claude Desktop, Node.js CLI), not by this tool.
 import contextlib
 import logging
 
+from src.db import get_podcast_by_name_or_slug, get_podcasts
 from src.observability.langfuse import get_langfuse
 
 from ..config import get_query_service, mcp
-from ..prompts import ALLOWED_PODCASTS
 
 logger = logging.getLogger(__name__)
 
@@ -25,23 +25,28 @@ async def ask_podcast(question: str, podcast: str | None = None) -> str:
 
     Args:
         question: User's question about podcast content (in French)
-        podcast: Optional podcast name to filter results (must match one of the accepted podcast names exactly)
+        podcast: Optional podcast name or slug to filter results. If omitted, searches all podcasts.
 
     Returns:
         Relevant information from the podcast database
     """
     try:
         normalized_podcast = (podcast or "").strip() or None
+        resolved_podcast_name: str | None = None
 
-        if (
-            normalized_podcast is not None
-            and normalized_podcast not in ALLOWED_PODCASTS
-        ):
-            accepted = " | ".join(sorted(ALLOWED_PODCASTS))
-            return f"Podcast invalide. Noms acceptés (exactement): {accepted}."
+        if normalized_podcast is not None:
+            # Resolve name or slug to canonical podcast name
+            podcast_obj = get_podcast_by_name_or_slug(normalized_podcast)
+            if podcast_obj is None:
+                available = get_podcasts()
+                available_str = (
+                    " | ".join(sorted(available)) if available else "(aucun)"
+                )
+                return f"Podcast '{normalized_podcast}' non trouvé. Podcasts disponibles: {available_str}."
+            resolved_podcast_name = podcast_obj.name
 
         logger.info(
-            f"[ask_podcast] Starting query: {question[:50]}... (podcast={normalized_podcast!r})"
+            f"[ask_podcast] Starting query: {question[:50]}... (podcast={resolved_podcast_name!r})"
         )
 
         # Use stateless query service (no conversation memory)
@@ -61,7 +66,7 @@ async def ask_podcast(question: str, podcast: str | None = None) -> str:
             if observation is not None:
                 try:
                     observation.update(
-                        input={"question": question, "podcast": normalized_podcast},
+                        input={"question": question, "podcast": resolved_podcast_name},
                         metadata={"tool": "ask_podcast"},
                     )
                 except Exception as exc:
@@ -69,7 +74,7 @@ async def ask_podcast(question: str, podcast: str | None = None) -> str:
                         f"[ask_podcast] Langfuse observation update failed: {exc}"
                     )
 
-            response = await service.query(question, podcast=normalized_podcast)
+            response = await service.query(question, podcast=resolved_podcast_name)
 
             if observation is not None:
                 try:
