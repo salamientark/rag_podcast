@@ -16,8 +16,8 @@ from google.genai import types
 from src.logger import log_function
 
 
-# GEMINI_MODEL = "gemini-3-pro-preview"
-GEMINI_MODEL = "gemini-3-flash-preview"
+GEMINI_MODEL = "gemini-3-pro-preview"
+# GEMINI_MODEL = "gemini-3-flash-preview"
 
 GEMINI_SYSTEM_INSTRUCTION = """You are an expert audio transcriber. Transcribe the following podcast audio.
 
