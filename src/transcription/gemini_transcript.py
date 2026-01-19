@@ -16,8 +16,8 @@ from google.genai import types
 from src.logger import log_function
 
 
-GEMINI_MODEL = "gemini-3-pro-preview"
-# GEMINI_MODEL = "gemini-3-flash-preview"
+# GEMINI_MODEL = "gemini-3-pro-preview"
+GEMINI_MODEL = "gemini-3-flash-preview"
 
 GEMINI_SYSTEM_INSTRUCTION = """You are an expert audio transcriber. Transcribe the following podcast audio.
 
@@ -118,16 +118,20 @@ def transcribe_with_gemini(
         usage_info = {}
         if response.usage_metadata:
             usage = response.usage_metadata
+            prompt_tokens = usage.prompt_token_count
+            response_tokens = usage.candidates_token_count
+            total_tokens = usage.total_token_count
             usage_info = {
-                "prompt_tokens": usage.prompt_token_count,
-                "response_tokens": usage.candidates_token_count,
-                "total_tokens": usage.total_token_count,
+                "prompt_tokens": prompt_tokens,
+                "response_tokens": response_tokens,
+                "total_tokens": total_tokens,
             }
-            logger.info(
-                f"Token usage - prompt: {usage.prompt_token_count:,}, "
-                f"response: {usage.candidates_token_count:,}, "
-                f"total: {usage.total_token_count:,}"
-            )
+            if prompt_tokens is not None and response_tokens is not None:
+                logger.info(
+                    f"Token usage - prompt: {prompt_tokens:,}, "
+                    f"response: {response_tokens:,}, "
+                    f"total: {total_tokens:,}"
+                )
 
         result = {
             "transcript": {
