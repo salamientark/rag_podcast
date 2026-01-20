@@ -478,7 +478,7 @@ def run_embedding_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
                 continue
 
         logger.info(
-            f"Embedding stage completed successfully. Processed {len(episodes)} episodes."
+            f"Embedding stage completed. {len(updated_episodes)}/{len(episodes)} episodes succeeded."
         )
         return updated_episodes
 
