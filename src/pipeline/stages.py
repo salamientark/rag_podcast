@@ -323,7 +323,7 @@ def run_transcription_stage(
                     uuid=episode["uuid"],
                     processing_stage=ProcessingStage.ERROR,
                 )
-                print(f"  ✗ Episode {episode_id:03d} failed: {e}")
+                logger.warning(f"✗ Episode {episode_id:03d} failed: {e}")
                 continue
 
         logger.info(
@@ -474,7 +474,7 @@ def run_embedding_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
                     uuid=episode["uuid"],
                     processing_stage=ProcessingStage.ERROR,
                 )
-                print(f"  ✗ Episode {episode_id:03d} embedding failed: {e}")
+                logger.warning(f"✗ Episode {episode_id:03d} embedding failed: {e}")
                 continue
 
         logger.info(
