@@ -239,81 +239,97 @@ def run_transcription_stage(
 
         for episode in episodes:
             episode_id = episode["episode_id"]
-            audio_path = Path(episode["audio_file_path"])
-            description = episode.get("description", "")
+            try:
+                audio_path = Path(episode["audio_file_path"])
+                description = episode.get("description", "")
 
-            # Ensure we have a valid local path for transcription
-            if not audio_path.exists():
-                # Try local path format (handles cloud-style paths)
-                local_audio_path = Path(f"data/{podcast}/audio/") / audio_path.name
-                if local_audio_path.exists():
-                    audio_path = local_audio_path
-                else:
-                    logger.error(
-                        f"Audio file not found for episode {episode_id}: {episode['audio_file_path']}"
-                    )
-                    continue
+                # Ensure we have a valid local path for transcription
+                if not audio_path.exists():
+                    # Try local path format (handles cloud-style paths)
+                    local_audio_path = Path(f"data/{podcast}/audio/") / audio_path.name
+                    if local_audio_path.exists():
+                        audio_path = local_audio_path
+                    else:
+                        raise FileNotFoundError(
+                            f"Audio file not found: {episode['audio_file_path']}"
+                        )
 
-            # Create output directory
-            local_workspace = f"data/{podcast}/transcripts/episode_{episode_id:03d}/"
-            Path(local_workspace).mkdir(parents=True, exist_ok=True)
-
-            filename = f"formatted_episode_{episode_id:03d}.txt"
-            local_path = Path(local_workspace) / filename
-
-            # Check if transcript already exists locally
-            if local_path.exists() and not force:
-                logger.info(
-                    f"Transcript already exists for episode {episode_id:03d}, skipping transcription."
+                # Create output directory
+                local_workspace = (
+                    f"data/{podcast}/transcripts/episode_{episode_id:03d}/"
                 )
-                episode["formatted_transcript_path"] = str(local_path.resolve())
-                formatted_text = None  # Will read from file if needed for cloud upload
-            else:
-                # Transcribe with Gemini
-                logger.info(
-                    f"Transcribing episode {episode_id:03d} with Gemini from {audio_path.name}..."
-                )
-                result = transcribe_with_gemini(audio_path, description)
-                formatted_text = result["formatted_text"]
+                Path(local_workspace).mkdir(parents=True, exist_ok=True)
 
-                # Save locally
-                formatted_file_path = local_storage.save_file(
-                    local_workspace, filename, formatted_text
-                )
-                episode["formatted_transcript_path"] = str(formatted_file_path)
+                filename = f"formatted_episode_{episode_id:03d}.txt"
+                local_path = Path(local_workspace) / filename
 
-            updated_episodes.append(episode)
-
-            # Cloud save
-            formatted_file_path = episode["formatted_transcript_path"]
-            if cloud_storage:
-                storage = get_cloud_storage()
-                cloud_workspace = f"{podcast}/transcripts/episode_{episode_id:03d}/"
-                if storage.file_exist(cloud_workspace, filename) and not force:
+                # Check if transcript already exists locally
+                if local_path.exists() and not force:
                     logger.info(
-                        f"Transcript already exists in cloud for episode {episode_id:03d}."
+                        f"Transcript already exists for episode {episode_id:03d}, skipping transcription."
                     )
-                    formatted_file_path = storage._get_absolute_filename(
-                        cloud_workspace, filename
+                    episode["formatted_transcript_path"] = str(local_path.resolve())
+                    formatted_text = (
+                        None  # Will read from file if needed for cloud upload
                     )
                 else:
-                    # Read from local file if we didn't transcribe (reused existing)
-                    if formatted_text is None:
-                        formatted_text = local_path.read_text(encoding="utf-8")
-                    formatted_file_path = storage.save_file(
-                        cloud_workspace, filename, formatted_text
+                    # Transcribe with Gemini
+                    logger.info(
+                        f"Transcribing episode {episode_id:03d} with Gemini from {audio_path.name}..."
                     )
+                    result = transcribe_with_gemini(audio_path, description)
+                    formatted_text = result["formatted_text"]
 
-            # Update database
-            update_episode_in_db(
-                uuid=episode["uuid"],
-                formatted_transcript_path=str(formatted_file_path),
-                processing_stage=ProcessingStage.FORMATTED_TRANSCRIPT,
-            )
+                    # Save locally
+                    formatted_file_path = local_storage.save_file(
+                        local_workspace, filename, formatted_text
+                    )
+                    episode["formatted_transcript_path"] = str(formatted_file_path)
 
-            logger.info(f"Episode {episode_id:03d} transcription completed.")
+                updated_episodes.append(episode)
 
-        logger.info("Gemini transcription stage completed successfully.")
+                # Cloud save
+                formatted_file_path = episode["formatted_transcript_path"]
+                if cloud_storage:
+                    storage = get_cloud_storage()
+                    cloud_workspace = f"{podcast}/transcripts/episode_{episode_id:03d}/"
+                    if storage.file_exist(cloud_workspace, filename) and not force:
+                        logger.info(
+                            f"Transcript already exists in cloud for episode {episode_id:03d}."
+                        )
+                        formatted_file_path = storage._get_absolute_filename(
+                            cloud_workspace, filename
+                        )
+                    else:
+                        # Read from local file if we didn't transcribe (reused existing)
+                        if formatted_text is None:
+                            formatted_text = local_path.read_text(encoding="utf-8")
+                        formatted_file_path = storage.save_file(
+                            cloud_workspace, filename, formatted_text
+                        )
+
+                # Update database
+                update_episode_in_db(
+                    uuid=episode["uuid"],
+                    formatted_transcript_path=str(formatted_file_path),
+                    processing_stage=ProcessingStage.FORMATTED_TRANSCRIPT,
+                )
+
+                logger.info(f"Episode {episode_id:03d} transcription completed.")
+
+            except Exception as e:
+                logger.error(f"Episode {episode_id:03d} transcription failed: {e}")
+                update_episode_in_db(
+                    uuid=episode["uuid"],
+                    processing_stage=ProcessingStage.ERROR,
+                )
+                logger.warning(f"✗ Episode {episode_id:03d} failed: {e}")
+                continue
+
+        logger.info(
+            f"Gemini transcription stage completed. "
+            f"{len(updated_episodes)}/{len(episodes)} episodes succeeded."
+        )
         return updated_episodes
 
     except Exception as e:
@@ -335,6 +351,10 @@ async def run_summarization_stage(
     try:
         logger = logging.getLogger("pipeline")
         logger.info("Starting summarization stage...")
+
+        if not episodes:
+            logger.info("No episodes to summarize, skipping stage.")
+            return
 
         storage_engine = get_cloud_storage()
         client = storage_engine.get_client()
@@ -391,6 +411,10 @@ def run_embedding_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
         load_dotenv()
         logger.info("Starting embedding stage...")
 
+        if not episodes:
+            logger.info("No episodes to embed, skipping stage.")
+            return []
+
         # Create collection if not exist
         collection_name = os.getenv("QDRANT_COLLECTION_NAME")
         if collection_name is None:
@@ -411,42 +435,50 @@ def run_embedding_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
         # Process each transcript with 3-tier caching
         for episode in episodes:
             episode_id = episode["episode_id"]
-            logger.info(
-                f"Processing embedding for episode ID {episode_id:03d} from file {episode['formatted_transcript_path']}..."
-            )
-
-            # Use new 3-tier caching function
-            result = process_episode_embedding(
-                input_file=episode["formatted_transcript_path"],
-                episode_uuid=episode["uuid"],
-                collection_name=collection_name,
-                dimensions=1024,
-            )
-
-            if result["success"]:
-                action = result["action"]
-                episode["embedding_path"] = result["embedding_path"]
-                updated_episodes.append(episode)
-
-                if action == "retrieved_from_qdrant":
-                    logger.info(
-                        f"Episode {episode_id:03d}: Retrieved from Qdrant, saved to local cache"
-                    )
-                elif action == "loaded_from_file":
-                    logger.info(
-                        f"Episode {episode_id:03d}: Loaded from local file, uploaded to Qdrant"
-                    )
-                elif action == "embedded_fresh":
-                    logger.info(
-                        f"Episode {episode_id:03d}: Embedded fresh, saved to both locations"
-                    )
-            else:
-                logger.error(
-                    f"Failed to process embedding for episode {episode_id:03d}: {result.get('error')}"
+            try:
+                logger.info(
+                    f"Processing embedding for episode ID {episode_id:03d} from file {episode['formatted_transcript_path']}..."
                 )
 
+                # Use new 3-tier caching function
+                result = process_episode_embedding(
+                    input_file=episode["formatted_transcript_path"],
+                    episode_uuid=episode["uuid"],
+                    collection_name=collection_name,
+                    dimensions=1024,
+                )
+
+                if result["success"]:
+                    action = result["action"]
+                    episode["embedding_path"] = result["embedding_path"]
+                    updated_episodes.append(episode)
+
+                    if action == "retrieved_from_qdrant":
+                        logger.info(
+                            f"Episode {episode_id:03d}: Retrieved from Qdrant, saved to local cache"
+                        )
+                    elif action == "loaded_from_file":
+                        logger.info(
+                            f"Episode {episode_id:03d}: Loaded from local file, uploaded to Qdrant"
+                        )
+                    elif action == "embedded_fresh":
+                        logger.info(
+                            f"Episode {episode_id:03d}: Embedded fresh, saved to both locations"
+                        )
+                else:
+                    raise RuntimeError(result.get("error", "Unknown embedding error"))
+
+            except Exception as e:
+                logger.error(f"Episode {episode_id:03d} embedding failed: {e}")
+                update_episode_in_db(
+                    uuid=episode["uuid"],
+                    processing_stage=ProcessingStage.ERROR,
+                )
+                logger.warning(f"✗ Episode {episode_id:03d} embedding failed: {e}")
+                continue
+
         logger.info(
-            f"Embedding stage completed successfully. Processed {len(episodes)} episodes."
+            f"Embedding stage completed. {len(updated_episodes)}/{len(episodes)} episodes succeeded."
         )
         return updated_episodes
 

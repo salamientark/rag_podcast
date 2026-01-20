@@ -58,8 +58,11 @@ class ProcessingStage(str, PyEnum):
         RAW_TRANSCRIPT: Initial transcription completed (with speaker diarization)
         FORMATTED_TRANSCRIPT: Transcript formatted with speaker identification
         EMBEDDED: Episode chunks embedded in vector database (Qdrant)
+        ERROR: Processing failed at some stage (terminal state, skipped on future runs)
 
     Each stage implies all previous stages are complete.
+    ERROR is a terminal failure state that breaks the sequential flow - episodes
+    marked ERROR are excluded from pipeline runs unless manually reset.
     Used by reconciliation logic to determine processing status from filesystem.
     """
 
@@ -68,6 +71,7 @@ class ProcessingStage(str, PyEnum):
     RAW_TRANSCRIPT = "raw_transcript"  # Initial raw transcription done
     FORMATTED_TRANSCRIPT = "formatted_transcript"  # Speaker-mapper transcription done
     EMBEDDED = "embedded"  # Chunks embedded in vectorial DB (Qdrant)
+    ERROR = "error"  # Processing failed, skip on future runs
 
 
 class Podcast(Base, TimestampMixin):

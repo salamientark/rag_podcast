@@ -16,8 +16,8 @@ from google.genai import types
 from src.logger import log_function
 
 
-GEMINI_MODEL = "gemini-3-pro-preview"
-# GEMINI_MODEL = "gemini-3-flash-preview"
+# GEMINI_MODEL = "gemini-3-pro-preview"
+GEMINI_MODEL = "gemini-3-flash-preview"
 
 GEMINI_SYSTEM_INSTRUCTION = """You are an expert audio transcriber. Transcribe the following podcast audio.
 
@@ -114,20 +114,45 @@ def transcribe_with_gemini(
 
         processing_time = time.time() - start_time
 
+        # Validate response has text content
+        if response.text is None:
+            # Log diagnostic info to understand why
+            logger.error(f"Gemini returned empty response for {file_path.name}")
+            if response.candidates:
+                for i, candidate in enumerate(response.candidates):
+                    logger.error(
+                        f"Candidate {i}: finish_reason={candidate.finish_reason}"
+                    )
+                    if candidate.safety_ratings:
+                        for rating in candidate.safety_ratings:
+                            logger.error(
+                                f"  Safety: {rating.category}={rating.probability}"
+                            )
+            else:
+                logger.error("No candidates in response")
+            raise ValueError(
+                f"Gemini returned no text for {file_path.name}. "
+                "Check logs for safety ratings or finish reason."
+            )
+
         # Extract token usage for logging
         usage_info = {}
         if response.usage_metadata:
             usage = response.usage_metadata
+            prompt_tokens = usage.prompt_token_count
+            response_tokens = usage.candidates_token_count
+            total_tokens = usage.total_token_count
             usage_info = {
-                "prompt_tokens": usage.prompt_token_count,
-                "response_tokens": usage.candidates_token_count,
-                "total_tokens": usage.total_token_count,
+                "prompt_tokens": prompt_tokens,
+                "response_tokens": response_tokens,
+                "total_tokens": total_tokens,
             }
-            logger.info(
-                f"Token usage - prompt: {usage.prompt_token_count:,}, "
-                f"response: {usage.candidates_token_count:,}, "
-                f"total: {usage.total_token_count:,}"
-            )
+            if prompt_tokens is not None and response_tokens is not None:
+                logger.info(
+                    f"Token usage - prompt: {prompt_tokens:,}, "
+                    f"response: {response_tokens:,}, "
+                    f"total: {total_tokens:,}"
+                )
 
         result = {
             "transcript": {
