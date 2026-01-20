@@ -68,6 +68,7 @@ class ProcessingStage(str, PyEnum):
     RAW_TRANSCRIPT = "raw_transcript"  # Initial raw transcription done
     FORMATTED_TRANSCRIPT = "formatted_transcript"  # Speaker-mapper transcription done
     EMBEDDED = "embedded"  # Chunks embedded in vectorial DB (Qdrant)
+    ERROR = "error"  # Processing failed, skip on future runs
 
 
 class Podcast(Base, TimestampMixin):

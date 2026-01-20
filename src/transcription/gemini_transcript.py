@@ -114,6 +114,27 @@ def transcribe_with_gemini(
 
         processing_time = time.time() - start_time
 
+        # Validate response has text content
+        if response.text is None:
+            # Log diagnostic info to understand why
+            logger.error(f"Gemini returned empty response for {file_path.name}")
+            if response.candidates:
+                for i, candidate in enumerate(response.candidates):
+                    logger.error(
+                        f"Candidate {i}: finish_reason={candidate.finish_reason}"
+                    )
+                    if candidate.safety_ratings:
+                        for rating in candidate.safety_ratings:
+                            logger.error(
+                                f"  Safety: {rating.category}={rating.probability}"
+                            )
+            else:
+                logger.error("No candidates in response")
+            raise ValueError(
+                f"Gemini returned no text for {file_path.name}. "
+                "Check logs for safety ratings or finish reason."
+            )
+
         # Extract token usage for logging
         usage_info = {}
         if response.usage_metadata:

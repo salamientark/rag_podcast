@@ -79,7 +79,9 @@ def filter_episode(
                     session.query(Episode)
                     .filter(
                         Episode.podcast_id == podcast_id,
-                        Episode.processing_stage != ProcessingStage.EMBEDDED,
+                        Episode.processing_stage.not_in(
+                            [ProcessingStage.EMBEDDED, ProcessingStage.ERROR]
+                        ),
                     )
                     .order_by(Episode.published_date.desc())
                     .limit(limit)
@@ -102,7 +104,9 @@ def filter_episode(
                     .filter(
                         Episode.podcast_id == podcast_id,
                         Episode.episode_id.in_(episodes_id),
-                        Episode.processing_stage != ProcessingStage.EMBEDDED,
+                        Episode.processing_stage.not_in(
+                            [ProcessingStage.EMBEDDED, ProcessingStage.ERROR]
+                        ),
                     )
                     .all()
                 )
