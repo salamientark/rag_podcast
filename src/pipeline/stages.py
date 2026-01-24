@@ -346,7 +346,7 @@ async def run_summarization_stage(
 
     Parameters:
         episodes (list[dict]): List of episode dictionaries. Each dictionary must include the
-                keys `podcast`, `episode_id`, `transcript_path`
+                keys `podcast`, `episode_id`, `formatted_transcript_path`
     """
     try:
         logger = logging.getLogger("pipeline")
@@ -359,13 +359,12 @@ async def run_summarization_stage(
         storage_engine = get_cloud_storage()
         client = storage_engine.get_client()
         for episode in episodes:
-            if episode["summary_path"] and not force:
+            if episode.get("summary_path") and not force:
                 continue
             podcast = episode["podcast"]
             episode_id = episode["episode_id"]
             transcript_path = episode["formatted_transcript_path"]
             bucket_name = storage_engine.bucket_name
-            transcript_key = f"{podcast}/" + transcript_path.split(f"{podcast}/")[1]
             summary_key = f"{podcast}/summaries/episode_{episode_id:03d}_summary.txt"
 
             link = make_file_url(bucket_name, summary_key)
@@ -380,8 +379,17 @@ async def run_summarization_stage(
                 f"Generating summary for episode ID {episode_id:03d} from file {transcript_path}..."
             )
 
-            response = client.get_object(Bucket=bucket_name, Key=transcript_key)
-            transcript_content = response["Body"].read().decode("utf-8")
+            # Read transcript from local file or cloud storage
+            local_path = Path(transcript_path)
+            if local_path.exists():
+                # Read from local file
+                transcript_content = local_path.read_text(encoding="utf-8")
+            else:
+                # Read from cloud storage
+                transcript_key = f"{podcast}/" + transcript_path.split(f"{podcast}/")[1]
+                response = client.get_object(Bucket=bucket_name, Key=transcript_key)
+                transcript_content = response["Body"].read().decode("utf-8")
+
             summary = await summarize(transcript_content, language="fr")
             link = save_summary_to_cloud(bucket_name, summary_key, summary)
             update_episode_in_db(

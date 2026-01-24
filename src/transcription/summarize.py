@@ -42,9 +42,12 @@ async def summarize(text: str, language: str = "en") -> str:
         A Markdown summary with sections (Summary, Key points, Topics).
 
     Raises:
-        ValueError: If the OpenAI client cannot be initialized.
+        ValueError: If the OpenAI client cannot be initialized or text is empty.
         Exception: Re-raises unexpected runtime errors from the LLM call.
     """
+    if not text or not text.strip():
+        raise ValueError("Cannot summarize empty or whitespace-only text")
+
     agent_prompt = "Summarize this podcast transcript in {language}. Markdown: Summary, Key points, Topics (bullets). No inventions. Keep it under 500 tokens long."
 
     try:
