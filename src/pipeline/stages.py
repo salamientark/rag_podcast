@@ -358,12 +358,13 @@ async def run_summarization_stage(
 
         storage_engine = get_cloud_storage()
         client = storage_engine.get_client()
+        failed_count = 0
         for episode in episodes:
             if episode.get("summary_path") and not force:
                 continue
             podcast = episode["podcast"]
             episode_id = episode["episode_id"]
-            transcript_path = episode["formatted_transcript_path"]
+            transcript_path = episode.get("formatted_transcript_path")
             bucket_name = storage_engine.bucket_name
             summary_key = f"{podcast}/summaries/episode_{episode_id:03d}_summary.txt"
 
@@ -374,31 +375,48 @@ async def run_summarization_stage(
                 )
                 continue
 
-            # Generate summary
-            logger.info(
-                f"Generating summary for episode ID {episode_id:03d} from file {transcript_path}..."
-            )
+            try:
+                # Skip if no transcript path
+                if not transcript_path:
+                    logger.warning(
+                        f"Episode {episode_id:03d} has no transcript path, skipping summarization."
+                    )
+                    continue
 
-            # Read transcript from local file or cloud storage
-            local_path = Path(transcript_path)
-            if local_path.exists():
-                # Read from local file
-                transcript_content = local_path.read_text(encoding="utf-8")
-            else:
-                # Read from cloud storage
-                transcript_key = f"{podcast}/" + transcript_path.split(f"{podcast}/")[1]
-                response = client.get_object(Bucket=bucket_name, Key=transcript_key)
-                transcript_content = response["Body"].read().decode("utf-8")
+                # Generate summary
+                logger.info(
+                    f"Generating summary for episode ID {episode_id:03d} from file {transcript_path}..."
+                )
 
-            summary = await summarize(transcript_content, language="fr")
-            link = save_summary_to_cloud(bucket_name, summary_key, summary)
-            update_episode_in_db(
-                episode["uuid"],
-                summary_path=link,
-            )
+                # Read transcript from local file or cloud storage
+                local_path = Path(transcript_path)
+                if local_path.exists():
+                    # Read from local file
+                    transcript_content = local_path.read_text(encoding="utf-8")
+                else:
+                    # Read from cloud storage
+                    transcript_key = (
+                        f"{podcast}/" + transcript_path.split(f"{podcast}/")[1]
+                    )
+                    response = client.get_object(Bucket=bucket_name, Key=transcript_key)
+                    transcript_content = response["Body"].read().decode("utf-8")
+
+                summary = await summarize(transcript_content, language="fr")
+                link = save_summary_to_cloud(bucket_name, summary_key, summary)
+                update_episode_in_db(
+                    episode["uuid"],
+                    summary_path=link,
+                )
+            except Exception as e:
+                logger.error(f"Episode {episode_id:03d} summarization failed: {e}")
+                failed_count += 1
+                continue
+
+        if failed_count > 0:
+            logger.warning(f"Summarization completed with {failed_count} failures.")
 
     except Exception as e:
-        logger.error(f"Failed to complete summarization pipeline : {e}")
+        logger.error(f"Failed to initialize summarization stage: {e}")
         raise
 
 
