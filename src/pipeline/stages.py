@@ -401,7 +401,7 @@ async def run_summarization_stage(
                     response = client.get_object(Bucket=bucket_name, Key=transcript_key)
                     transcript_content = response["Body"].read().decode("utf-8")
 
-                summary = await summarize(transcript_content, language="fr")
+                summary = await summarize(transcript_content)
                 link = save_summary_to_cloud(bucket_name, summary_key, summary)
                 update_episode_in_db(
                     episode["uuid"],

@@ -74,7 +74,7 @@ async def main():
             bucket_name = cloud_storage.bucket_name
             key = f"{episode_podcast}/summaries/episode_{episode_id:03d}_summary.txt"
             content = get_transcript_content(transcript_url)
-            summary = await summarize(content, language="fr")
+            summary = await summarize(content)
             link = save_summary_to_cloud(bucket_name, key, summary)
             update_episode_in_db(
                 uuid, podcast=episode_podcast, episode_id=episode_id, summary_path=link
