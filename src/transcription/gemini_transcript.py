@@ -115,7 +115,7 @@ def transcribe_with_gemini(
         processing_time = time.time() - start_time
 
         # Validate response has text content
-        if response.text is None:
+        if not response.text or not response.text.strip():
             # Log diagnostic info to understand why
             logger.error(f"Gemini returned empty response for {file_path.name}")
             if response.candidates:

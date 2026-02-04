@@ -31,21 +31,23 @@ def make_file_url(bucket_name: str, key: str) -> str:
     return f"{endpoint}/{bucket_name}/{key}"
 
 
-async def summarize(text: str, language: str = "en") -> str:
+async def summarize(text: str) -> str:
     """Generate a structured episode summary from transcript text.
 
     Args:
         text: Transcript text to summarize.
-        language: Output language (ISO-ish, e.g. "fr", "en"). Should be normalized.
 
     Returns:
         A Markdown summary with sections (Summary, Key points, Topics).
 
     Raises:
-        ValueError: If the OpenAI client cannot be initialized.
+        ValueError: If the OpenAI client cannot be initialized or text is empty.
         Exception: Re-raises unexpected runtime errors from the LLM call.
     """
-    agent_prompt = "Summarize this podcast transcript in {language}. Markdown: Summary, Key points, Topics (bullets). No inventions. Keep it under 500 tokens long."
+    if not text or not text.strip():
+        raise ValueError("Cannot summarize empty or whitespace-only text")
+
+    agent_prompt = "Summarize this podcast transcript. Markdown: Summary, Key points, Topics (bullets). No inventions. Keep it under 500 tokens long."
 
     try:
         # Init llm client
@@ -57,7 +59,7 @@ async def summarize(text: str, language: str = "en") -> str:
         logger.info("Calling OpenAI for transcript summarization")
         response = await llm.responses.create(
             model=OPENAI_MODEL,
-            instructions=agent_prompt.format(language=language),
+            instructions=agent_prompt.format(),
             input=text,
             max_output_tokens=900,
         )
