@@ -16,8 +16,8 @@ from google.genai import types
 from src.logger import log_function
 
 
-GEMINI_MODEL = "gemini-3-pro-preview"
-# GEMINI_MODEL = "gemini-3-flash-preview"
+# GEMINI_MODEL = "gemini-3-pro-preview"
+GEMINI_MODEL = "gemini-3-flash-preview"
 
 GEMINI_SYSTEM_INSTRUCTION = """You are an expert audio transcriber. Transcribe the following podcast audio.
 
@@ -93,12 +93,9 @@ def transcribe_with_gemini(
     client = get_gemini_client()
 
     try:
-        # Read audio file as inline data (avoids Files API storage quota)
-        logger.info(f"Reading audio file ({file_path.stat().st_size / 1e6:.1f}MB)...")
-        audio_part = types.Part.from_bytes(
-            data=file_path.read_bytes(),
-            mime_type="audio/mpeg",
-        )
+        # Upload audio file to Gemini
+        logger.info("Uploading audio file to Gemini...")
+        audio_file = client.files.upload(file=str(file_path))
 
         # Build user message with episode context
         user_message = (
@@ -109,7 +106,7 @@ def transcribe_with_gemini(
         logger.info(f"Requesting transcription with model {model}...")
         response = client.models.generate_content(
             model=model,
-            contents=[user_message, audio_part],
+            contents=[user_message, audio_file],
             config=types.GenerateContentConfig(
                 system_instruction=GEMINI_SYSTEM_INSTRUCTION,
             ),
