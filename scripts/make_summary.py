@@ -74,6 +74,11 @@ async def main():
             bucket_name = cloud_storage.bucket_name
             key = f"{episode_podcast}/summaries/episode_{episode_id:03d}_summary.txt"
             content = get_transcript_content(transcript_url)
+            if not content or not content.strip():
+                logger.warning(
+                    f"Episode {episode_id:03d} has empty transcript content, skipping."
+                )
+                continue
             summary = await summarize(content)
             link = save_summary_to_cloud(bucket_name, key, summary)
             update_episode_in_db(
