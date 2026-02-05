@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from llama_index.core import Document
+from langchain_core.documents import Document as LCDocument
 from src.chunker import chunk_long_text
 
 from llama_index.llms.anthropic import Anthropic
@@ -126,8 +127,9 @@ def init_test_set_generator() -> Optional[TestsetGenerator]:
         if not ANTHROPIC_API_KEY:
             raise ValueError("ANTHROPIC_API_KEY is not set in environment variables.")
         generator_llm = Anthropic(
-            model=global_config.llm_model, api_key=global_config.anthropic_api_key,
-            system_prompt="You are a strict dataset generator. You must output only valid JSON. Do not output any conversational text, preambles, or explanations."
+            model=global_config.llm_model,
+            api_key=global_config.anthropic_api_key,
+            system_prompt="You are a strict dataset generator. You must output only valid JSON. Do not output any conversational text, preambles, or explanations.",
         )
         embedding_model = VoyageEmbedding(
             voyage_api_key=global_config.voyage_api_key,
@@ -180,9 +182,16 @@ def __main__():
 
         # Create the test set
         logger.info("Generating test set...")
-        distributions = {"simple": 0.5, "multi_context": 0.4, "reasoning": 0.1}
-        test_set = generator.generate_with_llamaindex_docs(
-            documents=documents,
+
+        # Convert LlamaIndex documents to LangChain documents for generate_with_chunks
+        # This bypasses the problematic HeadlinesExtractor which is redundant for pre-chunked data
+        langchain_docs = [
+            LCDocument(page_content=doc.text, metadata=doc.metadata)
+            for doc in documents
+        ]
+
+        test_set = generator.generate_with_chunks(
+            chunks=langchain_docs,
             testset_size=50,
         )
 

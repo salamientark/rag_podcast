@@ -47,6 +47,7 @@ class QueryConfig:
     # llm_model: str = "claude-3-5-sonnet-latest"
     llm_model: str = "claude-sonnet-4-20250514"
 
+
 # French system prompt for the LLM
 SYSTEM_PROMPT_FR = """Vous êtes un assistant spécialisé dans l'analyse du contenu podcast français.
 
