@@ -133,6 +133,7 @@ async def main():
             }
 
     # Process each podcast group
+    failed_to_process = []
     for p_id, ep_ids in episodes_by_podcast.items():
         p_info = podcasts_info[p_id]
 
@@ -155,13 +156,20 @@ async def main():
                 verbose=True,
             )
         except Exception as e:
+            failed_to_process.append((p_info["name"], str(e)))
             logger.error(
                 f"Failed to reprocess podcast {p_info['name']}: {e}", exc_info=True
             )
             print(f"Failed to reprocess podcast {p_info['name']}: {e}", file=sys.stderr)
 
     logger.info("=== REPROCESS COMPLETED ===")
-    print("Reprocessing completed.")
+    if failed_to_process:
+        logger.warning("Some podcasts failed to reprocess:")
+        for name, error in failed_to_process:
+            logger.warning(f"- {name}: {error}")
+            print(f"Failed to reprocess podcast {name}: {error}", file=sys.stderr)
+        sys.exit(1)
+    print("Reprocessing completed succesfully.")
 
 
 if __name__ == "__main__":
