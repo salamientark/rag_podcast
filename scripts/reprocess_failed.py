@@ -6,7 +6,6 @@ Script to reprocess failed episodes (ProcessingStage.ERROR).
 import sys
 import argparse
 import asyncio
-import logging
 from collections import defaultdict
 from typing import List, Dict, Any, Optional
 
@@ -17,7 +16,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.logger import setup_logging
 from src.db.database import get_db_session
-from src.db.models import Episode, ProcessingStage, Podcast
+from src.db.models import Episode, ProcessingStage
 from src.pipeline.orchestrator import run_pipeline
 
 
@@ -136,7 +135,7 @@ async def main():
     # Process each podcast group
     for p_id, ep_ids in episodes_by_podcast.items():
         p_info = podcasts_info[p_id]
-        
+
         logger.info(
             f"Processing {len(ep_ids)} episodes for podcast '{p_info['name']}' (ID: {p_id})"
         )
