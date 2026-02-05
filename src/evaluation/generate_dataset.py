@@ -1,13 +1,12 @@
 from pathlib import Path
-from typing import List, Union, Optional, Dict, Any
+from typing import List, Optional, Dict, Any
 from llama_index.core import Document
 from src.chunker import chunk_long_text
 
 
-
 from src.logger import setup_logging
 from src.db import get_db_session, get_podcast_by_name_or_slug, Episode
-from src.storage.cloud import get_cloud_storage
+from src.storage.cloud import CloudStorage
 
 logger = setup_logging(
     logger_name="reprocess_failed",
@@ -55,19 +54,12 @@ def filter_episodes(
         return None
 
 
-def download_transcript(url: str, output_path: Path) -> bool:
-    try:
-        storage_engine = get_cloud_storage()
-        client = storage_engine.get_client()
-    
-
-
-def load_documents_from_files(file_paths: List[Union[str, Path]]) -> List[Document]:
+def load_documents_from_url(file_urls: List[str]) -> List[Document]:
     """
-    Load and chunk documents from a list of file paths.
+    Load and chunk documents from a list of url.
 
     Args:
-        file_paths: List of paths to transcript files.
+        file_url: List of url to transcript files.
 
     Returns:
         List of LlamaIndex Document objects with chunked content and metadata.
@@ -79,19 +71,12 @@ def load_documents_from_files(file_paths: List[Union[str, Path]]) -> List[Docume
     EVAL_CHUNK_SIZE = 1024
     EVAL_OVERLAP = 0.1
 
-    for file_path in file_paths:
-        path = Path(file_path)
-        filename = path.name
-        if not path.exists():
-            logger.warning(f"File not found: {path}")
-            continue
-
+    for file_url in file_urls:
         try:
-            with open(path, "r", encoding="utf-8") as f:
-                text = f.read()
+            text = CloudStorage.get_transcript_content_from_url(file_url)
 
             if not text.strip():
-                logger.warning(f"Empty file skipped: {path}")
+                logger.warning(f"Empty file skipped: {file_url}")
                 continue
 
             # Create chunks
@@ -102,8 +87,12 @@ def load_documents_from_files(file_paths: List[Union[str, Path]]) -> List[Docume
             # Convert chunks to LlamaIndex Documents
             for i, chunk_text in enumerate(chunks):
                 # Extract some basic metadata from filename if possible
-                filename = path.name
-                metadata = {"source": str(path), "filename": filename, "chunk_index": i}
+                filename = Path(file_url).name
+                metadata = {
+                    "source": str(file_url),
+                    "filename": filename,
+                    "chunk_index": i,
+                }
 
                 doc = Document(text=chunk_text, metadata=metadata)
                 documents.append(doc)
@@ -111,7 +100,7 @@ def load_documents_from_files(file_paths: List[Union[str, Path]]) -> List[Docume
             logger.info(f"Loaded {len(chunks)} chunks from {filename}")
 
         except Exception as e:
-            logger.error(f"Error loading {path}: {e}")
+            logger.error(f"Error loading {file_url}: {e}")
 
     return documents
 
@@ -138,9 +127,11 @@ def __main__():
 
         transcripts_path = [ep["formatted_transcript_path"] for ep in episodes_as_dict]
 
-        print(f"Transcripts paths: {transcripts_path}")
+        # Load documents
+        documents = load_documents_from_url(transcripts_path)
 
-        # Downloads transcripts in tmp dir
+        print(f"Loaded {len(documents)} documents from transcripts.")
+
     except Exception as e:
         logger.error(f"Error in main: {e}")
         exit(1)
