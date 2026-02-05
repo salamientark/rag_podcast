@@ -1,3 +1,5 @@
+import os
+from dotenv import load_dotenv
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from llama_index.core import Document
@@ -17,6 +19,13 @@ logger = setup_logging(
     log_file="logs/reprocess_failed.log",
     verbose=True,
 )
+
+# Document chunking parameters
+EVAL_CHUNK_SIZE = 1024
+EVAL_OVERLAP = 0.1
+
+PODCAST_NAME = "le rendez-vous jeux"
+LIMIT = 10
 
 
 def filter_episodes(
@@ -72,8 +81,6 @@ def load_documents_from_url(file_urls: List[str]) -> List[Document]:
 
     # We use a smaller chunk size for evaluation dataset generation
     # to create more specific questions.
-    EVAL_CHUNK_SIZE = 1024
-    EVAL_OVERLAP = 0.1
 
     for file_url in file_urls:
         try:
@@ -88,10 +95,11 @@ def load_documents_from_url(file_urls: List[str]) -> List[Document]:
                 text, max_tokens=EVAL_CHUNK_SIZE, overlap_percent=EVAL_OVERLAP
             )
 
+            # Extract some basic metadata from filename if possible
+            filename = Path(file_url).name
+
             # Convert chunks to LlamaIndex Documents
             for i, chunk_text in enumerate(chunks):
-                # Extract some basic metadata from filename if possible
-                filename = Path(file_url).name
                 metadata = {
                     "source": str(file_url),
                     "filename": filename,
@@ -111,10 +119,15 @@ def load_documents_from_url(file_urls: List[str]) -> List[Document]:
 
 def init_test_set_generator() -> Optional[TestsetGenerator]:
     try:
+        load_dotenv()
         global_config = QueryConfig()
 
+        ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+        if not ANTHROPIC_API_KEY:
+            raise ValueError("ANTHROPIC_API_KEY is not set in environment variables.")
         generator_llm = Anthropic(
-            global_config.llm_model, api_key=global_config.anthropic_api_key
+            model=global_config.llm_model, api_key=global_config.anthropic_api_key,
+            system_prompt="You are a strict dataset generator. You must output only valid JSON. Do not output any conversational text, preambles, or explanations."
         )
         embedding_model = VoyageEmbedding(
             voyage_api_key=global_config.voyage_api_key,
@@ -134,9 +147,6 @@ def init_test_set_generator() -> Optional[TestsetGenerator]:
 
 def __main__():
     """ """
-    PODCAST_NAME = "le rendez-vous jeux"
-    LIMIT = 5
-
     try:
         # Get the last episodes with formatted transcripts for the specified podcast
         logger.info(
@@ -167,6 +177,27 @@ def __main__():
         if generator is None:
             raise ValueError("Failed to initialize TestsetGenerator.")
         logger.info("TestsetGenerator initialized successfully.")
+
+        # Create the test set
+        logger.info("Generating test set...")
+        distributions = {"simple": 0.5, "multi_context": 0.4, "reasoning": 0.1}
+        test_set = generator.generate_with_llamaindex_docs(
+            documents=documents,
+            testset_size=50,
+        )
+
+        print("Generated Test Set:")
+        print(test_set)
+
+        # Export to CSV using pandas
+        try:
+            logger.info("Exporting test set to CSV...")
+            df = test_set.to_pandas()
+            output_path = "data/testset.csv"
+            df.to_csv(output_path, index=False)
+            logger.info(f"Test set saved to {output_path}")
+        except Exception as e:
+            logger.error(f"Failed to export CSV: {e}")
 
     except Exception as e:
         logger.error(f"Error in main: {e}")

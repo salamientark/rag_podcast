@@ -41,7 +41,11 @@ class QueryConfig:
     # API keys
     voyage_api_key: Optional[str] = os.getenv("VOYAGE_API_KEY")
     cohere_api_key: Optional[str] = os.getenv("COHERE_API_KEY")
+    anthropic_api_key: Optional[str] = os.getenv("ANTHROPIC_API_KEY")
 
+    # LLM Settings
+    # llm_model: str = "claude-3-5-sonnet-latest"
+    llm_model: str = "claude-sonnet-4-20250514"
 
 # French system prompt for the LLM
 SYSTEM_PROMPT_FR = """Vous êtes un assistant spécialisé dans l'analyse du contenu podcast français.
