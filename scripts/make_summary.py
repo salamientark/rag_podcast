@@ -2,43 +2,15 @@ import sys
 import asyncio
 
 from pathlib import Path
-from urllib.parse import urlparse
 from logging import getLogger
 
 sys.path.insert(1, str(Path(__file__).resolve().parent.parent))
 
 from src.db import get_db_session, Episode, ProcessingStage, update_episode_in_db
-from src.storage.cloud import get_cloud_storage
+from src.storage.cloud import get_cloud_storage, CloudStorage
 from src.transcription.summarize import save_summary_to_cloud, summarize
 
 logger = getLogger(__name__)
-
-
-def get_transcript_content(transcript_url: str) -> str:
-    """
-    Fetch transcript content from the given URL.
-
-    Parameters:
-        url (str): The URL of the transcript.
-
-    Returns:
-        str: The content of the transcript.
-    """
-    try:
-        # Get Client
-        storage_engine = get_cloud_storage()
-        client = storage_engine.get_client()
-
-        parsed_url = urlparse(transcript_url)
-        bucket_name = storage_engine.bucket_name
-        key = parsed_url.path.lstrip("/")
-        response = client.get_object(Bucket=bucket_name, Key=key)
-        return response["Body"].read().decode()
-    except Exception as exc:
-        logger.error(
-            f"[fetch_transcript] Error during transcript fetch: {exc}", exc_info=True
-        )
-        raise
 
 
 def get_episode_info() -> list[tuple[str, str, str, str]]:
@@ -73,7 +45,7 @@ async def main():
         for uuid, episode_id, episode_podcast, transcript_url in episodes_infos:
             bucket_name = cloud_storage.bucket_name
             key = f"{episode_podcast}/summaries/episode_{episode_id:03d}_summary.txt"
-            content = get_transcript_content(transcript_url)
+            content = CloudStorage.get_transcript_content(transcript_url)
             if not content or not content.strip():
                 logger.warning(
                     f"Episode {episode_id:03d} has empty transcript content, skipping."

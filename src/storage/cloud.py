@@ -1,11 +1,15 @@
 import os
 from typing import Optional
+from urllib.parse import urlparse
+from logging import getLogger
 from dotenv import load_dotenv
 from functools import lru_cache
 
 import boto3
 from botocore.exceptions import ClientError
 from .base import BaseStorage
+
+logger = getLogger(__name__)
 
 
 class CloudStorage(BaseStorage):
@@ -46,6 +50,34 @@ class CloudStorage(BaseStorage):
     def get_client(self):
         """Returns the initialized cloud storage client."""
         return self.client
+
+    @staticmethod
+    def get_transcript_content_from_url(transcript_url: str) -> str:
+        """
+        Fetch transcript content from the given URL.
+
+        Parameters:
+            transcript_url (str): The URL of the transcript.
+
+        Returns:
+            str: The content of the transcript.
+        """
+        try:
+            # Get Client
+            storage_engine = get_cloud_storage()
+            client = storage_engine.get_client()
+
+            parsed_url = urlparse(transcript_url)
+            bucket_name = storage_engine.bucket_name
+            key = parsed_url.path.lstrip("/")
+            response = client.get_object(Bucket=bucket_name, Key=key)
+            return response["Body"].read().decode()
+        except Exception as exc:
+            logger.error(
+                f"[get_transcript_content] Error during transcript fetch: {exc}",
+                exc_info=True,
+            )
+            raise
 
     def _get_absolute_filename(self, workspace: str, filename: str) -> str:
         """Constructs the absolute filename in cloud storage.
