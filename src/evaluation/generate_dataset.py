@@ -3,10 +3,14 @@ from typing import List, Optional, Dict, Any
 from llama_index.core import Document
 from src.chunker import chunk_long_text
 
+from llama_index.llms.anthropic import Anthropic
+from llama_index.embeddings.voyageai import VoyageEmbedding
+from ragas.testset import TestsetGenerator
 
 from src.logger import setup_logging
 from src.db import get_db_session, get_podcast_by_name_or_slug, Episode
 from src.storage.cloud import CloudStorage
+from src.query import QueryConfig
 
 logger = setup_logging(
     logger_name="reprocess_failed",
@@ -105,6 +109,29 @@ def load_documents_from_url(file_urls: List[str]) -> List[Document]:
     return documents
 
 
+def init_test_set_generator() -> Optional[TestsetGenerator]:
+    try:
+        global_config = QueryConfig()
+
+        generator_llm = Anthropic(
+            global_config.llm_model, api_key=global_config.anthropic_api_key
+        )
+        embedding_model = VoyageEmbedding(
+            voyage_api_key=global_config.voyage_api_key,
+            model_name=global_config.embedding_model,
+            output_dimension=global_config.embedding_dimensions,
+        )
+
+        generator = TestsetGenerator.from_llama_index(
+            llm=generator_llm,
+            embedding_model=embedding_model,
+        )
+        return generator
+    except Exception as e:
+        logger.error(f"Error initializing TestsetGenerator: {e}")
+        return None
+
+
 def __main__():
     """ """
     PODCAST_NAME = "le rendez-vous jeux"
@@ -128,9 +155,18 @@ def __main__():
         transcripts_path = [ep["formatted_transcript_path"] for ep in episodes_as_dict]
 
         # Load documents
+        logger.info("Loading documents from transcripts paths...")
         documents = load_documents_from_url(transcripts_path)
+        if not documents:
+            raise ValueError("No documents loaded from transcripts.")
+        logger.info(f"Loaded {len(documents)} documents from transcripts.")
 
-        print(f"Loaded {len(documents)} documents from transcripts.")
+        # Initialize the test set generator
+        logger.info("Initializing TestsetGenerator...")
+        generator = init_test_set_generator()
+        if generator is None:
+            raise ValueError("Failed to initialize TestsetGenerator.")
+        logger.info("TestsetGenerator initialized successfully.")
 
     except Exception as e:
         logger.error(f"Error in main: {e}")
