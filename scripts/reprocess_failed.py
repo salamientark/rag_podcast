@@ -3,6 +3,8 @@
 Script to reprocess failed episodes (ProcessingStage.ERROR).
 """
 
+import csv
+from datetime import datetime
 import sys
 import argparse
 import asyncio
@@ -84,6 +86,61 @@ def get_failed_episodes(limit: Optional[int] = None) -> List[Dict[str, Any]]:
         return result
 
 
+def save_error(
+    failures: List[Dict[str, Any]], filename: str = "reprocess_errors.csv"
+) -> None:
+    """
+    Save failed episodes to a CSV file.
+
+    Args:
+        failures: List of dicts with error details
+        filename: Output CSV filename
+    """
+    if not failures:
+        return
+
+    fieldnames = [
+        "timestamp",
+        "episode_name",
+        "podcast_name",
+        "episode_id",
+        "finish_reason",
+        "notes",
+    ]
+
+    # In overwrite mode (as requested), we always write a new header if we are starting fresh
+    # But since we might call this multiple times in a loop (per podcast), we should probably append
+    # if we want to capture all errors from one run of the script.
+    # However, the user said "Overwrite". If I overwrite every time I call save_error inside the loop,
+    # I will lose previous iterations.
+    # The loop in main() iterates over podcasts. If I overwrite in each iteration, I only keep the last podcast's errors.
+    # So I should probably accumulate errors in main() and save once at the end, OR append.
+    # Given "Overwrite", I assume they mean "Overwrite the file from previous runs of the script".
+    # So I should write 'w' mode once at start, or accumulate all errors and write once.
+
+    # Let's accumulate in main and write once.
+
+    try:
+        with open(filename, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+
+            timestamp = datetime.now().isoformat()
+            for error in failures:
+                row = {
+                    "timestamp": timestamp,
+                    "episode_name": error.get("episode_name", ""),
+                    "podcast_name": error.get("podcast_name", ""),
+                    "episode_id": error.get("episode_id", ""),
+                    "finish_reason": error.get("finish_reason", "unknown"),
+                    "notes": error.get("notes", ""),
+                }
+                writer.writerow(row)
+        print(f"Errors saved to {filename}")
+    except Exception as e:
+        print(f"Failed to save errors to CSV: {e}", file=sys.stderr)
+
+
 async def main():
     """Main entry point."""
     args = parse_arguments()
@@ -134,6 +191,8 @@ async def main():
 
     # Process each podcast group
     failed_to_process = []
+    all_pipeline_failures = []
+
     for p_id, ep_ids in episodes_by_podcast.items():
         p_info = podcasts_info[p_id]
 
@@ -146,7 +205,7 @@ async def main():
             continue
 
         try:
-            await run_pipeline(
+            failures = await run_pipeline(
                 episodes_id=ep_ids,
                 podcast_id=p_id,
                 podcast_name=p_info["name"],
@@ -155,12 +214,19 @@ async def main():
                 force=True,  # Must force to reprocess ERROR stage
                 verbose=True,
             )
+            if failures:
+                all_pipeline_failures.extend(failures)
+
         except Exception as e:
             failed_to_process.append((p_info["name"], str(e)))
             logger.error(
                 f"Failed to reprocess podcast {p_info['name']}: {e}", exc_info=True
             )
             print(f"Failed to reprocess podcast {p_info['name']}: {e}", file=sys.stderr)
+
+    # Save errors if any
+    if all_pipeline_failures:
+        save_error(all_pipeline_failures)
 
     logger.info("=== REPROCESS COMPLETED ===")
     if failed_to_process:

@@ -12,7 +12,7 @@ import logging
 import os
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Tuple, List
 
 from dotenv import load_dotenv
 
@@ -85,7 +85,7 @@ def run_sync_stage(podcast_id: int, feed_url: str) -> None:
 def run_download_stage(
     episodes: list[Dict[str, Any]],
     cloud_save: bool = False,
-) -> list[Dict[str, Any]]:
+) -> Tuple[list[Dict[str, Any]], list[Dict[str, Any]]]:
     """
     Download audio files for the provided episodes, optionally upload them to cloud storage, and update episode records.
 
@@ -96,13 +96,19 @@ def run_download_stage(
         cloud_save (bool): If True, upload audio files to cloud storage and store cloud paths in the database.
 
     Returns:
-        list[Dict[str, Any]]: List of episode dictionaries with keys `uuid`, `podcast`, `episode_id`, `title`, and `audio_file_path` (local or cloud path as stored in the DB).
+        Tuple[list[Dict[str, Any]], list[Dict[str, Any]]]: A tuple containing:
+            - list[Dict[str, Any]]: List of successfully processed episode dictionaries with keys `uuid`, `podcast`, `episode_id`, `title`, and `audio_file_path` (local or cloud path as stored in the DB).
+            - list[Dict[str, Any]]: List of failed episode dictionaries with error details.
     """
     logger = logging.getLogger("pipeline")
+    failed_episodes = []
     try:
         logger.info("Starting download stage...")
 
         # Get workspace directory
+        if not episodes:
+            return [], []
+
         podcast = episodes[0]["podcast"]
         workspace = f"{podcast}/audio/"
         if not cloud_save:
@@ -153,7 +159,7 @@ def run_download_stage(
                         ),
                         processing_stage=ProcessingStage.AUDIO_DOWNLOADED,
                     )
-            return episodes_list
+            return episodes_list, failed_episodes
         logger.info(f"Found {len(missing_episodes)} missing episodes to download.")
 
         for episode in missing_episodes:
@@ -199,9 +205,18 @@ def run_download_stage(
                 logger.warning(
                     f"Failed to download episode {episode['episode_id']}: {episode['title']}"
                 )
+                failed_episodes.append(
+                    {
+                        "episode_name": episode["title"],
+                        "podcast_name": episode["podcast"],
+                        "episode_id": episode["episode_id"],
+                        "finish_reason": "download_failed",
+                        "notes": "Download returned failure",
+                    }
+                )
 
         logger.info("Download stage completed successfully.")
-        return episodes_list
+        return episodes_list, failed_episodes
 
     except Exception as e:
         logger.error(f"Download stage failed: {e}")
@@ -213,7 +228,7 @@ def run_transcription_stage(
     episodes: list[Dict[str, Any]],
     cloud_storage: bool = False,
     force: bool = False,
-) -> list[Dict[str, Any]]:
+) -> Tuple[list[Dict[str, Any]], list[Dict[str, Any]]]:
     """
     Transcribe audio files using Gemini and save formatted transcripts.
 
@@ -227,13 +242,18 @@ def run_transcription_stage(
         force (bool): If True, re-transcribe even if transcript exists.
 
     Returns:
-        list[Dict[str, Any]]: Episodes with `formatted_transcript_path` added.
+        Tuple[list[Dict[str, Any]], list[Dict[str, Any]]]: A tuple containing:
+            - list[Dict[str, Any]]: List of successfully processed episode dictionaries with `formatted_transcript_path` added.
+            - list[Dict[str, Any]]: List of failed episode dictionaries with error details.
     """
     logger = logging.getLogger("pipeline")
-
+    failed_episodes = []
     try:
         logger.info("Starting Gemini transcription stage...")
         updated_episodes = []
+        if not episodes:
+            return [], []
+
         local_storage = LocalStorage()
         podcast = episodes[0]["podcast"]
 
@@ -324,37 +344,50 @@ def run_transcription_stage(
                     processing_stage=ProcessingStage.ERROR,
                 )
                 logger.warning(f"✗ Episode {episode_id:03d} failed: {e}")
+                failed_episodes.append(
+                    {
+                        "episode_name": episode["title"],
+                        "podcast_name": episode["podcast"],
+                        "episode_id": episode["episode_id"],
+                        "finish_reason": "transcription_failed",
+                        "notes": str(e),
+                    }
+                )
                 continue
 
         logger.info(
             f"Gemini transcription stage completed. "
             f"{len(updated_episodes)}/{len(episodes)} episodes succeeded."
         )
-        return updated_episodes
+        return updated_episodes, failed_episodes
 
     except Exception as e:
         logger.error(f"Failed to complete transcription stage: {e}")
-        raise
+        raise Exception(f"{e}")
 
 
 async def run_summarization_stage(
     episodes: list[Dict[str, Any]],
     force: bool = False,
-) -> None:
+) -> List[Dict[str, Any]]:
     """
     Create summaries for each episode's formatted transcript and attach their paths to each episode.
 
     Parameters:
         episodes (list[dict]): List of episode dictionaries. Each dictionary must include the
                 keys `podcast`, `episode_id`, `formatted_transcript_path`
+
+    Returns:
+        List[Dict[str, Any]]: List of failed episode dictionaries with error details.
     """
+    failed_episodes = []
     try:
         logger = logging.getLogger("pipeline")
         logger.info("Starting summarization stage...")
 
         if not episodes:
             logger.info("No episodes to summarize, skipping stage.")
-            return
+            return []
 
         storage_engine = get_cloud_storage()
         client = storage_engine.get_client()
@@ -415,10 +448,21 @@ async def run_summarization_stage(
             except Exception as e:
                 logger.error(f"Episode {episode_id:03d} summarization failed: {e}")
                 failed_count += 1
+                failed_episodes.append(
+                    {
+                        "episode_name": episode["title"],
+                        "podcast_name": episode["podcast"],
+                        "episode_id": episode["episode_id"],
+                        "finish_reason": "summarization_failed",
+                        "notes": str(e),
+                    }
+                )
                 continue
 
         if failed_count > 0:
             logger.warning(f"Summarization completed with {failed_count} failures.")
+
+        return failed_episodes
 
     except Exception as e:
         logger.error(f"Failed to initialize summarization stage: {e}")
@@ -426,7 +470,9 @@ async def run_summarization_stage(
 
 
 @log_function(logger_name="pipeline", log_execution_time=True)
-def run_embedding_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
+def run_embedding_stage(
+    episodes: list[Dict[str, Any]],
+) -> Tuple[list[Dict[str, Any]], list[Dict[str, Any]]]:
     """
     Generate embeddings for each episode's formatted transcript using a three-tier cache (Qdrant → local file → fresh embedding) and attach resulting embedding paths to episode dictionaries.
 
@@ -434,17 +480,19 @@ def run_embedding_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
         episodes (list[dict]): List of episode dictionaries. Each dictionary must include keys: `uuid`, `podcast`, `episode_id`, `title`, and `formatted_transcript_path`. The function will add or update the `embedding_path` key on successful processing.
 
     Returns:
-        list[dict]: The subset of input episode dictionaries that were successfully processed, each augmented with an `embedding_path` pointing to the local embedding file.
+        Tuple[list[Dict[str, Any]], list[Dict[str, Any]]]: A tuple containing:
+            - list[dict]: The subset of input episode dictionaries that were successfully processed, each augmented with an `embedding_path` pointing to the local embedding file.
+            - list[Dict[str, Any]]: List of failed episode dictionaries with error details.
     """
     logger = logging.getLogger("pipeline")
-
+    failed_episodes = []
     try:
         load_dotenv()
         logger.info("Starting embedding stage...")
 
         if not episodes:
             logger.info("No episodes to embed, skipping stage.")
-            return []
+            return [], []
 
         # Create collection if not exist
         collection_name = os.getenv("QDRANT_COLLECTION_NAME")
@@ -506,12 +554,21 @@ def run_embedding_stage(episodes: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
                     processing_stage=ProcessingStage.ERROR,
                 )
                 logger.warning(f"✗ Episode {episode_id:03d} embedding failed: {e}")
+                failed_episodes.append(
+                    {
+                        "episode_name": episode["title"],
+                        "podcast_name": episode["podcast"],
+                        "episode_id": episode["episode_id"],
+                        "finish_reason": "embedding_failed",
+                        "notes": str(e),
+                    }
+                )
                 continue
 
         logger.info(
             f"Embedding stage completed. {len(updated_episodes)}/{len(episodes)} episodes succeeded."
         )
-        return updated_episodes
+        return updated_episodes, failed_episodes
 
     except Exception as e:
         logger.error(f"Failed to complete embedding pipeline: {e}")
