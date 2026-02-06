@@ -9,16 +9,17 @@ import sys
 import argparse
 import asyncio
 from collections import defaultdict
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Set, Tuple
 
 # Add project root to sys.path if running from scripts directory
 import os
+from sqlalchemy import tuple_
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.logger import setup_logging
 from src.db.database import get_db_session
-from src.db.models import Episode, ProcessingStage
+from src.db.models import Episode, ProcessingStage, Podcast
 from src.pipeline.orchestrator import run_pipeline
 
 
@@ -44,7 +45,40 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def get_failed_episodes(limit: Optional[int] = None) -> List[Dict[str, Any]]:
+def get_recitation_failures(
+    filename: str = "reprocess_errors.csv",
+) -> Set[Tuple[str, int]]:
+    """
+    Read previous errors and identify episodes that failed due to RECITATION.
+    Returns a set of (podcast_name, episode_id) tuples.
+    """
+    exclusions = set()
+    if not os.path.isfile(filename):
+        return exclusions
+
+    try:
+        with open(filename, "r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row.get("finish_reason") == "RECITATION":
+                    try:
+                        p_name = row["podcast_name"]
+                        e_id = int(row["episode_id"])
+                        exclusions.add((p_name, e_id))
+                    except (ValueError, KeyError):
+                        continue
+    except Exception as e:
+        print(
+            f"Warning: Failed to read exclusion list from {filename}: {e}",
+            file=sys.stderr,
+        )
+
+    return exclusions
+
+
+def get_failed_episodes(
+    limit: Optional[int] = None, exclude_episodes: Optional[Set[Tuple[str, int]]] = None
+) -> List[Dict[str, Any]]:
     """
     Get failed episodes from database.
     Returns list of dicts with necessary info to avoid detachment issues.
@@ -53,6 +87,27 @@ def get_failed_episodes(limit: Optional[int] = None) -> List[Dict[str, Any]]:
         query = session.query(Episode).filter(
             Episode.processing_stage == ProcessingStage.ERROR
         )
+
+        # Apply exclusions directly in the query
+        if exclude_episodes:
+            # 1. Fetch all podcasts to map name -> ID
+            podcasts = session.query(Podcast.id, Podcast.name).all()
+            podcast_map = {name: pid for pid, name in podcasts}
+
+            # 2. Build list of (podcast_id, episode_id) tuples to exclude
+            excluded_db_tuples = []
+            for p_name, e_id in exclude_episodes:
+                if p_name in podcast_map:
+                    excluded_db_tuples.append((podcast_map[p_name], e_id))
+
+            # 3. Apply NOT IN filter if we have valid IDs
+            if excluded_db_tuples:
+                query = query.filter(
+                    tuple_(Episode.podcast_id, Episode.episode_id).notin_(
+                        excluded_db_tuples
+                    )
+                )
+
         # Order by most recent failures (published_date desc)
         query = query.order_by(Episode.published_date.desc())
 
@@ -100,8 +155,8 @@ def save_error(
         return
 
     fieldnames = [
-        "episode_name",
         "podcast_name",
+        "episode_name",
         "episode_id",
         "finish_reason",
         "notes",
@@ -121,9 +176,11 @@ def save_error(
     # Let's accumulate in main and write once.
 
     try:
-        with open(filename, "w", newline="", encoding="utf-8") as f:
+        file_exists = os.path.isfile(filename)
+        with open(filename, "a", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
+            if not file_exists:
+                writer.writeheader()
 
             timestamp = datetime.now().isoformat()
             for error in failures:
@@ -154,6 +211,13 @@ async def main():
 
     logger.info("=== REPROCESS FAILED EPISODES STARTED ===")
 
+    # Get exclusion list
+    exclusions = get_recitation_failures()
+    if exclusions:
+        logger.info(
+            f"Found {len(exclusions)} episodes to skip from previous RECITATION errors."
+        )
+
     if args.dry_run:
         logger.info("DRY RUN MODE ENABLED")
         print("DRY RUN MODE ENABLED - No changes will be made")
@@ -162,7 +226,7 @@ async def main():
     logger.info(f"Mode: {'ALL' if args.all else f'Limit {limit}'}")
 
     try:
-        failed_episodes = get_failed_episodes(limit)
+        failed_episodes = get_failed_episodes(limit, exclude_episodes=exclusions)
     except Exception as e:
         logger.error(f"Error fetching failed episodes: {e}")
         print(f"Error fetching failed episodes: {e}", file=sys.stderr)
