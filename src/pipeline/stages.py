@@ -10,6 +10,7 @@ Each function wraps existing module logic and provides:
 
 import logging
 import os
+import re
 
 from pathlib import Path
 from typing import Any, Dict, Tuple, List
@@ -344,12 +345,14 @@ def run_transcription_stage(
                     processing_stage=ProcessingStage.ERROR,
                 )
                 logger.warning(f"✗ Episode {episode_id:03d} failed: {e}")
+                match = re.search(r"finish_reason=(?:FinishReason\.)?([\w]+)", str(e))
+                finish_reason = match.group(1) if match else "transcript failed"
                 failed_episodes.append(
                     {
                         "episode_name": episode["title"],
                         "podcast_name": episode["podcast"],
                         "episode_id": episode["episode_id"],
-                        "finish_reason": "transcription_failed",
+                        "finish_reason": finish_reason,
                         "notes": str(e),
                     }
                 )

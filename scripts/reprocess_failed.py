@@ -100,12 +100,12 @@ def save_error(
         return
 
     fieldnames = [
-        "timestamp",
         "episode_name",
         "podcast_name",
         "episode_id",
         "finish_reason",
         "notes",
+        "timestamp",
     ]
 
     # In overwrite mode (as requested), we always write a new header if we are starting fresh
@@ -128,12 +128,12 @@ def save_error(
             timestamp = datetime.now().isoformat()
             for error in failures:
                 row = {
-                    "timestamp": timestamp,
-                    "episode_name": error.get("episode_name", ""),
                     "podcast_name": error.get("podcast_name", ""),
+                    "episode_name": error.get("episode_name", ""),
                     "episode_id": error.get("episode_id", ""),
                     "finish_reason": error.get("finish_reason", "unknown"),
                     "notes": error.get("notes", ""),
+                    "timestamp": timestamp,
                 }
                 writer.writerow(row)
         print(f"Errors saved to {filename}")
