@@ -1,4 +1,5 @@
 import os
+import argparse
 from dotenv import load_dotenv
 from pathlib import Path
 from typing import List, Optional, Dict, Any
@@ -25,8 +26,16 @@ logger = setup_logging(
 EVAL_CHUNK_SIZE = 1024
 EVAL_OVERLAP = 0.1
 
-PODCAST_NAME = "le rendez-vous jeux"
-LIMIT = 10
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Generate RAG evaluation dataset")
+    parser.add_argument(
+        "--podcast", type=str, required=True, help="Name or slug of the podcast"
+    )
+    parser.add_argument(
+        "--limit", type=int, default=10, help="Number of episodes to process"
+    )
+    return parser.parse_args()
 
 
 def filter_episodes(
@@ -149,18 +158,19 @@ def init_test_set_generator() -> Optional[TestsetGenerator]:
 
 def __main__():
     """ """
+    args = parse_args()
     try:
         # Get the last episodes with formatted transcripts for the specified podcast
         logger.info(
-            f"Fetching episodes for podcast: {PODCAST_NAME} with limit: {LIMIT}"
+            f"Fetching episodes for podcast: {args.podcast} with limit: {args.limit}"
         )
-        episodes_as_dict = filter_episodes(PODCAST_NAME, LIMIT)
+        episodes_as_dict = filter_episodes(args.podcast, args.limit)
         if episodes_as_dict is None:
             logger.error("Failed to fetch episodes.")
             return
 
         logger.info(
-            f"Fetched {len(episodes_as_dict)} episodes for podcast: {PODCAST_NAME}"
+            f"Fetched {len(episodes_as_dict)} episodes for podcast: {args.podcast}"
         )
         logger.info(f"Episodes IDS: {[ep['episode_id'] for ep in episodes_as_dict]}")
 
