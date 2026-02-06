@@ -13,7 +13,7 @@ import os
 import re
 
 from pathlib import Path
-from typing import Any, Dict, Tuple, List
+from typing import Any, Dict, Tuple
 
 from dotenv import load_dotenv
 
@@ -372,7 +372,7 @@ def run_transcription_stage(
 async def run_summarization_stage(
     episodes: list[Dict[str, Any]],
     force: bool = False,
-) -> List[Dict[str, Any]]:
+) -> Tuple[list[Dict[str, Any]], list[Dict[str, Any]]]:
     """
     Create summaries for each episode's formatted transcript and attach their paths to each episode.
 
@@ -381,22 +381,26 @@ async def run_summarization_stage(
                 keys `podcast`, `episode_id`, `formatted_transcript_path`
 
     Returns:
-        List[Dict[str, Any]]: List of failed episode dictionaries with error details.
+        Tuple[list[Dict[str, Any]], list[Dict[str, Any]]]: A tuple containing:
+            - list[Dict[str, Any]]: List of successfully processed episode dictionaries with `summary_path` added.
+            - list[Dict[str, Any]]: List of failed episode dictionaries with error details.
     """
     failed_episodes = []
+    updated_episodes = []
+    logger = logging.getLogger("pipeline")
     try:
-        logger = logging.getLogger("pipeline")
         logger.info("Starting summarization stage...")
 
         if not episodes:
             logger.info("No episodes to summarize, skipping stage.")
-            return []
+            return [], []
 
         storage_engine = get_cloud_storage()
         client = storage_engine.get_client()
         failed_count = 0
         for episode in episodes:
             if episode.get("summary_path") and not force:
+                updated_episodes.append(episode)
                 continue
             podcast = episode["podcast"]
             episode_id = episode["episode_id"]
@@ -409,6 +413,8 @@ async def run_summarization_stage(
                 logger.info(
                     f"Summary already exists for episode ID {episode_id:03d}, skipping summarization."
                 )
+                episode["summary_path"] = link
+                updated_episodes.append(episode)
                 continue
 
             try:
@@ -448,6 +454,8 @@ async def run_summarization_stage(
                     episode["uuid"],
                     summary_path=link,
                 )
+                episode["summary_path"] = link
+                updated_episodes.append(episode)
             except Exception as e:
                 logger.error(f"Episode {episode_id:03d} summarization failed: {e}")
                 failed_count += 1
@@ -465,7 +473,7 @@ async def run_summarization_stage(
         if failed_count > 0:
             logger.warning(f"Summarization completed with {failed_count} failures.")
 
-        return failed_episodes
+        return updated_episodes, failed_episodes
 
     except Exception as e:
         logger.error(f"Failed to initialize summarization stage: {e}")

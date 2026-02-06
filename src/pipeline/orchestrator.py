@@ -200,7 +200,9 @@ async def run_pipeline(
                 episodes_to_process, use_cloud_storage, force
             )
             all_failures.extend(failed)
-            failed_summaries = await run_summarization_stage(episodes_to_process, force)
+            episodes_to_process, failed_summaries = await run_summarization_stage(
+                episodes_to_process, force
+            )
             all_failures.extend(failed_summaries)
 
         # Run embedding stage
