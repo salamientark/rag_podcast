@@ -3219,7 +3219,6 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "python-jose", extra = ["cryptography"] },
     { name = "qdrant-client" },
-    { name = "rapidfuzz" },
     { name = "requests" },
     { name = "rich" },
     { name = "ruff" },
@@ -3234,6 +3233,7 @@ dependencies = [
 dev = [
     { name = "pytest" },
     { name = "ragas" },
+    { name = "rapidfuzz" },
 ]
 
 [package.metadata]
@@ -3260,7 +3260,6 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.2.1" },
     { name = "python-jose", extras = ["cryptography"], specifier = ">=3.3.0" },
     { name = "qdrant-client", specifier = ">=1.10.0" },
-    { name = "rapidfuzz", specifier = ">=3.14.3" },
     { name = "requests", specifier = ">=2.32.5" },
     { name = "rich", specifier = ">=13.0.0" },
     { name = "ruff", specifier = ">=0.14.7" },
@@ -3275,6 +3274,7 @@ requires-dist = [
 dev = [
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "ragas", specifier = ">=0.4.3" },
+    { name = "rapidfuzz", specifier = ">=3.14.3" },
 ]
 
 [[package]]

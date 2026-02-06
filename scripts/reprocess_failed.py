@@ -23,6 +23,10 @@ from src.db.models import Episode, ProcessingStage, Podcast
 from src.pipeline.orchestrator import run_pipeline
 
 
+# CONSTANTS
+DEFAULT_CSV_FILENAME = "reprocess_errors.csv"
+
+
 def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Reprocess failed episodes")
@@ -46,7 +50,7 @@ def parse_arguments() -> argparse.Namespace:
 
 
 def get_recitation_failures(
-    filename: str = "reprocess_errors.csv",
+    filename: str = DEFAULT_CSV_FILENAME,
 ) -> Set[Tuple[str, int]]:
     """
     Read previous errors and identify episodes that failed due to RECITATION.
@@ -142,7 +146,7 @@ def get_failed_episodes(
 
 
 def save_error(
-    failures: List[Dict[str, Any]], filename: str = "reprocess_errors.csv"
+    failures: List[Dict[str, Any]], filename: str = DEFAULT_CSV_FILENAME
 ) -> None:
     """
     Save failed episodes to a CSV file.
