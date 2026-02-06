@@ -256,6 +256,7 @@ async def main():
     # Process each podcast group
     failed_to_process = []
     all_pipeline_failures = []
+    total_crashed_count = 0
 
     for p_id, ep_ids in episodes_by_podcast.items():
         p_info = podcasts_info[p_id]
@@ -283,6 +284,7 @@ async def main():
 
         except Exception as e:
             failed_to_process.append((p_info["name"], str(e)))
+            total_crashed_count += len(ep_ids)
             logger.error(
                 f"Failed to reprocess podcast {p_info['name']}: {e}", exc_info=True
             )
@@ -291,6 +293,21 @@ async def main():
     # Save errors if any
     if all_pipeline_failures:
         save_error(all_pipeline_failures)
+
+    # Calculate statistics
+    total_attempted = len(failed_episodes)
+    if args.dry_run:
+        total_failed = 0
+        total_success = 0
+    else:
+        total_failed = len(all_pipeline_failures) + total_crashed_count
+        total_success = total_attempted - total_failed
+
+    logger.info("=== REPROCESS SUMMARY ===")
+    logger.info(f"Skipped (RECITATION): {len(exclusions)}")
+    logger.info(f"Total attempted: {total_attempted}")
+    logger.info(f"Successfully reprocessed: {total_success}")
+    logger.info(f"Failed to reprocess: {total_failed}")
 
     logger.info("=== REPROCESS COMPLETED ===")
     if failed_to_process:
