@@ -7,7 +7,6 @@ preparing data structures for comprehensive RAG evaluation.
 """
 
 import ast
-import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -154,15 +153,15 @@ class TestsetAdapter:
                     ground_truth = "No reference answer provided"
 
                 # Prepare metadata - handle NaN values
-                metadata = {
-                    "persona_name": str(row.get("persona_name", "")).replace("nan", ""),
-                    "query_style": str(row.get("query_style", "")).replace("nan", ""),
-                    "query_length": str(row.get("query_length", "")).replace("nan", ""),
-                    "synthesizer_name": str(row.get("synthesizer_name", "")).replace(
-                        "nan", ""
-                    ),
-                    "row_index": idx,
-                }
+                # metadata = {
+                #     "persona_name": str(row.get("persona_name", "")).replace("nan", ""),
+                #     "query_style": str(row.get("query_style", "")).replace("nan", ""),
+                #     "query_length": str(row.get("query_length", "")).replace("nan", ""),
+                #     "synthesizer_name": str(row.get("synthesizer_name", "")).replace(
+                #         "nan", ""
+                #     ),
+                #     "row_index": idx,
+                # }
 
                 # Add to RAGAS data (without metadata to avoid conversion issues)
                 ragas_data["question"].append(question)

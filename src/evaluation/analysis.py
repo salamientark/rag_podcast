@@ -6,10 +6,9 @@ RAGAS evaluation results, with integration to Langfuse for tracking.
 """
 
 import json
-import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import pandas as pd
 
@@ -403,7 +402,7 @@ class EvaluationAnalyzer:
 
         # Basic info
         summary = self.get_summary_stats()
-        print(f"\nEVALUATION OVERVIEW:")
+        print("\nEVALUATION OVERVIEW:")
         print(f"  Timestamp: {summary['evaluation_timestamp']}")
         print(f"  Testset: {summary.get('testset_path', 'Unknown')}")
         print(f"  Questions evaluated: {summary['total_questions']}")
@@ -421,7 +420,7 @@ class EvaluationAnalyzer:
             )
 
         # Individual metrics
-        print(f"\nMETRIC SCORES:")
+        print("\nMETRIC SCORES:")
         print("-" * 50)
         for metric_name, score in self.metrics.items():
             percentage = round(float(score) * 100, 1)
@@ -441,23 +440,23 @@ class EvaluationAnalyzer:
         analysis = self.analyze_metric_performance()
 
         if analysis["strengths"]:
-            print(f"\nSTRENGTHS:")
+            print("\nSTRENGTHS:")
             for strength in analysis["strengths"]:
                 print(f"  ✅ {strength}")
 
         if analysis["weaknesses"]:
-            print(f"\nAREAS FOR IMPROVEMENT:")
+            print("\nAREAS FOR IMPROVEMENT:")
             for weakness in analysis["weaknesses"]:
                 print(f"  ⚠️  {weakness}")
 
         if analysis["recommendations"]:
-            print(f"\nRECOMMENDATIONS:")
+            print("\nRECOMMENDATIONS:")
             for i, rec in enumerate(analysis["recommendations"], 1):
                 print(f"  {i}. {rec}")
 
         # Configuration
         if self.config:
-            print(f"\nCONFIGURATION:")
+            print("\nCONFIGURATION:")
             for key, value in self.config.items():
                 print(f"  {key}: {value}")
 

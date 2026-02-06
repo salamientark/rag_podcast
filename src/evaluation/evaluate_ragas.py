@@ -8,14 +8,12 @@ against the reference dataset.
 
 import argparse
 import asyncio
-import logging
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 from datasets import Dataset
-from langchain_anthropic import ChatAnthropic
 from langchain_voyageai import VoyageAIEmbeddings
 from ragas.embeddings import LangchainEmbeddingsWrapper
 import warnings
@@ -33,7 +31,7 @@ from src.observability.langfuse import get_langfuse, init_langfuse_observability
 from src.query import QueryConfig
 from src.query.service import PodcastQueryService
 
-from .config import RAGAS_SYSTEM_PROMPT_FR, EvaluationConfig
+from .config import EvaluationConfig
 from .data_adapter import TestsetAdapter
 
 logger = setup_logging(
