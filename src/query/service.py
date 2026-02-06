@@ -26,7 +26,8 @@ from .config import QueryConfig
 from .postprocessors import get_cohere_reranker, sort_nodes_temporally
 
 
-SNIPPET_SIZE = 500  # Characters for Langfuse node preview
+SNIPPET_SIZE = 500  # Characters for UI preview
+LANGFUSE_CONTEXT_SIZE = 8000  # Larger context for evaluation purposes
 
 
 class PodcastQueryService:
@@ -153,8 +154,12 @@ class PodcastQueryService:
         )
 
         # Set up Cohere reranker
+        if not self.config.cohere_api_key:
+            raise ValueError("COHERE_API_KEY is required for reranking")
+
+        # api_key is verified to be non-None at this point
         self.reranker = get_cohere_reranker(
-            api_key=self.config.cohere_api_key,
+            api_key=str(self.config.cohere_api_key),  # Explicit cast to str
             model=self.config.cohere_rerank_model,
             top_n=self.config.rerank_top_n,
         )
@@ -209,7 +214,14 @@ class PodcastQueryService:
                         except Exception:
                             raw_text = ""
 
+                        # Create a short snippet for UI display
                         snippet = " ".join(str(raw_text).split())[:SNIPPET_SIZE]
+
+                        # Create a larger context version for evaluation
+                        full_context = " ".join(str(raw_text).split())[
+                            :LANGFUSE_CONTEXT_SIZE
+                        ]
+
                         retrieved_previews.append(
                             {
                                 "score": node_with_score.score,
@@ -219,7 +231,17 @@ class PodcastQueryService:
                                 "publication_date": metadata.get("publication_date"),
                                 "chunk_index": metadata.get("chunk_index"),
                                 "snippet": snippet,
+                                "full_context": full_context,  # Add full context for evaluation
                             }
+                        )
+
+                    # Add debug logging to verify the context size
+                    if retrieved_previews:
+                        first_preview = retrieved_previews[0]
+                        snippet_len = len(first_preview.get("snippet", ""))
+                        full_context_len = len(first_preview.get("full_context", ""))
+                        self.logger.debug(
+                            f"Context sizes - snippet: {snippet_len} chars, full_context: {full_context_len} chars"
                         )
 
                     retrieve_span.update(
