@@ -155,6 +155,7 @@ async def run_pipeline(
         force (bool): If true, force reprocessing of already completed stages.
     """
     logger = logging.getLogger("pipeline")
+    all_failures = []
 
     try:
         # Run sync Stage
@@ -178,13 +179,14 @@ async def run_pipeline(
         if len(episodes_to_process) == 0:
             logger.info("No episodes found to process. Exiting pipeline.")
             logger.info("=== PIPELINE COMPLETED SUCCESSFULLY ===")
-            return
+            return []
 
         # Run download audio stage
         if force or stages is None or "download" in stages:
-            episodes_to_process = run_download_stage(
+            episodes_to_process, failed = run_download_stage(
                 episodes_to_process, use_cloud_storage
             )
+            all_failures.extend(failed)
 
         # Run transcription stage (Gemini: transcription + speaker identification)
         # Accepts both "raw_transcript" and "format_transcript" for backward compatibility
@@ -194,16 +196,23 @@ async def run_pipeline(
             or "raw_transcript" in stages
             or "format_transcript" in stages
         ):
-            episodes_to_process = run_transcription_stage(
+            episodes_to_process, failed = run_transcription_stage(
                 episodes_to_process, use_cloud_storage, force
             )
-            await run_summarization_stage(episodes_to_process, force)
+            all_failures.extend(failed)
+            episodes_to_process, failed_summaries = await run_summarization_stage(
+                episodes_to_process, force
+            )
+            all_failures.extend(failed_summaries)
 
         # Run embedding stage
         if force or stages is None or "embed" in stages:
-            run_embedding_stage(episodes_to_process)
+            episodes_to_process, failed = run_embedding_stage(episodes_to_process)
+            all_failures.extend(failed)
 
         logger.info("=== PIPELINE COMPLETED SUCCESSFULLY ===")
+        return all_failures
 
     except Exception:
+        logger.error("=== PIPELINE FAILED WITH EXCEPTION ===", exc_info=True)
         raise

@@ -3,21 +3,28 @@
 Script to reprocess failed episodes (ProcessingStage.ERROR).
 """
 
+import csv
+from datetime import datetime
 import sys
 import argparse
 import asyncio
 from collections import defaultdict
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Set, Tuple
 
 # Add project root to sys.path if running from scripts directory
 import os
+from sqlalchemy import tuple_
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.logger import setup_logging
 from src.db.database import get_db_session
-from src.db.models import Episode, ProcessingStage
+from src.db.models import Episode, ProcessingStage, Podcast
 from src.pipeline.orchestrator import run_pipeline
+
+
+# CONSTANTS
+DEFAULT_CSV_FILENAME = "reprocess_errors.csv"
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -42,7 +49,40 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def get_failed_episodes(limit: Optional[int] = None) -> List[Dict[str, Any]]:
+def get_recitation_failures(
+    filename: str = DEFAULT_CSV_FILENAME,
+) -> Set[Tuple[str, int]]:
+    """
+    Read previous errors and identify episodes that failed due to RECITATION.
+    Returns a set of (podcast_name, episode_id) tuples.
+    """
+    exclusions = set()
+    if not os.path.isfile(filename):
+        return exclusions
+
+    try:
+        with open(filename, "r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row.get("finish_reason") == "RECITATION":
+                    try:
+                        p_name = row["podcast_name"]
+                        e_id = int(row["episode_id"])
+                        exclusions.add((p_name, e_id))
+                    except (ValueError, KeyError):
+                        continue
+    except Exception as e:
+        print(
+            f"Warning: Failed to read exclusion list from {filename}: {e}",
+            file=sys.stderr,
+        )
+
+    return exclusions
+
+
+def get_failed_episodes(
+    limit: Optional[int] = None, exclude_episodes: Optional[Set[Tuple[str, int]]] = None
+) -> List[Dict[str, Any]]:
     """
     Get failed episodes from database.
     Returns list of dicts with necessary info to avoid detachment issues.
@@ -51,6 +91,27 @@ def get_failed_episodes(limit: Optional[int] = None) -> List[Dict[str, Any]]:
         query = session.query(Episode).filter(
             Episode.processing_stage == ProcessingStage.ERROR
         )
+
+        # Apply exclusions directly in the query
+        if exclude_episodes:
+            # 1. Fetch all podcasts to map name -> ID
+            podcasts = session.query(Podcast.id, Podcast.name).all()
+            podcast_map = {name: pid for pid, name in podcasts}
+
+            # 2. Build list of (podcast_id, episode_id) tuples to exclude
+            excluded_db_tuples = []
+            for p_name, e_id in exclude_episodes:
+                if p_name in podcast_map:
+                    excluded_db_tuples.append((podcast_map[p_name], e_id))
+
+            # 3. Apply NOT IN filter if we have valid IDs
+            if excluded_db_tuples:
+                query = query.filter(
+                    tuple_(Episode.podcast_id, Episode.episode_id).notin_(
+                        excluded_db_tuples
+                    )
+                )
+
         # Order by most recent failures (published_date desc)
         query = query.order_by(Episode.published_date.desc())
 
@@ -84,6 +145,51 @@ def get_failed_episodes(limit: Optional[int] = None) -> List[Dict[str, Any]]:
         return result
 
 
+def save_error(
+    failures: List[Dict[str, Any]], filename: str = DEFAULT_CSV_FILENAME
+) -> None:
+    """
+    Save failed episodes to a CSV file.
+
+    Args:
+        failures: List of dicts with error details
+        filename: Output CSV filename
+    """
+    if not failures:
+        return
+
+    fieldnames = [
+        "podcast_name",
+        "episode_name",
+        "episode_id",
+        "finish_reason",
+        "notes",
+        "timestamp",
+    ]
+
+    try:
+        file_exists = os.path.isfile(filename)
+        with open(filename, "a", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            if not file_exists:
+                writer.writeheader()
+
+            timestamp = datetime.now().isoformat()
+            for error in failures:
+                row = {
+                    "podcast_name": error.get("podcast_name", ""),
+                    "episode_name": error.get("episode_name", ""),
+                    "episode_id": error.get("episode_id", ""),
+                    "finish_reason": error.get("finish_reason", "unknown"),
+                    "notes": error.get("notes", ""),
+                    "timestamp": timestamp,
+                }
+                writer.writerow(row)
+        print(f"Errors saved to {filename}")
+    except Exception as e:
+        print(f"Failed to save errors to CSV: {e}", file=sys.stderr)
+
+
 async def main():
     """Main entry point."""
     args = parse_arguments()
@@ -97,6 +203,13 @@ async def main():
 
     logger.info("=== REPROCESS FAILED EPISODES STARTED ===")
 
+    # Get exclusion list
+    exclusions = get_recitation_failures()
+    if exclusions:
+        logger.info(
+            f"Found {len(exclusions)} episodes to skip from previous RECITATION errors."
+        )
+
     if args.dry_run:
         logger.info("DRY RUN MODE ENABLED")
         print("DRY RUN MODE ENABLED - No changes will be made")
@@ -105,7 +218,7 @@ async def main():
     logger.info(f"Mode: {'ALL' if args.all else f'Limit {limit}'}")
 
     try:
-        failed_episodes = get_failed_episodes(limit)
+        failed_episodes = get_failed_episodes(limit, exclude_episodes=exclusions)
     except Exception as e:
         logger.error(f"Error fetching failed episodes: {e}")
         print(f"Error fetching failed episodes: {e}", file=sys.stderr)
@@ -134,6 +247,9 @@ async def main():
 
     # Process each podcast group
     failed_to_process = []
+    all_pipeline_failures = []
+    total_crashed_count = 0
+
     for p_id, ep_ids in episodes_by_podcast.items():
         p_info = podcasts_info[p_id]
 
@@ -146,7 +262,7 @@ async def main():
             continue
 
         try:
-            await run_pipeline(
+            failures = await run_pipeline(
                 episodes_id=ep_ids,
                 podcast_id=p_id,
                 podcast_name=p_info["name"],
@@ -155,12 +271,35 @@ async def main():
                 force=True,  # Must force to reprocess ERROR stage
                 verbose=True,
             )
+            if failures:
+                all_pipeline_failures.extend(failures)
+
         except Exception as e:
             failed_to_process.append((p_info["name"], str(e)))
+            total_crashed_count += len(ep_ids)
             logger.error(
                 f"Failed to reprocess podcast {p_info['name']}: {e}", exc_info=True
             )
             print(f"Failed to reprocess podcast {p_info['name']}: {e}", file=sys.stderr)
+
+    # Save errors if any
+    if all_pipeline_failures:
+        save_error(all_pipeline_failures)
+
+    # Calculate statistics
+    total_attempted = len(failed_episodes)
+    if args.dry_run:
+        total_failed = 0
+        total_success = 0
+    else:
+        total_failed = len(all_pipeline_failures) + total_crashed_count
+        total_success = max(0, total_attempted - total_failed)
+
+    logger.info("=== REPROCESS SUMMARY ===")
+    logger.info(f"Skipped (RECITATION): {len(exclusions)}")
+    logger.info(f"Total attempted: {total_attempted}")
+    logger.info(f"Successfully reprocessed: {total_success}")
+    logger.info(f"Failed to reprocess: {total_failed}")
 
     logger.info("=== REPROCESS COMPLETED ===")
     if failed_to_process:
@@ -169,7 +308,7 @@ async def main():
             logger.warning(f"- {name}: {error}")
             print(f"Failed to reprocess podcast {name}: {error}", file=sys.stderr)
         sys.exit(1)
-    print("Reprocessing completed succesfully.")
+    print("Reprocessing completed successfully.")
 
 
 if __name__ == "__main__":
