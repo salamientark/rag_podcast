@@ -27,7 +27,7 @@ from .postprocessors import get_cohere_reranker, sort_nodes_temporally
 
 
 SNIPPET_SIZE = 500  # Characters for UI preview
-LANGFUSE_CONTEXT_SIZE = 4000  # Larger context for evaluation purposes
+LANGFUSE_CONTEXT_SIZE = 8000  # Larger context for evaluation purposes
 
 
 class PodcastQueryService:
