@@ -19,6 +19,8 @@ from langchain_anthropic import ChatAnthropic
 from langchain_voyageai import VoyageAIEmbeddings
 from ragas.embeddings import LangchainEmbeddingsWrapper
 import warnings
+
+from .json_fix import create_json_cleaning_llm
 from ragas import evaluate
 from ragas.metrics._answer_relevance import AnswerRelevancy
 from ragas.metrics._context_precision import ContextPrecision
@@ -93,10 +95,12 @@ class RAGASEvaluator:
     def _setup_ragas_metrics(self):
         """Setup RAGAS metrics with proper LLM and embedding models."""
         try:
-            # Setup LLM for RAGAS using Langchain
-            ragas_llm = ChatAnthropic(
+            # Setup LLM for RAGAS with JSON cleaning to fix parsing errors
+            ragas_llm = create_json_cleaning_llm(
                 model=self.config.llm_model,
                 api_key=self.config.anthropic_api_key,
+                temperature=0,  # Deterministic output for evaluation
+                max_tokens=2048,  # Sufficient for JSON responses
             )
 
             # Setup embedding model for RAGAS using wrapped VoyageAI
