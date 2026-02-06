@@ -8,6 +8,7 @@ is handled by the MCP client (Claude Desktop, Node.js CLI), not by this tool.
 import contextlib
 import logging
 
+from fastmcp import Context
 from src.db import get_podcast_by_name_or_slug, get_podcasts
 from src.observability.langfuse import get_langfuse
 
@@ -17,7 +18,9 @@ logger = logging.getLogger(__name__)
 
 
 @mcp.tool("ask_podcast")
-async def ask_podcast(question: str, podcast: str | None = None) -> str:
+async def ask_podcast(
+    question: str, podcast: str | None = None, ctx: Context | None = None
+) -> str:
     """Ask a general question about podcast content.
 
     This is a stateless RAG tool - each query is independent.
@@ -49,6 +52,25 @@ async def ask_podcast(question: str, podcast: str | None = None) -> str:
             f"[ask_podcast] Starting query: {question[:50]}... (podcast={resolved_podcast_name!r})"
         )
 
+        # Extract trace context from headers
+        trace_context = None
+        if (
+            ctx
+            and ctx.request_context
+            and ctx.request_context.request
+            and ctx.request_context.request.headers
+        ):
+            trace_parent = ctx.request_context.request.headers.get("trace-parent")
+            if trace_parent:
+                # W3C Trace Parent: 00-{trace_id}-{span_id}-{trace_flags}
+                parts = trace_parent.split("-")
+                if len(parts) >= 3:
+                    trace_context = {
+                        "trace_id": parts[1],
+                        "parent_span_id": parts[2],
+                    }
+                    logger.debug(f"[ask_podcast] Using trace context: {trace_context}")
+
         # Use stateless query service (no conversation memory)
         service = get_query_service()
         logger.info("[ask_podcast] Service retrieved, calling service.query()...")
@@ -56,7 +78,9 @@ async def ask_podcast(question: str, podcast: str | None = None) -> str:
         langfuse = get_langfuse()
         try:
             observation_cm = langfuse.start_as_current_observation(
-                as_type="span", name="mcp.ask_podcast"
+                as_type="span",
+                name="mcp.ask_podcast",
+                trace_context=trace_context,
             )
         except Exception as exc:
             logger.debug(f"[ask_podcast] Langfuse observation start failed: {exc}")
