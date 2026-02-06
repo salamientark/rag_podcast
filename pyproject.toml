@@ -35,13 +35,13 @@ dependencies = [
     "llama-index-llms-openai>=0.6.10",
     "llama-index-postprocessor-cohere-rerank>=0.4.0",
     "google-genai>=1.59.0",
-    "ragas>=0.4.3",
     "rapidfuzz>=3.14.3",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "ragas>=0.4.3",
 ]
 
 [tool.pytest.ini_options]

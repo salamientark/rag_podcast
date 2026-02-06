@@ -132,7 +132,7 @@ def transcribe_with_gemini(
                 logger.error("No candidates in response")
             raise ValueError(
                 f"Gemini returned no text for {file_path.name}. "
-                "Check logs for safety ratings or finish reason.;"
+                "Check logs for safety ratings or finish reason."
                 f"finish_reason={response.candidates[0].finish_reason if response.candidates else 'N/A'}"
             )
 

@@ -45,7 +45,7 @@ async def main():
         for uuid, episode_id, episode_podcast, transcript_url in episodes_infos:
             bucket_name = cloud_storage.bucket_name
             key = f"{episode_podcast}/summaries/episode_{episode_id:03d}_summary.txt"
-            content = CloudStorage.get_transcript_content(transcript_url)
+            content = CloudStorage.get_transcript_content_from_url(transcript_url)
             if not content or not content.strip():
                 logger.warning(
                     f"Episode {episode_id:03d} has empty transcript content, skipping."

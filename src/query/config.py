@@ -44,7 +44,6 @@ class QueryConfig:
     anthropic_api_key: Optional[str] = os.getenv("ANTHROPIC_API_KEY")
 
     # LLM Settings
-    # llm_model: str = "claude-3-5-sonnet-latest"
     llm_model: str = "claude-sonnet-4-20250514"
 
 

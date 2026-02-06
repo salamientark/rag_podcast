@@ -163,18 +163,6 @@ def save_error(
         "timestamp",
     ]
 
-    # In overwrite mode (as requested), we always write a new header if we are starting fresh
-    # But since we might call this multiple times in a loop (per podcast), we should probably append
-    # if we want to capture all errors from one run of the script.
-    # However, the user said "Overwrite". If I overwrite every time I call save_error inside the loop,
-    # I will lose previous iterations.
-    # The loop in main() iterates over podcasts. If I overwrite in each iteration, I only keep the last podcast's errors.
-    # So I should probably accumulate errors in main() and save once at the end, OR append.
-    # Given "Overwrite", I assume they mean "Overwrite the file from previous runs of the script".
-    # So I should write 'w' mode once at start, or accumulate all errors and write once.
-
-    # Let's accumulate in main and write once.
-
     try:
         file_exists = os.path.isfile(filename)
         with open(filename, "a", newline="", encoding="utf-8") as f:
@@ -301,7 +289,7 @@ async def main():
         total_success = 0
     else:
         total_failed = len(all_pipeline_failures) + total_crashed_count
-        total_success = total_attempted - total_failed
+        total_success = max(0, total_attempted - total_failed)
 
     logger.info("=== REPROCESS SUMMARY ===")
     logger.info(f"Skipped (RECITATION): {len(exclusions)}")
@@ -316,7 +304,7 @@ async def main():
             logger.warning(f"- {name}: {error}")
             print(f"Failed to reprocess podcast {name}: {error}", file=sys.stderr)
         sys.exit(1)
-    print("Reprocessing completed succesfully.")
+    print("Reprocessing completed successfully.")
 
 
 if __name__ == "__main__":

@@ -366,7 +366,7 @@ def run_transcription_stage(
 
     except Exception as e:
         logger.error(f"Failed to complete transcription stage: {e}")
-        raise Exception(f"{e}")
+        raise
 
 
 async def run_summarization_stage(

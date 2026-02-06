@@ -3,7 +3,6 @@ import argparse
 from dotenv import load_dotenv
 from pathlib import Path
 from typing import List, Optional, Dict, Any
-from llama_index.core import Document
 from langchain_core.documents import Document as LCDocument
 from src.chunker import chunk_long_text
 
@@ -17,8 +16,8 @@ from src.storage.cloud import CloudStorage
 from src.query import QueryConfig
 
 logger = setup_logging(
-    logger_name="reprocess_failed",
-    log_file="logs/reprocess_failed.log",
+    logger_name="generate_dataset",
+    log_file="logs/generate_dataset.log",
     verbose=True,
 )
 
@@ -34,6 +33,15 @@ def parse_args():
     )
     parser.add_argument(
         "--limit", type=int, default=10, help="Number of episodes to process"
+    )
+    parser.add_argument(
+        "--testset", type=int, default=20, help="Size of the testset to generate"
+    )
+    parser.add_argument(
+        "--outfile",
+        type=str,
+        default="data/testset.csv",
+        help="Output CSV file path",
     )
     return parser.parse_args()
 
@@ -77,7 +85,7 @@ def filter_episodes(
         return None
 
 
-def load_documents_from_url(file_urls: List[str]) -> List[Document]:
+def load_documents_from_url(file_urls: List[str]) -> List[LCDocument]:
     """
     Load and chunk documents from a list of url.
 
@@ -85,7 +93,7 @@ def load_documents_from_url(file_urls: List[str]) -> List[Document]:
         file_url: List of url to transcript files.
 
     Returns:
-        List of LlamaIndex Document objects with chunked content and metadata.
+        List of LangChain Document objects with chunked content and metadata.
     """
     documents = []
 
@@ -108,7 +116,7 @@ def load_documents_from_url(file_urls: List[str]) -> List[Document]:
             # Extract some basic metadata from filename if possible
             filename = Path(file_url).name
 
-            # Convert chunks to LlamaIndex Documents
+            # Convert chunks to LangChain Documents
             for i, chunk_text in enumerate(chunks):
                 metadata = {
                     "source": str(file_url),
@@ -116,7 +124,7 @@ def load_documents_from_url(file_urls: List[str]) -> List[Document]:
                     "chunk_index": i,
                 }
 
-                doc = Document(text=chunk_text, metadata=metadata)
+                doc = LCDocument(page_content=chunk_text, metadata=metadata)
                 documents.append(doc)
 
             logger.info(f"Loaded {len(chunks)} chunks from {filename}")
@@ -156,7 +164,7 @@ def init_test_set_generator() -> Optional[TestsetGenerator]:
         return None
 
 
-def __main__():
+def main():
     """ """
     args = parse_args()
     try:
@@ -193,16 +201,9 @@ def __main__():
         # Create the test set
         logger.info("Generating test set...")
 
-        # Convert LlamaIndex documents to LangChain documents for generate_with_chunks
-        # This bypasses the problematic HeadlinesExtractor which is redundant for pre-chunked data
-        langchain_docs = [
-            LCDocument(page_content=doc.text, metadata=doc.metadata)
-            for doc in documents
-        ]
-
         test_set = generator.generate_with_chunks(
-            chunks=langchain_docs,
-            testset_size=50,
+            chunks=documents,
+            testset_size=args.testset,
         )
 
         print("Generated Test Set:")
@@ -212,7 +213,7 @@ def __main__():
         try:
             logger.info("Exporting test set to CSV...")
             df = test_set.to_pandas()
-            output_path = "data/testset.csv"
+            output_path = args.outfile
             df.to_csv(output_path, index=False)
             logger.info(f"Test set saved to {output_path}")
         except Exception as e:
@@ -224,4 +225,4 @@ def __main__():
 
 
 if __name__ == "__main__":
-    __main__()
+    main()

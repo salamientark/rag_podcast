@@ -212,4 +212,5 @@ async def run_pipeline(
         return all_failures
 
     except Exception:
+        logger.error("=== PIPELINE FAILED WITH EXCEPTION ===", exc_info=True)
         raise
