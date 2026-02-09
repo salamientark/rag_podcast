@@ -93,10 +93,25 @@ export async function streamTextOnFinishHandler(
   userMessage: any,
   rootSpan: ReturnType<typeof trace.getActiveSpan>,
 ): Promise<void> {
-  const langfuseResponseMessages = response.messages.map((msg: any) => ({
-    role: msg.role,
-    parts: msg.parts,
-  }));
+ //  const langfuseResponseMessages = response.messages.map((msg: any) => ({
+ //    role: msg.role,
+	// content: msg.content,
+ //  }));
+
+  const content = lastMessage.content;
+  const text = Array.isArray(content)
+    ? content
+        .filter((part: any) => part?.type === 'text')
+        .map((part: any) => part?.text)
+        .join('')
+    : typeof content === 'string'
+      ? content
+      : '';
+
+  const langfuseResponseMessages = {
+    role: lastMessage.role,
+    text,
+  };
 
   logLangfuseOutput(langfuseResponseMessages);
 
@@ -162,7 +177,11 @@ export function createChatStream({
             url: serverUrl,
             headers: {
               Authorization: `Bearer ${authToken}`,
-              'trace-parent': `00-${rootSpan.spanContext().traceId}-${rootSpan.spanContext().spanId}-01`,
+              ...(rootSpan
+                ? {
+                    'trace-parent': `00-${rootSpan.spanContext().traceId}-${rootSpan.spanContext().spanId}-01`,
+                  }
+                : {}),
             },
           },
         });
