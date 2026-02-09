@@ -98,6 +98,7 @@ export async function streamTextOnFinishHandler(
 	// content: msg.content,
  //  }));
 
+  const lastMessage = response.messages[response.messages.length - 1];
   const content = lastMessage.content;
   const text = Array.isArray(content)
     ? content
@@ -110,7 +111,7 @@ export async function streamTextOnFinishHandler(
 
   const langfuseResponseMessages = {
     role: lastMessage.role,
-    text,
+    text: text,
   };
 
   logLangfuseOutput(langfuseResponseMessages);
