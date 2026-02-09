@@ -60,7 +60,11 @@ async def ask_podcast(
             and ctx.request_context.request
             and ctx.request_context.request.headers
         ):
-            trace_parent = ctx.request_context.request.headers.get("trace-parent")
+            headers = ctx.request_context.request.headers
+            # Check for standard W3C 'traceparent' or legacy/alternative 'trace-parent'
+            # Note: headers are usually case-insensitive in Starlette, but we check both keys just in case
+            trace_parent = headers.get("traceparent") or headers.get("trace-parent")
+
             if trace_parent:
                 # W3C Trace Parent: 00-{trace_id}-{span_id}-{trace_flags}
                 parts = trace_parent.split("-")
