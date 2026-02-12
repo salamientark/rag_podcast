@@ -8,7 +8,6 @@ This module provides the PodcastQueryService class that handles:
 - Returns raw chunks for MCP client synthesis
 """
 
-import contextlib
 import logging
 from typing import List, Optional
 
@@ -20,14 +19,8 @@ from llama_index.embeddings.voyageai import VoyageEmbedding
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 from qdrant_client import AsyncQdrantClient, QdrantClient
 
-from src.observability.langfuse import get_langfuse
-
 from .config import QueryConfig
 from .postprocessors import get_cohere_reranker, sort_nodes_temporally
-
-
-SNIPPET_SIZE = 500  # Characters for UI preview
-LANGFUSE_CONTEXT_SIZE = 8000  # Larger context for evaluation purposes
 
 
 class PodcastQueryService:
@@ -173,91 +166,18 @@ class PodcastQueryService:
     async def _retrieve_nodes(
         self,
         retriever,
-        langfuse,
-        enhanced_question,
-        podcast_filter_applied: bool,
-        normalized_podcast: Optional[str],
-    ):
+        enhanced_question: str,
+    ) -> List[NodeWithScore]:
         """Retrieve candidate nodes for a question.
-
-        Wraps `retriever.aretrieve` and (when available) records retrieval details in
-        Langfuse, including a short text snippet preview and key node metadata.
 
         Args:
             retriever: LlamaIndex retriever to use (optionally filtered).
-            langfuse: Langfuse client used for tracing spans.
             enhanced_question: Question string (possibly augmented with context).
-            podcast_filter_applied: Whether a podcast metadata filter is used.
-            normalized_podcast: Normalized podcast name used in the filter.
 
         Returns:
-            Retrieved nodes when tracing succeeds; otherwise returns `None`.
+            List of retrieved nodes with scores.
         """
-        try:
-            retrieve_cm = langfuse.start_as_current_observation(
-                as_type="span",
-                name="rag.retrieve",
-            )
-        except Exception as exc:
-            self.logger.debug(f"Langfuse retrieve span start failed: {exc}")
-            retrieve_cm = contextlib.nullcontext()
-        with retrieve_cm as retrieve_span:
-            retrieved_nodes = await retriever.aretrieve(enhanced_question)
-
-            if retrieve_span is not None:
-                try:
-                    retrieved_previews = []
-                    for node_with_score in retrieved_nodes:
-                        metadata = getattr(node_with_score.node, "metadata", {}) or {}
-                        try:
-                            raw_text = node_with_score.node.get_content()
-                        except Exception:
-                            raw_text = ""
-
-                        # Create a short snippet for UI display
-                        snippet = " ".join(str(raw_text).split())[:SNIPPET_SIZE]
-
-                        # Create a larger context version for evaluation
-                        full_context = " ".join(str(raw_text).split())[
-                            :LANGFUSE_CONTEXT_SIZE
-                        ]
-
-                        retrieved_previews.append(
-                            {
-                                "score": node_with_score.score,
-                                "podcast": metadata.get("podcast"),
-                                "episode_id": metadata.get("episode_id"),
-                                "title": metadata.get("title"),
-                                "publication_date": metadata.get("publication_date"),
-                                "chunk_index": metadata.get("chunk_index"),
-                                "snippet": snippet,
-                                "full_context": full_context,  # Add full context for evaluation
-                            }
-                        )
-
-                    # Add debug logging to verify the context size
-                    if retrieved_previews:
-                        first_preview = retrieved_previews[0]
-                        snippet_len = len(first_preview.get("snippet", ""))
-                        full_context_len = len(first_preview.get("full_context", ""))
-                        self.logger.debug(
-                            f"Context sizes - snippet: {snippet_len} chars, full_context: {full_context_len} chars"
-                        )
-
-                    retrieve_span.update(
-                        output={
-                            "num_nodes": len(retrieved_nodes),
-                            "nodes": retrieved_previews,
-                        },
-                        metadata={
-                            "similarity_top_k": self.config.similarity_top_k,
-                            "podcast_filter_applied": podcast_filter_applied,
-                            "podcast": normalized_podcast,
-                        },
-                    )
-                except Exception as exc:
-                    self.logger.debug(f"Langfuse retrieve span update failed: {exc}")
-        return retrieved_nodes
+        return await retriever.aretrieve(enhanced_question)
 
     def _format_chunks_as_markdown(self, nodes: List[NodeWithScore]) -> str:
         """Format retrieved chunks as markdown for MCP client consumption.
@@ -328,12 +248,10 @@ class PodcastQueryService:
             Exception: If query processing fails
         """
         normalized_podcast = (podcast or "").strip() or None
-        podcast_filter_applied = False
         retriever = self.retriever
 
         try:
             self.logger.debug(f"Processing query: {question[:50]}...")
-            langfuse = get_langfuse()
 
             # If context is provided, combine it with the question
             if context:
@@ -351,15 +269,11 @@ class PodcastQueryService:
                     similarity_top_k=self.config.similarity_top_k,
                     filters=retriever_filters,
                 )
-                podcast_filter_applied = True
 
             # Retrieve nodes
             retrieved_nodes = await self._retrieve_nodes(
                 retriever,
-                langfuse,
                 enhanced_question,
-                podcast_filter_applied,
-                normalized_podcast,
             )
 
             # Early return if no nodes retrieved (avoid unnecessary reranker API call)

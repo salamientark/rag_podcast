@@ -9,81 +9,25 @@ import {
 } from 'ai';
 import { saveMessages } from '@/lib/db/queries';
 import { generateUUID, getTrailingMessageId } from '@/lib/utils';
-import type { trace } from '@opentelemetry/api';
-import { updateActiveObservation, updateActiveTrace } from '@langfuse/tracing';
 import { myProvider } from '@/lib/ai/providers';
 import { ChatSDKError } from '@/lib/errors';
 import { createAuthToken } from '@/lib/mcp/auth';
 // eslint-disable-next-line import/namespace -- prompts module is a plain-string prompt, not a namespace.
 import { podcastSystemPrompt } from '@/lib/ai/prompts';
 
-export interface LangfuseMessage {
-  role: string;
-  parts: unknown[];
-}
-
 export function logErrorAndEndSpan(
-  rootSpan: ReturnType<typeof trace.getActiveSpan>,
   output: unknown,
 ) {
-  updateActiveObservation({ output, level: 'ERROR' });
-  updateActiveTrace({ name: 'ui.chat.request', output });
-  rootSpan?.end();
+  // No-op for now as tracing is removed
+  console.error(output);
 }
 
 export function toChatErrorResponse(
-  rootSpan: ReturnType<typeof trace.getActiveSpan>,
   output: unknown,
   errorCode: ConstructorParameters<typeof ChatSDKError>[0],
 ) {
-  logErrorAndEndSpan(rootSpan, output);
+  logErrorAndEndSpan(output);
   return new ChatSDKError(errorCode).toResponse();
-}
-
-export function toLangfuseMessages(
-  messages: Array<any>,
-): Array<LangfuseMessage> {
-  return messages.map((message) => ({
-    role: message.role,
-    parts: message.parts ?? [],
-  }));
-}
-
-export function logLangfuseInput({
-  chatId,
-  userId,
-  selectedChatModel,
-  selectedVisibilityType,
-  langfuseMessages,
-}: {
-  chatId: string;
-  userId: string;
-  selectedChatModel: string;
-  selectedVisibilityType: string;
-  langfuseMessages: Array<LangfuseMessage>;
-}) {
-  const input = {
-    messages: langfuseMessages,
-    system: podcastSystemPrompt,
-    selectedChatModel,
-  };
-
-  updateActiveObservation({ input });
-
-  updateActiveTrace({
-    name: 'ui.chat.request',
-    sessionId: chatId,
-    userId,
-    input,
-    metadata: {
-      selectedVisibilityType,
-    },
-  });
-}
-
-export function logLangfuseOutput(output: unknown) {
-  updateActiveObservation({ output });
-  updateActiveTrace({ output });
 }
 
 export async function streamTextOnFinishHandler(
@@ -91,30 +35,7 @@ export async function streamTextOnFinishHandler(
   chatId: string,
   session: any,
   userMessage: any,
-  rootSpan: ReturnType<typeof trace.getActiveSpan>,
 ): Promise<void> {
- //  const langfuseResponseMessages = response.messages.map((msg: any) => ({
- //    role: msg.role,
-	// content: msg.content,
- //  }));
-
-  const lastMessage = response.messages[response.messages.length - 1];
-  const content = lastMessage.content;
-  const text = Array.isArray(content)
-    ? content
-        .filter((part: any) => part?.type === 'text')
-        .map((part: any) => part?.text)
-        .join('')
-    : typeof content === 'string'
-      ? content
-      : '';
-
-  const langfuseResponseMessages = {
-    role: lastMessage.role,
-    text: text,
-  };
-
-  logLangfuseOutput(langfuseResponseMessages);
 
   if (session.user?.id) {
     const assistantId = getTrailingMessageId({
@@ -152,14 +73,12 @@ export function createChatStream({
   selectedChatModel,
   session,
   userMessage,
-  rootSpan,
 }: {
   chatId: string;
   messages: Array<any>;
   selectedChatModel: string;
   session: any;
   userMessage: any;
-  rootSpan: ReturnType<typeof trace.getActiveSpan>;
 }) {
   return createDataStream({
     execute: async (dataStream) => {
@@ -178,11 +97,6 @@ export function createChatStream({
             url: serverUrl,
             headers: {
               Authorization: `Bearer ${authToken}`,
-              ...(rootSpan
-                ? {
-                    'trace-parent': `00-${rootSpan.spanContext().traceId}-${rootSpan.spanContext().spanId}-01`,
-                  }
-                : {}),
             },
           },
         });
@@ -205,13 +119,11 @@ export function createChatStream({
                   chatId,
                   session,
                   userMessage,
-                  rootSpan,
                 );
               } catch (e) {
                 console.error(e);
                 console.error('Failed to save chat :/');
               } finally {
-                rootSpan?.end();
                 if (mcpClient) await mcpClient.close();
               }
             },
@@ -231,7 +143,7 @@ export function createChatStream({
           throw streamError;
         }
       } catch (error) {
-        logErrorAndEndSpan(rootSpan, error);
+        logErrorAndEndSpan(error);
         if (mcpClient) {
           await mcpClient.close();
         }
