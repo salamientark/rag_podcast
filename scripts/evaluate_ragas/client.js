@@ -67,64 +67,64 @@ try {
 
 	// Load dataset
 	const dataset = await loadDataSet(DATASET_PATH);
+	const questions = dataset.map(row => row.user_input);
 	console.log("Dataset loaded:", dataset.length, "rows");
-	console.log(dataset)
-	process.exit(0);
 
-
-	const mcpClient = await createMCPClient({
-	  transport: {
-		type: 'sse',
-		url: 'http://localhost:8080/sse',
-	  },
-	});
-
-	console.log("Starting client execution...");
-
-	await startActiveObservation("Client Execution", async (rootSpan) => {
-		console.log("Root span started:", rootSpan.id);
-
-		const trace_id = getActiveTraceId();
-		console.log("Current Trace ID:", trace_id);
-
-
-		const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-		const response = streamText({
-		  apiKey: OPENAI_API_KEY,
-		  model: openai('gpt-4o'),
-		  tools: await mcpClient.tools(), // use MCP tools
-		  maxSteps: 5,
-		  // prompt: 'What tools do you have access to?',
-		  prompt: PROMPT,
-		  experimental_telemetry: { isEnabled: true },
-		  headers: { 'trace-id': trace_id }, // Pass the trace ID in headers for correlation
+	for (const question of questions) {
+		const mcpClient = await createMCPClient({
+		  transport: {
+			type: 'sse',
+			url: 'http://localhost:8080/sse',
+		  },
 		});
 
-		rootSpan.update({ input: PROMPT });
+		console.log("Starting client execution...");
 
-		console.log("OK")
+		await startActiveObservation("Client Execution", async (rootSpan) => {
+			console.log("Root span started:", rootSpan.id);
 
-		var final_answer = "";
-		for await (const part of response.fullStream) {
-			if (part.type === 'text-delta') {
-				final_answer += part.textDelta;
-				process.stdout.write(part.textDelta);
-			} else if (part.type === 'tool-call') {
-				console.log(`\n[Tool Call] ${part.toolName}: ${JSON.stringify(part.args)}`);
-			} else if (part.type === 'tool-result') {
-				console.log(`\n[Tool Result] ${part.toolName}: ${JSON.stringify(part.result)}`);
+			// const trace_id = getActiveTraceId();
+			// console.log("Current Trace ID:", trace_id);
+
+
+			const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+			const response = streamText({
+			  apiKey: OPENAI_API_KEY,
+			  model: openai('gpt-4o'),
+			  tools: await mcpClient.tools(), // use MCP tools
+			  maxSteps: 5,
+			  // prompt: 'What tools do you have access to?',
+			  prompt: question,
+			  experimental_telemetry: { isEnabled: true },
+			  headers: { 'trace-id': trace_id }, // Pass the trace ID in headers for correlation
+			});
+
+			rootSpan.update({ input: PROMPT });
+
+			console.log("OK")
+
+			var final_answer = "";
+			for await (const part of response.fullStream) {
+				if (part.type === 'text-delta') {
+					final_answer += part.textDelta;
+					process.stdout.write(part.textDelta);
+				} else if (part.type === 'tool-call') {
+					console.log(`\n[Tool Call] ${part.toolName}: ${JSON.stringify(part.args)}`);
+				} else if (part.type === 'tool-result') {
+					console.log(`\n[Tool Result] ${part.toolName}: ${JSON.stringify(part.result)}`);
+				}
 			}
-		}
 
-		rootSpan.update({ output: final_answer });
+			rootSpan.update({ output: final_answer });
 
-		console.log("\n\nDone")
-		console.log(rootSpan.id)
-	}, {
-		input: { 
-			prompt: PROMPT,
-		},
-	});
+			console.log("\n\nDone")
+			console.log(rootSpan.id)
+		}, {
+			input: { 
+				prompt: PROMPT,
+			},
+		});
+	}
 
 	await sdk.shutdown();
 
