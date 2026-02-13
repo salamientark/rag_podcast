@@ -138,7 +138,7 @@ export function createChatStream({
             sendReasoning: true,
           });
         } catch (streamError) {
-          await mcpClient.close();
+          if (mcpClient) await mcpClient.close();
           throw streamError;
         }
       } catch (error) {

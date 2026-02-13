@@ -148,9 +148,14 @@ def create_ragas_eval_dataset(langfuse, traces, rows):
 
             # Extract answer
             answer = trace.output
+            if not answer:
+                print(f"No answer found in trace {trace.id}, skipping")
+                continue
             if isinstance(answer, (list, tuple)):
                 if answer and len(answer) > 0:
                     answer = answer[0]
+
+            answer = str(answer)
 
             # Extract ground truth
             ground_truth = row.get("reference")

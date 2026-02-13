@@ -105,9 +105,17 @@ async function loadDataSet(path: string): Promise<DatasetRow[]> {
 	});
 }
 
+let exit_code = 0;
+
 try {
 	const sdk = initSdk();
 	console.log("Langfuse SDK initialized");
+} catch (error) {
+	console.error("Error initializing Langfuse SDK:", error);
+	process.exit(1);
+}
+
+try {
 
 	// Load dataset
 	const dataset = await loadDataSet(DATASET_PATH);
@@ -159,7 +167,6 @@ try {
 				}
 
 				const response = await generateText({
-				  apiKey: OPENAI_API_KEY,
 				  model: openai('gpt-5.2'),
 				  system: podcastSystemPrompt,
 				  tools: await mcpClient.tools(), // use MCP tools
@@ -195,7 +202,8 @@ try {
 
 } catch (error) {
 	console.error("Error:", error);
-	process.exit(1);
+	exit_code = 1;
 } finally {
 	await sdk.shutdown();
+	process.exit(1);
 }

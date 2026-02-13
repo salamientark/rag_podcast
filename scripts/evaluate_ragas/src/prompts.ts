@@ -50,6 +50,3 @@ ACCEPTED PODCASTS (Exact name Match):
 ${ALLOWED_PODCASTS.map((p) => `- ${p}`).join('\n')}
 
 Today's date is ${new Date().toISOString().split('T')[0]}. Remember that when user asks about recent episodes.`;
-
-export const regularPrompt =
-  'You are a friendly assistant! Keep your responses concise and helpful.';
