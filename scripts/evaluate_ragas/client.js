@@ -136,7 +136,6 @@ try {
 				  model: openai('gpt-4o'),
 				  tools: await mcpClient.tools(), // use MCP tools
 				  maxSteps: 5,
-				  // prompt: 'What tools do you have access to?',
 				  prompt: question,
 				  experimental_telemetry: { isEnabled: true },
 				});
@@ -144,18 +143,6 @@ try {
 				rootSpan.update({ input: question });
 
 				console.log(response.text)
-
-				// var final_answer = "";
-				// for await (const part of response.fullStream) {
-				// 	if (part.type === 'text-delta') {
-				// 		final_answer += part.textDelta;
-				// 		process.stdout.write(part.textDelta);
-				// 	} else if (part.type === 'tool-call') {
-				// 		console.log(`\n[Tool Call] ${part.toolName}: ${JSON.stringify(part.args)}`);
-				// 	} else if (part.type === 'tool-result') {
-				// 		console.log(`\n[Tool Result] ${part.toolName}: ${JSON.stringify(part.result)}`);
-				// 	}
-				// }
 
 				rootSpan.update({ output: response.text });
 
