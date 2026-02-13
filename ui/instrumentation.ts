@@ -10,18 +10,15 @@ export function register() {
 
     sdk.start();
 
-    process.on('SIGTERM', () => {
-      sdk.shutdown()
-        .then(() => console.log('Tracing terminated'))
-        .catch((error) => console.log('Error terminating tracing', error))
-        .finally(() => process.exit(0));
-    });
+	const gracefulShutdown = () => {
+	      sdk.shutdown()
+	        .then(() => console.log('Tracing terminated'))
+	        .catch((error) => console.error('Error terminating tracing', error))
+	        .finally(() => process.exit(0));
+	    };
 
-    process.on('SIGINT', () => {
-      sdk.shutdown()
-        .then(() => console.log('Tracing terminated'))
-        .catch((error) => console.log('Error terminating tracing', error))
-        .finally(() => process.exit(0));
-    });
+    process.on('SIGTERM', gracefulShutdown);
+
+    process.on('SIGINT', gracefulShutdown);
   }
 }

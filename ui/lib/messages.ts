@@ -15,10 +15,9 @@ import { createAuthToken } from '@/lib/mcp/auth';
 // eslint-disable-next-line import/namespace -- prompts module is a plain-string prompt, not a namespace.
 import { podcastSystemPrompt } from '@/lib/ai/prompts';
 
-export function logErrorAndEndSpan(
+export function logError(
   output: unknown,
 ) {
-  // No-op for now as tracing is removed
   console.error(output);
 }
 
@@ -26,7 +25,7 @@ export function toChatErrorResponse(
   output: unknown,
   errorCode: ConstructorParameters<typeof ChatSDKError>[0],
 ) {
-  logErrorAndEndSpan(output);
+  logError(output);
   return new ChatSDKError(errorCode).toResponse();
 }
 
@@ -143,7 +142,7 @@ export function createChatStream({
           throw streamError;
         }
       } catch (error) {
-        logErrorAndEndSpan(error);
+        logError(error);
         if (mcpClient) {
           await mcpClient.close();
         }

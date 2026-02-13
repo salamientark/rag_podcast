@@ -27,6 +27,7 @@ async def ask_podcast(
     Args:
         question: User's question about podcast content (in French)
         podcast: Optional podcast name or slug to filter results. If omitted, searches all podcasts.
+        ctx: Optional context object provided by MCP (reserve for future use)
 
     Returns:
         Relevant information from the podcast database
