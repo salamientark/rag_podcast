@@ -155,7 +155,7 @@ try {
 
 				const response = await generateText({
 				  apiKey: OPENAI_API_KEY,
-				  model: openai('gpt-4o'),
+				  model: openai('gpt-5.2'),
 				  system: podcastSystemPrompt,
 				  tools: await mcpClient.tools(), // use MCP tools
 				  maxSteps: 5,
