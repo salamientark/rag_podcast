@@ -1,6 +1,7 @@
 import * as dotenv from 'dotenv';
 import fs from 'node:fs';
 import { parse } from 'csv-parse';
+import * as jose from 'jose';
 
 // LANGFUSE SETUP START
 import { NodeSDK } from "@opentelemetry/sdk-node";
@@ -14,6 +15,37 @@ import { openai } from '@ai-sdk/openai';
 dotenv.config();
 
 const DATASET_PATH = '../../data/testset.csv';
+
+/**
+ * Create JWT auth token for MCP server authentication
+ * @returns {Promise<string>} JWT token
+ */
+async function createAuthToken() {
+  const privateKeyPem = process.env.MCP_PRIVATE_KEY;
+  if (!privateKeyPem) {
+    throw new Error('MCP_PRIVATE_KEY environment variable not set.');
+  }
+
+  try {
+    // The private key might be in a single line in the .env file,
+    // so we replace escaped newlines with actual newlines.
+    const decodedKey = Buffer.from(privateKeyPem, 'base64').toString('utf8');
+    const privateKey = await jose.importPKCS8(decodedKey, 'RS256');
+
+    const jwt = await new jose.SignJWT({})
+      .setProtectedHeader({ alg: 'RS256' })
+      .setIssuedAt()
+      .setIssuer('urn:notpatrick:client')
+      .setAudience('urn:notpatrick:server')
+      .setExpirationTime('1m')
+      .sign(privateKey);
+
+    return jwt;
+  } catch (error) {
+    console.error('Error creating auth token:', error);
+    throw error;
+  }
+}
 
 function init_sdk() {
 	// LANGFUSE SETUP START
@@ -71,59 +103,76 @@ try {
 	console.log("Dataset loaded:", dataset.length, "rows");
 
 	for (const question of questions) {
-		const mcpClient = await createMCPClient({
-		  transport: {
-			type: 'sse',
-			url: 'http://localhost:8080/sse',
-		  },
-		});
+		let mcpClient = null;
+		
+		try {
+			console.log("Starting client execution...");
 
-		console.log("Starting client execution...");
+			await startActiveObservation("Client Execution", async (rootSpan) => {
+				console.log("Root span started:", rootSpan.id);
 
-		await startActiveObservation("Client Execution", async (rootSpan) => {
-			console.log("Root span started:", rootSpan.id);
+				const trace_id = getActiveTraceId();
+				console.log("Current Trace ID:", trace_id);
 
-			// const trace_id = getActiveTraceId();
-			// console.log("Current Trace ID:", trace_id);
+				// Generate auth token for MCP client
+				const authToken = await createAuthToken();
+				console.log("Auth token generated");
 
+				// Create MCP client with auth headers
+				mcpClient = await createMCPClient({
+				  transport: {
+					type: 'sse',
+					url: 'http://localhost:8080/sse',
+					headers: {
+						Authorization: `Bearer ${authToken}`,
+						'trace-id': trace_id
+					}
+				  },
+				});
 
-			const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-			const response = streamText({
-			  apiKey: OPENAI_API_KEY,
-			  model: openai('gpt-4o'),
-			  tools: await mcpClient.tools(), // use MCP tools
-			  maxSteps: 5,
-			  // prompt: 'What tools do you have access to?',
-			  prompt: question,
-			  experimental_telemetry: { isEnabled: true },
-			  headers: { 'trace-id': trace_id }, // Pass the trace ID in headers for correlation
+				const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+				const response = await generateText({
+				  apiKey: OPENAI_API_KEY,
+				  model: openai('gpt-4o'),
+				  tools: await mcpClient.tools(), // use MCP tools
+				  maxSteps: 5,
+				  // prompt: 'What tools do you have access to?',
+				  prompt: question,
+				  experimental_telemetry: { isEnabled: true },
+				});
+
+				rootSpan.update({ input: question });
+
+				console.log(response.text)
+
+				// var final_answer = "";
+				// for await (const part of response.fullStream) {
+				// 	if (part.type === 'text-delta') {
+				// 		final_answer += part.textDelta;
+				// 		process.stdout.write(part.textDelta);
+				// 	} else if (part.type === 'tool-call') {
+				// 		console.log(`\n[Tool Call] ${part.toolName}: ${JSON.stringify(part.args)}`);
+				// 	} else if (part.type === 'tool-result') {
+				// 		console.log(`\n[Tool Result] ${part.toolName}: ${JSON.stringify(part.result)}`);
+				// 	}
+				// }
+
+				rootSpan.update({ output: response.text });
+
+				console.log("\n\nDone")
+				console.log(rootSpan.id)
+			}, {
+				input: { 
+					prompt: question,
+				},
 			});
-
-			rootSpan.update({ input: PROMPT });
-
-			console.log("OK")
-
-			var final_answer = "";
-			for await (const part of response.fullStream) {
-				if (part.type === 'text-delta') {
-					final_answer += part.textDelta;
-					process.stdout.write(part.textDelta);
-				} else if (part.type === 'tool-call') {
-					console.log(`\n[Tool Call] ${part.toolName}: ${JSON.stringify(part.args)}`);
-				} else if (part.type === 'tool-result') {
-					console.log(`\n[Tool Result] ${part.toolName}: ${JSON.stringify(part.result)}`);
-				}
+		} finally {
+			// Always close the MCP client to avoid connection leaks
+			if (mcpClient) {
+				await mcpClient.close();
+				console.log("MCP client closed");
 			}
-
-			rootSpan.update({ output: final_answer });
-
-			console.log("\n\nDone")
-			console.log(rootSpan.id)
-		}, {
-			input: { 
-				prompt: PROMPT,
-			},
-		});
+		}
 	}
 
 	await sdk.shutdown();
