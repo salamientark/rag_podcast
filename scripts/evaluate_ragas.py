@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from ragas import evaluate
 import pandas as pd
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from ragas.embeddings import LangchainEmbeddingsWrapper
 from ragas.llms import LangchainLLMWrapper
 from ragas.metrics import (
@@ -36,8 +37,12 @@ def init_ragas_models() -> tuple:
 
     try:
         # Init RAGAS llm + embedings for evaluation
-        OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-        eval_llm = ChatOpenAI(model="gpt-4o", api_key=OPENAI_API_KEY)
+        # OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+        # eval_llm = ChatOpenAI(model="gpt-5.2", api_key=OPENAI_API_KEY)
+        # llm = LangchainLLMWrapper(eval_llm, bypass_n=True)
+
+        GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+        eval_llm = ChatGoogleGenerativeAI(model="gemini-3-pro-preview", api_key=GEMINI_API_KEY)
         llm = LangchainLLMWrapper(eval_llm, bypass_n=True)
 
         # Openai embedding

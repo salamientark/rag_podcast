@@ -39,6 +39,7 @@ dependencies = [
     "langchain-anthropic>=0.4.0",
     "langchain-openai>=0.3.0",
     "langchain-voyageai>=0.3.0",
+    "langchain-google-genai>=4.2.0",
 ]
 
 [dependency-groups]
