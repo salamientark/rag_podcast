@@ -136,8 +136,8 @@ try {
 			await startActiveObservation("Client Execution", async (rootSpan) => {
 				console.log("Root span started:", rootSpan.id);
 
-				const trace_id = getActiveTraceId();
-				console.log("Current Trace ID:", trace_id);
+				const traceId = getActiveTraceId();
+				console.log("Current Trace ID:", traceId);
 
 				// Generate auth token for MCP client
 				const authToken = await createAuthToken();
@@ -148,8 +148,8 @@ try {
 				const headers: Record<string, string> = {
 				Authorization: `Bearer ${authToken}`,
 				};
-				if (trace_id) {
-					headers['trace-id'] = trace_id;
+				if (traceId) {
+					headers['trace-id'] = traceId;
 				}
 
 				// Create MCP client with auth headers

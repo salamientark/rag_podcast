@@ -160,7 +160,7 @@ def create_ragas_eval_dataset(langfuse, traces, rows):
             # Extract ground truth
             ground_truth = row.get("reference")
             if not isinstance(ground_truth, str):
-                ground_truth = None
+                ground_truth = ""
 
             # Extract contexts from observations
             try:
