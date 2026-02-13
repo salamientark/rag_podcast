@@ -22,7 +22,6 @@ import { ChatSDKError } from '@/lib/errors';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-
 const handler = async (request: Request) => {
   let requestBody: PostRequestBody;
 

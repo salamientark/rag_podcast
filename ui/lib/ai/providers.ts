@@ -5,12 +5,12 @@ import { anthropic } from '@ai-sdk/anthropic';
 
 export const myProvider = customProvider({
   languageModels: {
-    // 'chat-model': openai('gpt-5.2'),
-    // 'chat-model-reasoning': openai('gpt-5.2'),
+    'chat-model': openai('gpt-5.2'),
+    'chat-model-reasoning': openai('gpt-5.2'),
     // 'title-model': openai('gpt-5-nano'),
     // 'artifact-model': openai('gpt-5-nano'),
-    'chat-model': anthropic('claude-haiku-4-5'),
-    'chat-model-reasoning': anthropic('claude-haiku-4-5'),
+    // 'chat-model': anthropic('claude-haiku-4-5'),
+    // 'chat-model-reasoning': anthropic('claude-haiku-4-5'),
     'title-model': anthropic('claude-haiku-4-5'),
     'artifact-model': anthropic('claude-haiku-4-5'),
   },
