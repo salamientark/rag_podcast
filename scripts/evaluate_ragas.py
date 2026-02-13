@@ -6,8 +6,7 @@ from ragas import evaluate
 import pandas as pd
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from ragas.embeddings import LangchainEmbeddingsWrapper
-from ragas.llms import llm_factory, LangchainLLMWrapper
-from ragas.embeddings.base import embedding_factory
+from ragas.llms import LangchainLLMWrapper
 from ragas.metrics import (
     Faithfulness,
     AnswerRelevancy,
@@ -15,7 +14,6 @@ from ragas.metrics import (
 
 from datasets import Dataset
 from langfuse import get_client
-from openai import AsyncOpenAI, OpenAI
 
 
 DATASET_PATH = "./data/testset.csv"
@@ -187,7 +185,6 @@ def main():
         # Keep only data columns, exclude metadata
         data_columns = ["user_input", "reference_contexts", "reference"]
         p_data_filtered = p_data[data_columns].copy()
-        row_nbr = len(p_data_filtered)
         rows = p_data_filtered.to_dict(orient="records")
 
         langfuse = get_client()
