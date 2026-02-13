@@ -1,6 +1,7 @@
 aider*
 __pycache__
 *.egg-info
+**/node_modules/
 
 *.env*
 !.env.example
