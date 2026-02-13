@@ -1,5 +1,6 @@
 import os
 import json
+import sys
 from dotenv import load_dotenv
 
 from ragas import evaluate
@@ -88,7 +89,10 @@ def _create_dataset_context(langfuse, observations):
                                 and "text" in content_item
                             ):
                                 contexts.append(str(content_item["text"]))
-                                continue
+                                break
+                    else:
+                        contexts.append(str(obs.output))
+                    continue
 
                 # Fallback - convert the whole structure to a string
                 contexts.append(str(obs.output))
@@ -159,7 +163,6 @@ def create_ragas_eval_dataset(langfuse, traces, rows):
             except Exception as e:
                 print(f"Error extracting contexts for trace {trace.id}: {e}")
                 contexts = ["Context extraction failed"]
-                continue
 
             # Append to dataset
             data["question"].append(str(question))
@@ -200,7 +203,7 @@ def main():
 
         data = create_ragas_eval_dataset(langfuse, traces, rows)
         if data is None or not data["question"]:
-            os._exit(1)
+            sys.exit(1)
         # 2b. Export dataset to JSON file
         with open("evaluation_data.json", "w") as f:
             json.dump(data, f, indent=2)
@@ -223,15 +226,18 @@ def main():
 
         # 4. Push scores back to Langfuse
         for i, trace_id in enumerate(data["trace_id"]):
-            # Safely access results
-            faithfulness_score = result["faithfulness"][i]
+            try:
+                # Safely access results
+                faithfulness_score = result["faithfulness"][i]
 
-            langfuse.create_score(
-                name="faithfulness",
-                value=faithfulness_score,
-                trace_id=trace_id,
-                data_type="NUMERIC",
-            )
+                langfuse.create_score(
+                    name="faithfulness",
+                    value=faithfulness_score,
+                    trace_id=trace_id,
+                    data_type="NUMERIC",
+                )
+            except Exception as e:
+                print(f"Faithfulness error for trace {trace_id}: {e}")
 
             # Answer relevancy might not be available for all entries, so we check before logging
             try:
@@ -257,4 +263,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    os._exit(0)
+    sys.exit(0)

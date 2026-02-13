@@ -62,7 +62,7 @@ async function createAuthToken(): Promise<string> {
   }
 }
 
-function init_sdk(): NodeSDK {
+function initSdk(): NodeSDK {
 	// LANGFUSE SETUP START
 	const sdk = new NodeSDK({
 		spanProcessors: [new LangfuseSpanProcessor()],
@@ -91,7 +91,6 @@ async function loadDataSet(path: string): Promise<DatasetRow[]> {
 				columns: true,        // Use first row as column headers
 				skip_empty_lines: true, // Skip empty lines
 				trim: true,           // Trim whitespace from values
-				cast: true            // Auto-cast values (numbers, booleans)
 			}))
 			.on('data', (row: DatasetRow) => {
 				rows.push(row);
@@ -107,7 +106,7 @@ async function loadDataSet(path: string): Promise<DatasetRow[]> {
 }
 
 try {
-	const sdk = init_sdk();
+	const sdk = initSdk();
 	console.log("Langfuse SDK initialized");
 
 	// Load dataset
@@ -136,15 +135,21 @@ try {
 				const authToken = await createAuthToken();
 				console.log("Auth token generated");
 
+				const mcpUrl = process.env.MCP_SERVER_URL //localhost:8080/sse';
+
+				const headers: Record<string, string> = {
+				Authorization: `Bearer ${authToken}`,
+				};
+				if (trace_id) {
+					headers['trace-id'] = trace_id;
+				}
+
 				// Create MCP client with auth headers
 				mcpClient = await createMCPClient({
 				  transport: {
 					type: 'sse',
-					url: 'http://localhost:8080/sse',
-					headers: {
-						Authorization: `Bearer ${authToken}`,
-						'trace-id': trace_id
-					}
+					url: mcpUrl,
+					headers,
 				  },
 				});
 
