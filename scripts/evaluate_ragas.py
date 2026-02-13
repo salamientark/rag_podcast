@@ -19,6 +19,7 @@ from openai import AsyncOpenAI, OpenAI
 
 
 DATASET_PATH = "./data/testset.csv"
+LIMIT = 10
 
 
 def _normalize_text(text: str) -> str:
@@ -190,7 +191,7 @@ def main():
         rows = p_data_filtered.to_dict(orient="records")
 
         langfuse = get_client()
-        traces = langfuse.api.trace.list(limit=50, order_by="timestamp.desc")
+        traces = langfuse.api.trace.list(limit=LIMIT, order_by="timestamp.desc")
         # traces = langfuse.api.trace.list(limit=row_nbr, order_by="timestamp.desc")
 
         data = create_ragas_eval_dataset(langfuse, traces, rows)
@@ -230,9 +231,7 @@ def main():
 
             # Answer relevancy might not be available for all entries, so we check before logging
             try:
-                answer_relevancy_score = (
-                    result["answer_relevancy"][i] if "answer_relevancy" in result else None
-                )
+                answer_relevancy_score = result["answer_relevancy"][i]
                 if answer_relevancy_score is not None:
                     langfuse.create_score(
                         name="answer_relevancy",
