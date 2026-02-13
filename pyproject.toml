@@ -30,8 +30,6 @@ dependencies = [
     "boto3>=1.42.11",
     "uuid-utils>=0.12.0",
     "psycopg2>=2.9.11",
-    "langfuse>=3.11.2",
-    "openinference-instrumentation-llama-index>=4.3.9",
     "llama-index-llms-openai>=0.6.10",
     "llama-index-postprocessor-cohere-rerank>=0.4.0",
     "google-genai>=1.59.0",
@@ -42,6 +40,13 @@ dev = [
     "pytest>=9.0.2",
     "ragas>=0.4.3",
     "rapidfuzz>=3.14.3",
+    "datasets>=3.1.0",
+    "pandas>=2.2.3",
+    "langchain>=0.4.0",
+    "langchain-anthropic>=0.4.0",
+    "langchain-openai>=0.3.0",
+    "langchain-voyageai>=0.3.0",
+    "langchain-google-genai>=4.2.0",
 ]
 
 [tool.pytest.ini_options]

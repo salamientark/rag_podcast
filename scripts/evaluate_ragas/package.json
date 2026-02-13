@@ -1,0 +1,28 @@
+{
+  "name": "evaluate_ragas",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "",
+  "main": "client.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "tsx client.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.28.2",
+  "dependencies": {
+    "@ai-sdk/openai": "1.1.0",
+    "@langfuse/otel": "^4.6.1",
+    "@langfuse/tracing": "^4.6.1",
+    "@opentelemetry/sdk-node": "^0.211.0",
+    "ai": "~4.3.19",
+    "csv-parse": "^6.1.0",
+    "dotenv": "^17.2.4",
+    "jose": "^6.0.11"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0"
+  }
+}
