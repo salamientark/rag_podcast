@@ -34,19 +34,22 @@ def parse_date_input(date_input: str) -> Optional[datetime]:
 def list_episodes_in_range(podcast: str, start_date_str: str) -> List[Dict[str, str]]:
     """List podcast episodes starting from a given date.
 
-    - The range is up to 12 months from the start date.
-    - If start date is invalid, it defaults to 3 months ago.
+    - If a valid start date is provided, returns up to 12 months from that date.
+    - If start date is empty or invalid, returns ALL episodes for the podcast.
     """
-    three_months_ago = datetime.now().date() - timedelta(days=90)
-
-    # Determine start date
     parsed_start = parse_date_input(start_date_str)
-    start_date = parsed_start.date() if parsed_start else three_months_ago
-    end_date = start_date + timedelta(days=365)
 
-    episodes = get_episode_from_date(date.isoformat(start_date), days=365) or []
+    if parsed_start:
+        start_date = parsed_start.date()
+        end_date = start_date + timedelta(days=365)
+    else:
+        # No valid date: return all episodes from the very beginning
+        start_date = date(2000, 1, 1)
+        end_date = datetime.now().date() + timedelta(days=1)
+
+    total_days = (end_date - start_date).days
+    episodes = get_episode_from_date(date.isoformat(start_date), days=total_days) or []
     episodes = [episode for episode in episodes if episode.get("podcast") == podcast]
-    episodes.sort(key=lambda episode: episode["published_date"])
 
     filtered_episodes: list[dict[str, str]] = []
     for episode in episodes:
@@ -70,11 +73,11 @@ def list_episodes(beginning: str, podcast: str) -> str:
     """List podcast episodes starting from a given date for up to 12 months.
 
     Args:
-        beginning: Start date (e.g., "YYYY-MM-DD"). If the date is invalid or empty, it defaults to 3 months ago.
+        beginning: Start date (e.g., "YYYY-MM-DD"). If empty or invalid, returns ALL episodes for the podcast (useful for finding the first/oldest episode).
         podcast: Podcast name (must match one of the accepted podcast names exactly).
 
     Returns:
-        JSON string with a list of episodes, each containing 'episode_name' and 'date', sorted by date.
+        JSON string with a list of episodes, each containing 'episode_name' and 'date', sorted by date ascending (oldest first).
     """
     normalized_podcast = podcast.strip()
     logger.info(f"Listing episodes for podcast: {normalized_podcast} from {beginning}")

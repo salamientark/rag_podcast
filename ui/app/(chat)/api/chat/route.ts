@@ -1,4 +1,4 @@
-import {appendClientMessage } from 'ai';
+import { appendClientMessage } from 'ai';
 import { auth, type UserType } from '@/app/(auth)/auth';
 import {
   createStreamId,
@@ -10,14 +10,14 @@ import {
   saveMessages,
 } from '@/lib/db/queries';
 import {
-	LangfuseMessage,
-	logErrorAndEndSpan,
-	toChatErrorResponse,
-	toLangfuseMessages,
-	logLangfuseInput,
-	logLangfuseOutput,
-	streamTextOnFinishHandler,
-	createChatStream,
+  LangfuseMessage,
+  logErrorAndEndSpan,
+  toChatErrorResponse,
+  toLangfuseMessages,
+  logLangfuseInput,
+  logLangfuseOutput,
+  streamTextOnFinishHandler,
+  createChatStream,
 } from '@/lib/messages';
 import { generateUUID } from '@/lib/utils';
 import { generateTitleFromUserMessage } from '../../actions';
@@ -32,7 +32,6 @@ import { ChatSDKError } from '@/lib/errors';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
-
 
 const handler = async (request: Request) => {
   after(async () => await langfuseSpanProcessor.forceFlush());

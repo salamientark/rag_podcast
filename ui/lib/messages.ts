@@ -10,10 +10,7 @@ import {
 import { saveMessages } from '@/lib/db/queries';
 import { generateUUID, getTrailingMessageId } from '@/lib/utils';
 import { trace } from '@opentelemetry/api';
-import {
-  updateActiveObservation,
-  updateActiveTrace,
-} from '@langfuse/tracing';
+import { updateActiveObservation, updateActiveTrace } from '@langfuse/tracing';
 import { myProvider } from '@/lib/ai/providers';
 import { ChatSDKError } from '@/lib/errors';
 import { createAuthToken } from '@/lib/mcp/auth';
@@ -25,7 +22,10 @@ export interface LangfuseMessage {
   parts: unknown[];
 }
 
-export function logErrorAndEndSpan(rootSpan: ReturnType<typeof trace.getActiveSpan>, output: unknown) {
+export function logErrorAndEndSpan(
+  rootSpan: ReturnType<typeof trace.getActiveSpan>,
+  output: unknown,
+) {
   updateActiveObservation({ output, level: 'ERROR' });
   updateActiveTrace({ name: 'ui.chat.request', output });
   rootSpan?.end();
@@ -40,7 +40,9 @@ export function toChatErrorResponse(
   return new ChatSDKError(errorCode).toResponse();
 }
 
-export function toLangfuseMessages(messages: Array<any>): Array<LangfuseMessage> {
+export function toLangfuseMessages(
+  messages: Array<any>,
+): Array<LangfuseMessage> {
   return messages.map((message) => ({
     role: message.role,
     parts: message.parts ?? [],
@@ -85,49 +87,46 @@ export function logLangfuseOutput(output: unknown) {
 }
 
 export async function streamTextOnFinishHandler(
-	response: any,
-	chatId: string,
-	session: any,
-	userMessage: any,
-	rootSpan: ReturnType<typeof trace.getActiveSpan>): Promise<void>
-{
-  const langfuseResponseMessages = response.messages.map(
-    (msg: any) => ({
-  	role: msg.role,
-  	parts: msg.parts,
-    }),
-  );
-  
+  response: any,
+  chatId: string,
+  session: any,
+  userMessage: any,
+  rootSpan: ReturnType<typeof trace.getActiveSpan>,
+): Promise<void> {
+  const langfuseResponseMessages = response.messages.map((msg: any) => ({
+    role: msg.role,
+    parts: msg.parts,
+  }));
+
   logLangfuseOutput(langfuseResponseMessages);
-  
+
   if (session.user?.id) {
-  	const assistantId = getTrailingMessageId({
-  	  messages: response.messages.filter(
-  		(message: (CoreToolMessage | CoreAssistantMessage) & { id: string }) =>
-		  message.role === 'assistant',
-  	  ),
-  	});
-  
-  	if (!assistantId) throw new Error('No message ID found!');
-  
-  	const [, assistantMessage] = appendResponseMessages({
-  	  messages: [userMessage],
-  	  responseMessages: response.messages,
-  	});
-  
-  	await saveMessages({
-  	  messages: [
-  		{
-  		  id: assistantId,
-  		  chatId: chatId,
-  		  role: assistantMessage.role,
-  		  parts: assistantMessage.parts,
-  		  attachments:
-  			assistantMessage.experimental_attachments ?? [],
-  		  createdAt: new Date(),
-  		},
-  	  ],
-  	});
+    const assistantId = getTrailingMessageId({
+      messages: response.messages.filter(
+        (message: (CoreToolMessage | CoreAssistantMessage) & { id: string }) =>
+          message.role === 'assistant',
+      ),
+    });
+
+    if (!assistantId) throw new Error('No message ID found!');
+
+    const [, assistantMessage] = appendResponseMessages({
+      messages: [userMessage],
+      responseMessages: response.messages,
+    });
+
+    await saveMessages({
+      messages: [
+        {
+          id: assistantId,
+          chatId: chatId,
+          role: assistantMessage.role,
+          parts: assistantMessage.parts,
+          attachments: assistantMessage.experimental_attachments ?? [],
+          createdAt: new Date(),
+        },
+      ],
+    });
   }
 }
 
@@ -179,21 +178,21 @@ export function createChatStream({
             experimental_transform: smoothStream({ chunking: 'word' }),
             experimental_generateMessageId: generateUUID,
             onFinish: async ({ response }) => {
-			  try {
-				await streamTextOnFinishHandler(
-					response,
-					chatId,
-					session,
-					userMessage,
-					rootSpan
-				);
-			  } catch (e) {
-			    console.error(e);
-			    console.error('Failed to save chat :/');
-			  } finally {
-			    rootSpan?.end();
-			    if (mcpClient) await mcpClient.close();
-			  }
+              try {
+                await streamTextOnFinishHandler(
+                  response,
+                  chatId,
+                  session,
+                  userMessage,
+                  rootSpan,
+                );
+              } catch (e) {
+                console.error(e);
+                console.error('Failed to save chat :/');
+              } finally {
+                rootSpan?.end();
+                if (mcpClient) await mcpClient.close();
+              }
             },
             experimental_telemetry: {
               isEnabled: true,
