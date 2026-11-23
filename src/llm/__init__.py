@@ -8,7 +8,6 @@ from .openai import (
     init_llm_openai,
     get_openai_async_client,
     get_openai_sync_client,
-    OPENAI_MODEL,
 )
 
 
@@ -17,5 +16,4 @@ __all__ = [
     "init_llm_openai",
     "get_openai_async_client",
     "get_openai_sync_client",
-    "OPENAI_MODEL",
 ]

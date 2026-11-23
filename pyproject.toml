@@ -52,6 +52,7 @@ dev = [
 [tool.pytest.ini_options]
 addopts = ["--import-mode=importlib", "--strict-markers"]
 testpaths = ["tests"]
+pythonpath = ["."]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests requiring external services",

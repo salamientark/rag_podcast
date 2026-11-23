@@ -121,7 +121,7 @@ When reviewing changes:
 These are not "gotchas"; they are known runtime issues or inconsistencies that should be fixed.
 
 1. **LocalStorage.\_get_absolute_filename is incorrect**: it references cloud attributes (`endpoint`, `bucket_name`) that do not exist in LocalStorage.
-2. **Model naming drift**: query config defaults to `voyage-3.5` but embedder currently uses `voyage-3`. This can cause retrieval/embedding mismatch if not aligned.
+2. **Model naming drift** (fixed): embedder and query config both read the embedding model from `src/model_config.py` (`VOYAGE_EMBEDDING_MODEL`, default `voyage-3.5`). Do not hardcode model names elsewhere.
 3. **Global Settings conflicts**: query modules set `llama_index.core.Settings.*` globally; multiple instances can conflict.
 
 ---
@@ -131,7 +131,7 @@ These are not "gotchas"; they are known runtime issues or inconsistencies that s
 | Component     | Technology                                       |
 | ------------- | ------------------------------------------------ |
 | Transcription | Google Gemini (gemini-3-flash-preview)           |
-| Embeddings    | VoyageAI (currently `voyage-3` in embedder code) |
+| Embeddings    | VoyageAI (`voyage-3.5`, env-overridable)         |
 | Vector Store  | Qdrant                                           |
 | SQL Database  | SQLite with SQLAlchemy                           |
 | LLM           | Claude (query) + OpenAI (misc)                   |
@@ -161,6 +161,12 @@ BUCKET_NAME=xxx
 
 # Podcast Feed
 FEED_URL=https://...
+
+# Model selection (optional, defaults in src/model_config.py)
+GEMINI_TRANSCRIPTION_MODEL=gemini-3-flash-preview
+OPENAI_SUMMARY_MODEL=gpt-5.2
+VOYAGE_EMBEDDING_MODEL=voyage-3.5   # changing it requires re-embedding everything
+COHERE_RERANK_MODEL=rerank-v3.5
 ```
 
 ## Code Quality

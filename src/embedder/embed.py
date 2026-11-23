@@ -7,6 +7,7 @@ from pathlib import Path
 import voyageai
 
 from src.logger import log_function
+from src.model_config import get_embedding_model
 from src.db.database import get_db_session, update_episode_in_db
 from src.db.qdrant_client import (
     get_qdrant_client,
@@ -74,7 +75,7 @@ def embed_text(text: str | list[str], dimensions: int = 1024) -> Any:
         texts_to_embed = [text] if isinstance(text, str) else text
 
         # Check token limits before making API call
-        model_name = "voyage-3.5"
+        model_name = get_embedding_model()
         limit_check = check_voyage_limits(texts_to_embed, model=model_name)
 
         if not limit_check["fits"]:

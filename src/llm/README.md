@@ -75,7 +75,7 @@ Environment variables:
 ```bash
 # OpenAI
 OPENAI_API_KEY=your_openai_api_key
-OPENAI_MODEL=gpt-4  # or gpt-3.5-turbo
+OPENAI_SUMMARY_MODEL=gpt-5.2  # optional, see src/model_config.py
 
 # Optional settings
 LLM_TEMPERATURE=0.1     # Lower for consistent outputs

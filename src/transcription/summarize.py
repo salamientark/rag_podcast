@@ -5,7 +5,8 @@ import io
 from logging import getLogger
 
 from src.storage.cloud import get_cloud_storage
-from src.llm.openai import get_openai_async_client, OPENAI_MODEL
+from src.llm.openai import get_openai_async_client
+from src.model_config import get_summary_model
 
 
 logger = getLogger(__name__)
@@ -58,7 +59,7 @@ async def summarize(text: str) -> str:
         # Ask for summary
         logger.info("Calling OpenAI for transcript summarization")
         response = await llm.responses.create(
-            model=OPENAI_MODEL,
+            model=get_summary_model(),
             instructions=agent_prompt.format(),
             input=text,
             max_output_tokens=900,
