@@ -22,9 +22,13 @@ This module is a dependency for pipeline stages that need to write transcripts a
 
 #### CloudStorage (`cloud.py`)
 
-- Uses boto3 S3 client with custom endpoint
+- Uses boto3 S3 client with custom endpoint, path-style addressing, region from `BUCKET_REGION` (default `ams3`)
+- Works with any S3-compatible provider (DigitalOcean Spaces, Supabase Storage, Cloudflare R2)
 - Uses temporary files in `proc/` directory for uploads
-- Returns public URLs instead of paths
+- Returns object URLs instead of paths: `{BUCKET_ENDPOINT}/{BUCKET_NAME}/{key}`.
+  These identify an object for this client; they are not guaranteed to be public HTTP links.
+- `object_url(key)` builds that URL, `key_from_url(url)` reverses it (also accepts the legacy
+  virtual-hosted form `https://{bucket}.{host}/{key}`), `object_exists(key)` checks a full key
 - Workspace is currently static `transcripts/` (episode_id ignored)
 
 ## Core Methods
@@ -52,7 +56,9 @@ This module is a dependency for pipeline stages that need to write transcripts a
    - Cloud returns URLs
      Callers must treat these as opaque strings and not assume local path semantics.
 3. **Workspace normalization**: implementations should consistently handle trailing `/` in `workspace`.
-4. **Cloud temp file cleanup**: failures should not leave `proc/` artifacts behind.
+4. **One URL format**: never build or parse bucket URLs by hand. Use `CloudStorage.object_url()` and
+   `CloudStorage.key_from_url()`, so stored URLs stay readable whatever the provider.
+5. **Cloud temp file cleanup**: failures should not leave `proc/` artifacts behind.
 
 ## Gotchas (current code reality)
 

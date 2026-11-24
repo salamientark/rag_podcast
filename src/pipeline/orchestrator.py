@@ -132,6 +132,7 @@ async def run_pipeline(
     dry_run: bool = False,
     verbose: bool = False,
     use_cloud_storage: bool = False,
+    upload_audio_to_cloud: bool = True,
     podcast_id: Optional[int] = None,
     podcast_name: Optional[str] = None,
     feed_url: Optional[str] = None,
@@ -149,6 +150,8 @@ async def run_pipeline(
         dry_run (bool): If true, run in preview mode without making persistent changes.
         verbose (bool): If true, enable more detailed logging.
         use_cloud_storage (bool): If true, use cloud storage paths and uploads where supported.
+        upload_audio_to_cloud (bool): If false, audio files stay on the local filesystem even when
+            `use_cloud_storage` is true. Use it for buckets with small quotas or per-file size limits.
         podcast_id (int | None): Podcast ID to filter episodes.
         podcast_name (str | None): Podcast name for display/logging purposes.
         feed_url (str | None): RSS feed URL to sync from.
@@ -184,7 +187,7 @@ async def run_pipeline(
         # Run download audio stage
         if force or stages is None or "download" in stages:
             episodes_to_process, failed = run_download_stage(
-                episodes_to_process, use_cloud_storage
+                episodes_to_process, use_cloud_storage and upload_audio_to_cloud
             )
             all_failures.extend(failed)
 

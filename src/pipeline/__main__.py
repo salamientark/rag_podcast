@@ -204,6 +204,8 @@ def print_dry_run_summary(args: argparse.Namespace, podcast: Podcast, logger) ->
     print(f"  Verbose logging: {args.verbose}")
     storage_type = "Local Filesystem" if args.no_cloud else "Cloud Storage"
     print(f"  Storage backend: {storage_type}")
+    if not args.no_cloud:
+        print(f"  Upload audio to cloud: {not args.no_cloud_audio}")
 
     print()
 
@@ -262,6 +264,7 @@ Available Stages:
 
 Storage Options:
   --no-cloud               Save files to local filesystem only (cloud is default)
+  --no-cloud-audio         Keep audio local, upload transcripts and summaries only
 
 Examples:
   # Using podcast slug
@@ -356,6 +359,11 @@ Notes:
         action="store_true",
         help="Save files to local filesystem only (cloud storage is default)",
     )
+    storage_group.add_argument(
+        "--no-cloud-audio",
+        action="store_true",
+        help="Keep audio files local; still upload transcripts and summaries",
+    )
 
     return parser.parse_args()
 
@@ -447,6 +455,7 @@ async def main():
             dry_run=args.dry_run,
             verbose=args.verbose,
             use_cloud_storage=not args.no_cloud,
+            upload_audio_to_cloud=not args.no_cloud_audio,
             podcast_id=podcast.id,
             podcast_name=podcast.name,
             feed_url=podcast.feed_url,

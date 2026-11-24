@@ -6,14 +6,24 @@ from dotenv import load_dotenv
 from functools import lru_cache
 
 import boto3
+from botocore.config import Config
 from botocore.exceptions import ClientError
 from .base import BaseStorage
 
 logger = getLogger(__name__)
 
+# Kept for existing DigitalOcean Spaces setups; override with BUCKET_REGION.
+DEFAULT_BUCKET_REGION = "ams3"
+
 
 class CloudStorage(BaseStorage):
-    """A client for interacting with cloud storage services. (DigitalOcean)"""
+    """A client for any S3-compatible object store.
+
+    Works with DigitalOcean Spaces, Supabase Storage, Cloudflare R2 and others.
+    Objects are identified by path-style URLs, `{endpoint}/{bucket}/{key}`, which
+    are stored in the database and resolved back to keys with `key_from_url`.
+    They are identifiers for this client, not necessarily public HTTP links.
+    """
 
     def __init__(self):
         try:
@@ -24,24 +34,28 @@ class CloudStorage(BaseStorage):
             access_key = os.getenv("BUCKET_ACCESS_KEY")
             bucket_name = os.getenv("BUCKET_NAME")
 
-            if not origin_endpoint or not key_id or not access_key:
+            if not origin_endpoint or not key_id or not access_key or not bucket_name:
                 raise ValueError(
                     "Missing required environment variables for cloud storage client."
-                    " Please ensure BUCKET_ENDPOINT, BUCKET_KEY_ID, and BUCKET_ACCESS_KEY are set."
+                    " Please ensure BUCKET_ENDPOINT, BUCKET_KEY_ID, BUCKET_ACCESS_KEY"
+                    " and BUCKET_NAME are set."
                 )
+            region = os.getenv("BUCKET_REGION", "").strip() or DEFAULT_BUCKET_REGION
 
             # Store bucket name
             self.bucket_name = bucket_name
-            self.endpoint = origin_endpoint
+            self.endpoint = origin_endpoint.rstrip("/")
 
-            # Initialize the S3 client for DigitalOcean Spaces
+            # Path-style addressing works on every S3-compatible provider,
+            # including those whose endpoint has a path (Supabase Storage).
             session = boto3.session.Session()
             self.client = session.client(
                 "s3",
-                region_name="ams3",
-                endpoint_url=origin_endpoint,
+                region_name=region,
+                endpoint_url=self.endpoint,
                 aws_access_key_id=key_id,
                 aws_secret_access_key=access_key,
+                config=Config(s3={"addressing_style": "path"}),
             )
 
         except ValueError as e:
@@ -67,10 +81,8 @@ class CloudStorage(BaseStorage):
             storage_engine = get_cloud_storage()
             client = storage_engine.get_client()
 
-            parsed_url = urlparse(transcript_url)
-            bucket_name = storage_engine.bucket_name
-            key = parsed_url.path.lstrip("/")
-            response = client.get_object(Bucket=bucket_name, Key=key)
+            key = storage_engine.key_from_url(transcript_url)
+            response = client.get_object(Bucket=storage_engine.bucket_name, Key=key)
             return response["Body"].read().decode()
         except Exception as exc:
             logger.error(
@@ -89,11 +101,70 @@ class CloudStorage(BaseStorage):
         Return:
             str: The absolute filename in cloud storage.
         """
-        protocol, _, path = self.endpoint.partition("://")
-        absolute_filename = (
-            f"{protocol}://{self.bucket_name}.{path}/{workspace}{filename}"
+        if not workspace.endswith("/"):
+            workspace += "/"
+        return self.object_url(f"{workspace}{filename}")
+
+    def object_url(self, key: str) -> str:
+        """Build the URL that identifies an object of the configured bucket.
+
+        Args:
+            key (str): The object key inside the bucket.
+
+        Returns:
+            str: A path-style URL, `{endpoint}/{bucket}/{key}`.
+        """
+        return f"{self.endpoint}/{self.bucket_name}/{key.lstrip('/')}"
+
+    def key_from_url(self, url: str) -> str:
+        """Extract the object key from a URL built for the configured bucket.
+
+        Accepts the path-style URLs produced by `object_url` and the legacy
+        virtual-hosted form, `https://{bucket}.{endpoint host}/{key}`.
+
+        Args:
+            url (str): The object URL, as stored in the database.
+
+        Returns:
+            str: The object key inside the bucket.
+
+        Raises:
+            ValueError: If the URL does not point into the configured bucket.
+        """
+        # Prefixes are matched on the raw string: keys are stored unencoded and
+        # may contain characters ("?", "#") that URL parsing would cut off.
+        endpoint = urlparse(self.endpoint)
+        prefixes = (
+            f"{self.endpoint}/{self.bucket_name}/",
+            f"{endpoint.scheme}://{self.bucket_name}.{endpoint.netloc}/",
         )
-        return absolute_filename
+        for prefix in prefixes:
+            if url.startswith(prefix) and len(url) > len(prefix):
+                return url[len(prefix) :]
+        raise ValueError(f"URL does not belong to bucket '{self.bucket_name}': {url}")
+
+    def object_exists(self, key: str) -> bool:
+        """Check if an object exists in the configured bucket.
+
+        Args:
+            key (str): The object key inside the bucket.
+
+        Returns:
+            bool: True if the object exists, False otherwise.
+
+        Raises:
+            ClientError: For any error other than "not found" (403, 500, ...).
+        """
+        try:
+            self.client.head_object(Bucket=self.bucket_name, Key=key)
+        except ClientError as e:
+            # head_object returns "404" as string, not NoSuchKey
+            # See: https://github.com/boto/boto3/issues/2442
+            error_code = str(e.response.get("Error", {}).get("Code", ""))
+            if error_code in ("404", "NoSuchKey", "NotFound"):
+                return False
+            raise  # Re-raise other errors (403 AccessDenied, 500, etc.)
+        return True
 
     def file_exist(self, workspace: str, filename: str) -> bool:
         """
@@ -108,18 +179,7 @@ class CloudStorage(BaseStorage):
         """
         if not workspace.endswith("/"):
             workspace += "/"
-        try:
-            self.client.head_object(
-                Bucket=self.bucket_name, Key=f"{workspace}{filename}"
-            )
-        except ClientError as e:
-            # head_object returns "404" as string, not NoSuchKey
-            # See: https://github.com/boto/boto3/issues/2442
-            error_code = str(e.response.get("Error", {}).get("Code", ""))
-            if error_code in ("404", "NoSuchKey"):
-                return False
-            raise  # Re-raise other errors (403 AccessDenied, 500, etc.)
-        return True
+        return self.object_exists(f"{workspace}{filename}")
 
     def create_episode_workspace(self, episode_id: Optional[int]) -> str:
         """

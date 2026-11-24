@@ -1,4 +1,3 @@
-import os
 from dotenv import load_dotenv
 import io
 
@@ -15,21 +14,16 @@ load_dotenv()
 
 def make_file_url(bucket_name: str, key: str) -> str:
     """
-    Construct a cloud storage file URL.
+    Construct the URL that identifies a file in cloud storage.
 
     Parameters:
-        bucket_name (str): The name of the cloud storage bucket.
+        bucket_name (str): Unused; the configured bucket (BUCKET_NAME) is always
+            used. Kept for backward compatibility with existing callers.
         key (str): The key (path) in the bucket.
     Returns:
         The constructed file URL.
     """
-    # Format bucket name and key
-    if bucket_name.endswith("/"):
-        bucket_name = bucket_name[:-1]
-    if key.startswith("/"):
-        key = key[1:]
-    endpoint = os.getenv("BUCKET_ENDPOINT")
-    return f"{endpoint}/{bucket_name}/{key}"
+    return get_cloud_storage().object_url(key)
 
 
 async def summarize(text: str) -> str:

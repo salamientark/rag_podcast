@@ -99,3 +99,21 @@ uv run -m src.pipeline --feed-url "https://example.com/feed.xml" --episode-id 67
 uv run -m src.pipeline --podcast "Le rendez-vous Tech" --stages embed --full
 uv run -m src.pipeline --feed-url "https://example.com/feed.xml" --dry-run --verbose
 ```
+
+## Storage flags
+
+- default: audio, transcripts and summaries are uploaded to the bucket
+- `--no-cloud-audio`: audio stays local; transcripts and summaries are still uploaded.
+  Use it for buckets with a small quota or a per-file size limit (e.g. Supabase free tier).
+- `--no-cloud`: audio and transcripts stay local. The summarization stage still needs
+  the bucket: summaries are only ever stored in cloud storage.
+
+## Transcript location
+
+`formatted_transcript_path` holds a local path or a bucket URL, depending on the
+storage flags used at transcription time. Stages that read the transcript from disk
+go through `transcript_paths.resolve_local_transcript()`:
+
+- a bucket URL maps to the canonical local file and is downloaded only when no
+  non-empty local copy exists. **The local copy wins**; it is not compared with the bucket.
+- the embedding stage skips episodes that have no transcript yet, without changing their stage.
