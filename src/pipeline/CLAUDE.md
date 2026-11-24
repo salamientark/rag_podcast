@@ -112,7 +112,7 @@ uv run -m src.pipeline --feed-url "https://example.com/feed.xml" --dry-run --ver
 
 `formatted_transcript_path` holds a local path or a bucket URL, depending on the
 storage flags used at transcription time. Stages that read the transcript from disk
-go through `transcript_paths.resolve_local_transcript()`:
+go through `src.storage.transcript_paths.resolve_local_transcript()`:
 
 - a bucket URL maps to the canonical local file and is downloaded only when no
   non-empty local copy exists. **The local copy wins**; it is not compared with the bucket.

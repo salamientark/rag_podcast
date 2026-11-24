@@ -36,7 +36,7 @@ from src.ingestion.audio_scrap import (
 )
 from src.transcription.gemini_transcript import transcribe_with_gemini
 from src.embedder.embed import process_episode_embedding
-from src.pipeline.transcript_paths import resolve_local_transcript
+from src.storage.transcript_paths import resolve_local_transcript
 from src.storage import get_cloud_storage, LocalStorage
 from src.transcription.summarize import summarize, save_summary_to_cloud, make_file_url
 

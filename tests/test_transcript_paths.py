@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from src.pipeline import transcript_paths
-from src.pipeline.transcript_paths import resolve_local_transcript
+from src.storage import transcript_paths
+from src.storage.transcript_paths import resolve_local_transcript
 
 URL = (
     "https://abcdefgh.storage.supabase.co/storage/v1/s3/podcasts/"
