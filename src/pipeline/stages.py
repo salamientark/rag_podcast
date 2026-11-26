@@ -36,6 +36,7 @@ from src.ingestion.audio_scrap import (
 )
 from src.transcription.gemini_transcript import transcribe_with_gemini
 from src.embedder.embed import process_episode_embedding
+from src.storage.transcript_paths import resolve_local_transcript
 from src.storage import get_cloud_storage, LocalStorage
 from src.transcription.summarize import summarize, save_summary_to_cloud, make_file_url
 
@@ -409,7 +410,7 @@ async def run_summarization_stage(
             summary_key = f"{podcast}/summaries/episode_{episode_id:03d}_summary.txt"
 
             link = make_file_url(bucket_name, summary_key)
-            if storage_engine.file_exist(bucket_name, summary_key) and not force:
+            if storage_engine.object_exists(summary_key) and not force:
                 logger.info(
                     f"Summary already exists for episode ID {episode_id:03d}, skipping summarization."
                 )
@@ -437,9 +438,7 @@ async def run_summarization_stage(
                     transcript_content = local_path.read_text(encoding="utf-8")
                 else:
                     # Read from cloud storage
-                    transcript_key = (
-                        f"{podcast}/" + transcript_path.split(f"{podcast}/")[1]
-                    )
+                    transcript_key = storage_engine.key_from_url(transcript_path)
                     response = client.get_object(Bucket=bucket_name, Key=transcript_key)
                     transcript_content = response["Body"].read().decode("utf-8")
 
@@ -525,14 +524,21 @@ def run_embedding_stage(
         # Process each transcript with 3-tier caching
         for episode in episodes:
             episode_id = episode["episode_id"]
+            if not episode.get("formatted_transcript_path"):
+                # Not transcribed yet: leave its stage untouched.
+                logger.warning(
+                    f"Episode {episode_id:03d} has no transcript yet, skipping embedding."
+                )
+                continue
             try:
+                transcript_file = resolve_local_transcript(episode)
                 logger.info(
-                    f"Processing embedding for episode ID {episode_id:03d} from file {episode['formatted_transcript_path']}..."
+                    f"Processing embedding for episode ID {episode_id:03d} from file {transcript_file}..."
                 )
 
                 # Use new 3-tier caching function
                 result = process_episode_embedding(
-                    input_file=episode["formatted_transcript_path"],
+                    input_file=transcript_file,
                     episode_uuid=episode["uuid"],
                     collection_name=collection_name,
                     dimensions=1024,

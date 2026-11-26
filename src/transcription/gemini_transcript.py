@@ -14,10 +14,8 @@ from google import genai
 from google.genai import types
 
 from src.logger import log_function
+from src.model_config import get_transcription_model
 
-
-# GEMINI_MODEL = "gemini-3-pro-preview"
-GEMINI_MODEL = "gemini-3-flash-preview"
 
 GEMINI_SYSTEM_INSTRUCTION = """You are an expert audio transcriber. Transcribe the following podcast audio.
 
@@ -61,7 +59,7 @@ def get_gemini_client() -> genai.Client:
 def transcribe_with_gemini(
     file_path: Path,
     description: str,
-    model: str = GEMINI_MODEL,
+    model: str | None = None,
 ) -> dict:
     """Transcribe audio using Gemini with speaker identification.
 
@@ -71,7 +69,8 @@ def transcribe_with_gemini(
     Args:
         file_path: Path to audio file
         description: Episode description for speaker context
-        model: Gemini model to use (see GEMINI_MODEL constant)
+        model: Gemini model to use. Defaults to GEMINI_TRANSCRIPTION_MODEL
+            (see src.model_config).
 
     Returns:
         Dict with transcript text, formatted output, and metadata
@@ -82,6 +81,7 @@ def transcribe_with_gemini(
         Exception: If transcription fails
     """
     logger = logging.getLogger("transcript")
+    model = model or get_transcription_model()
 
     if not file_path.exists():
         raise FileNotFoundError(f"Audio file not found: {file_path}")

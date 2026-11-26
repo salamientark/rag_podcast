@@ -2,8 +2,6 @@ import os
 from dotenv import load_dotenv
 from openai import OpenAI, AsyncOpenAI
 
-OPENAI_MODEL = "gpt-5.2"
-
 _async_client: AsyncOpenAI | None = None
 _sync_client: OpenAI | None = None
 

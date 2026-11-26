@@ -15,7 +15,6 @@ For content questions across multiple episodes, use `ask_podcast`.
 
 import logging
 from typing import Optional
-from urllib.parse import urlparse
 
 from src.storage.cloud import get_cloud_storage
 
@@ -66,10 +65,8 @@ async def get_episode_summary(
         summary_url = episode_info.get("summary_path")
         if summary_url is None:
             return f"error: no summary found for episode on '{date}' for podcast '{normalized_podcast}'."
-        parsed_url = urlparse(summary_url)
-        bucket_name = storage_engine.bucket_name
-        key = parsed_url.path.lstrip("/").split("/", 1)[1]
-        response = client.get_object(Bucket=bucket_name, Key=key)
+        key = storage_engine.key_from_url(summary_url)
+        response = client.get_object(Bucket=storage_engine.bucket_name, Key=key)
         summary_content = response["Body"].read().decode("utf-8")
         return summary_content
 

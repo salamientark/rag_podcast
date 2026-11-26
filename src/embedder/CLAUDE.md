@@ -15,9 +15,7 @@ This documentation is review-oriented: it defines the payload and caching contra
 - `embed_text(text, dimensions=1024)`  
   Generate embeddings using VoyageAI. Accepts a string or list of strings. Validates dimensions and checks token limits before calling the API.
 
-  **Important (current code reality):**
-  - The embedder currently uses `model_name = "voyage-3"` inside `embed_text()`.
-  - If the rest of the system expects `voyage-3.5`, this mismatch should be resolved (either update code or config), otherwise retrieval quality and compatibility assumptions can drift.
+  The model comes from `get_embedding_model()` in `src/model_config.py` (`VOYAGE_EMBEDDING_MODEL`, default `voyage-3.5`), the same source the query config uses. It must have an entry in `VOYAGE_LIMITS` (`src/chunker/token_counter.py`).
 
 - `process_episode_embedding(input_file, episode_uuid, collection_name, dimensions)`  
   Main processing function implementing **3-tier caching**:
@@ -78,7 +76,7 @@ The helper `ensure_payload_indexes()` exists for this purpose.
 1. **UUID vs episode_id**: Qdrant linking must use `db_uuid` (Episode.uuid). `episode_id` is not globally unique.
 2. **Dimension changes**: changing `dimensions` requires re-embedding; local cache filenames include dimension suffix.
 3. **Multi-chunk support**: code must handle both 1D and 2D `.npy` formats.
-4. **Model naming drift**: keep embedder model name aligned with query embedding model configuration.
+4. **Model naming**: never hardcode the embedding model; embedder and query both read it from `src/model_config.py`.
 
 ## Known Broken (current code reality)
 

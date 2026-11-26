@@ -432,12 +432,12 @@ File: `ui/components/data-stream-handler.tsx`
 
 File: `ui/lib/ai/providers.ts`
 
-- Uses `customProvider` to define:
-  - `chat-model` (Anthropic Claude Sonnet)
-  - `chat-model-reasoning` (OpenAI o3)
-  - `title-model` (Claude Sonnet)
-  - `artifact-model` (Claude Haiku)
-  - `gpt` (OpenAI GPT-4o)
+- Uses `customProvider` to define four roles, each resolved from an env var holding a `provider:model` spec (providers: `openai`, `anthropic`, `google`, `xai`, `deepseek`):
+  - `chat-model` — `CHAT_MODEL` (default `openai:gpt-5.2`)
+  - `chat-model-reasoning` — `CHAT_REASONING_MODEL` (default `openai:gpt-5.2`)
+  - `title-model` — `TITLE_MODEL` (default `anthropic:claude-haiku-4-5`)
+  - `artifact-model` — `ARTIFACT_MODEL` (default `anthropic:claude-haiku-4-5`)
+- An invalid spec throws at module load. Chat models must support tool calling (MCP tools).
 - Image model: DALL·E 3
 
 ### 8.2 Prompts

@@ -51,7 +51,7 @@ uv run -m src.embedder transcript.json --verbose
 
 ## Features
 
-- **VoyageAI Integration** - Uses voyage-3 model (1024-dim embeddings)
+- **VoyageAI Integration** - Uses voyage-3.5 by default (1024-dim embeddings), overridable with `VOYAGE_EMBEDDING_MODEL`
 - **Qdrant Storage** - Direct integration with vector database
 - **Batch Processing** - Handle multiple files with glob patterns
 - **Token Validation** - Pre-validates text against VoyageAI limits
@@ -79,8 +79,8 @@ else:
 ```
 
 **VoyageAI Model Limits:**
-- **voyage-3**: 32,000 tokens (current default)
-- **voyage-3.5**: 32,000 tokens (latest model)
+- **voyage-3**: 32,000 tokens
+- **voyage-3.5**: 32,000 tokens (current default)
 - **voyage-3-large**: 32,000 tokens (best quality)
 
 ## Output Examples

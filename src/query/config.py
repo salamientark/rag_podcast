@@ -6,10 +6,12 @@ for the LlamaIndex-based podcast query system.
 """
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 from dotenv import load_dotenv
+
+from src.model_config import get_embedding_model, get_rerank_model
 
 # Load environment variables at module import time (before dataclass field defaults)
 load_dotenv()
@@ -20,14 +22,16 @@ class QueryConfig:
     """Configuration for the podcast query agent"""
 
     # Embedding model
-    embedding_model: str = "voyage-3.5"  # VoyageAI model
+    # VoyageAI model (env: VOYAGE_EMBEDDING_MODEL)
+    embedding_model: str = field(default_factory=get_embedding_model)
     embedding_dimensions: int = 1024
 
     # Retrieval settings
     similarity_top_k: int = 10  # Initial retrieval from Qdrant (before reranking)
 
     # Cohere reranking
-    cohere_rerank_model: str = "rerank-v3.5"
+    # env: COHERE_RERANK_MODEL
+    cohere_rerank_model: str = field(default_factory=get_rerank_model)
     rerank_top_n: int = 5  # Final results after reranking
 
     # Chat memory (3000 tokens = ~8-12 exchanges) - used by CLI
